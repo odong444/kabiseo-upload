@@ -4,11 +4,20 @@ reviewer_manager.py - 리뷰어 관리
 리뷰어 등록, 조회, 상태 관리.
 """
 
+import re
 import logging
 from modules.sheets_manager import SheetsManager
 from modules.utils import today_str, safe_int
 
 logger = logging.getLogger(__name__)
+
+
+def _format_phone(raw: str) -> str:
+    """전화번호 포맷: 01012341234 → 010-1234-1234"""
+    digits = re.sub(r"[^0-9]", "", raw)
+    if len(digits) == 11:
+        return f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+    return raw
 
 
 class ReviewerManager:
@@ -35,7 +44,7 @@ class ReviewerManager:
             "날짜": today_str(),
             "제품명": campaign.get("상품명", ""),
             "수취인명": fd.get("수취인명", ""),
-            "연락처": fd.get("연락처", ""),
+            "연락처": _format_phone(fd.get("연락처", "")),
             "은행": fd.get("은행", ""),
             "계좌": fd.get("계좌", ""),
             "예금주": fd.get("예금주", ""),
@@ -100,7 +109,7 @@ class ReviewerManager:
             deposit_amount = review_fee + purchase_amount if (review_fee or purchase_amount) else ""
             update_fields = {
                 "수취인명": form_data.get("수취인명", ""),
-                "연락처": form_data.get("연락처", ""),
+                "연락처": _format_phone(form_data.get("연락처", "")),
                 "은행": form_data.get("은행", ""),
                 "계좌": form_data.get("계좌", ""),
                 "예금주": form_data.get("예금주", ""),
