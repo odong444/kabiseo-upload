@@ -15,7 +15,7 @@ STEP 8: 완료 (입금대기)
 import re
 import logging
 from modules.state_store import StateStore, ReviewerState
-from modules.form_parser import parse_menu_choice, parse_campaign_choice, parse_full_form
+from modules.form_parser import parse_menu_choice, parse_campaign_choice, parse_full_form, parse_multiple_forms
 from modules.campaign_manager import CampaignManager
 from modules.reviewer_manager import ReviewerManager
 from modules.chat_logger import ChatLogger
@@ -321,20 +321,27 @@ class StepMachine:
         # 양식 입력이 온 경우 step5로 처리
         return self._step5_form(state, message)
 
-    # ─────────── STEP 5: 양식 접수 (아이디별 개별 처리) ───────────
+    # ─────────── STEP 5: 양식 접수 (아이디별 개별 처리, 다중 양식 한번에 가능) ───────────
 
     def _step5_form(self, state: ReviewerState, message: str) -> str:
-        parsed = parse_full_form(message)
         campaign = state.temp_data.get("campaign", {})
         store_ids = state.temp_data.get("store_ids", [])
         submitted_ids = state.temp_data.get("submitted_ids", [])
         remaining_ids = [sid for sid in store_ids if sid not in submitted_ids]
 
-        required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
-        missing = [f for f in required if not parsed.get(f)]
+        if not campaign or not store_ids:
+            state.step = 0
+            return "캠페인 정보가 없습니다. 처음부터 다시 진행해주세요.\n\n" + tpl.WELCOME_BACK.format(name=state.name)
 
-        if missing:
-            # 양식이 아닌 일반 메시지인 경우
+        # 다중 양식 감지 (아이디 필드가 2개 이상이면 분할 파싱)
+        forms = parse_multiple_forms(message)
+
+        # 양식이 없으면 단일 파싱 시도
+        if not forms:
+            parsed = parse_full_form(message)
+            required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
+            missing = [f for f in required if not parsed.get(f)]
+
             if len(missing) == len(required):
                 form_template = self._build_form_template(
                     campaign, state.name, state.phone, remaining_ids
@@ -349,70 +356,92 @@ class StepMachine:
                 form_template=form_template,
             )
 
-        if not campaign or not store_ids:
-            state.step = 0
-            return "캠페인 정보가 없습니다. 처음부터 다시 진행해주세요.\n\n" + tpl.WELCOME_BACK.format(name=state.name)
-
+        # 각 양식 처리
         campaign_id = campaign.get("캠페인ID", "")
+        results = []
+        errors = []
 
-        # 아이디 매칭: 1개면 자동, 다중이면 양식 내 아이디 필드로 매칭
-        form_id = parsed.get("아이디", "").strip()
+        for parsed in forms:
+            required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
+            missing = [f for f in required if not parsed.get(f)]
 
-        if len(remaining_ids) == 1:
-            target_id = remaining_ids[0]
-        elif form_id:
-            if form_id in remaining_ids:
+            if missing:
+                form_id = parsed.get("아이디", "?")
+                errors.append(f"[{form_id}] 누락: {', '.join(missing)}")
+                continue
+
+            # 아이디 매칭
+            form_id = parsed.get("아이디", "").strip()
+
+            if len(remaining_ids) == 1 and not form_id:
+                target_id = remaining_ids[0]
+            elif form_id and form_id in remaining_ids:
                 target_id = form_id
+            elif form_id:
+                errors.append(f"'{form_id}'은(는) 미제출 아이디 목록에 없습니다.")
+                continue
             else:
-                return (
-                    f"⚠️ '{form_id}'은(는) 미제출 아이디 목록에 없습니다.\n"
-                    f"미제출 아이디: {', '.join(remaining_ids)}\n\n"
-                    f"양식에 정확한 아이디를 입력해주세요."
-                )
-        else:
-            # 다중 계정인데 아이디 미입력
-            return (
-                f"⚠️ 여러 계정 진행 중이므로 양식에 아이디를 입력해주세요.\n"
-                f"미제출 아이디: {', '.join(remaining_ids)}\n\n"
-                + self._build_form_template(campaign, state.name, state.phone, remaining_ids)
+                errors.append("아이디가 입력되지 않은 양식이 있습니다.")
+                continue
+
+            # 결제금액 자동 설정 + 시트 업데이트
+            parsed["결제금액"] = campaign.get("결제금액", "")
+            self.reviewers.update_form_data(
+                state.name, state.phone, campaign_id, target_id, parsed
             )
 
-        # 결제금액은 캠페인에서 자동 설정
-        parsed["결제금액"] = campaign.get("결제금액", "")
+            submitted_ids.append(target_id)
+            remaining_ids = [sid for sid in store_ids if sid not in submitted_ids]
+            results.append(target_id)
 
-        # 해당 아이디 행에 양식 데이터 업데이트
-        self.reviewers.update_form_data(
-            state.name, state.phone, campaign_id, target_id, parsed
-        )
-
-        # 제출 완료 트래킹
-        submitted_ids.append(target_id)
         state.temp_data["submitted_ids"] = submitted_ids
-        new_remaining = [sid for sid in store_ids if sid not in submitted_ids]
 
+        # 응답 조합
+        response_parts = []
+
+        if results:
+            confirmed = ", ".join(results)
+            response_parts.append(f"✅ 양식 접수 완료: {confirmed}")
+
+        if errors:
+            error_text = "\n".join(f"⚠️ {e}" for e in errors)
+            response_parts.append(error_text)
+
+        new_remaining = [sid for sid in store_ids if sid not in submitted_ids]
         upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
 
         if new_remaining:
-            # 아직 미제출 아이디 남음 → 다음 양식 요청
             form_template = self._build_form_template(
                 campaign, state.name, state.phone, new_remaining
             )
-            return (
-                f"✅ [{target_id}] 양식 접수 완료!\n\n"
-                f"⏳ 남은 아이디: {', '.join(new_remaining)}\n"
+            response_parts.append(
+                f"\n⏳ 남은 아이디: {', '.join(new_remaining)}\n"
                 f"다음 양식을 제출해주세요:\n\n{form_template}"
             )
+            return "\n\n".join(response_parts)
+
+        if not results:
+            # 에러만 있고 성공한 양식이 없는 경우
+            form_template = self._build_form_template(
+                campaign, state.name, state.phone, new_remaining or store_ids
+            )
+            response_parts.append(f"\n양식을 다시 제출해주세요:\n\n{form_template}")
+            return "\n\n".join(response_parts)
 
         # 모든 아이디 양식 제출 완료 → step 6
         state.step = 6
         id_list = ", ".join(store_ids)
+        last_parsed = forms[-1] if forms else {}
 
-        return tpl.FORM_RECEIVED.format(
-            product_name=campaign.get("상품명", ""),
-            id_list=id_list,
-            recipient_name=parsed.get("수취인명", state.name),
-            upload_url=upload_url,
+        response_parts.append(
+            tpl.FORM_RECEIVED.format(
+                product_name=campaign.get("상품명", ""),
+                id_list=id_list,
+                recipient_name=last_parsed.get("수취인명", state.name),
+                upload_url=upload_url,
+            )
         )
+        return "\n\n".join(response_parts)
 
     # ─────────── STEP 6: 구매캡쳐 대기 ───────────
 

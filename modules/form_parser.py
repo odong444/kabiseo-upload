@@ -90,7 +90,7 @@ FORM_FIELDS = [
 
 
 def parse_full_form(text: str) -> dict:
-    """전체 양식 파싱 (아이디, 수취인명, 연락처, 은행, 계좌, 예금주, 주소)
+    """단일 양식 파싱 (아이디, 수취인명, 연락처, 은행, 계좌, 예금주, 주소)
 
     Returns: dict of parsed fields
     """
@@ -106,6 +106,34 @@ def parse_full_form(text: str) -> dict:
                 break
 
     return result
+
+
+def parse_multiple_forms(text: str) -> list[dict]:
+    """한 메시지에서 여러 양식 분리 파싱
+
+    아이디 필드가 2개 이상이면 아이디 기준으로 분할.
+    1개 이하면 단일 양식으로 처리.
+
+    Returns: list of parsed form dicts
+    """
+    # 아이디 필드 위치 찾기
+    id_matches = list(re.finditer(r"(?:아이디|[Ii][Dd])\s*[:：]", text))
+
+    if len(id_matches) <= 1:
+        result = parse_full_form(text)
+        return [result] if result else []
+
+    # 아이디 필드 위치 기준으로 텍스트 분할
+    forms = []
+    for i, match in enumerate(id_matches):
+        start = match.start()
+        end = id_matches[i + 1].start() if i + 1 < len(id_matches) else len(text)
+        section = text[start:end].strip()
+        parsed = parse_full_form(section)
+        if parsed:
+            forms.append(parsed)
+
+    return forms
 
 
 def count_form_fields(parsed: dict) -> int:
