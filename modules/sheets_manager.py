@@ -268,8 +268,18 @@ class SheetsManager:
                 return c
         return None
 
+    # 중복 체크 시 무시할 상태 (미완료/취소)
+    _DUP_IGNORE_STATUSES = {
+        STATUS_APPLIED, STATUS_GUIDE_SENT,
+        STATUS_TIMEOUT, STATUS_CANCELLED, "",
+    }
+
     def check_duplicate(self, campaign_id: str, store_id: str) -> bool:
-        """같은 캠페인ID + 같은 아이디 중복 여부 확인"""
+        """같은 캠페인ID + 같은 아이디 중복 여부 확인
+
+        구매내역제출 이상 상태만 중복으로 판정.
+        신청/가이드전달/타임아웃취소/취소 상태는 무시.
+        """
         ws = self._get_ws()
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
@@ -284,8 +294,8 @@ class SheetsManager:
             if len(row) <= max(cid_col, sid_col):
                 continue
             if row[cid_col] == campaign_id and row[sid_col] == store_id:
-                # 취소 상태는 제외
-                if status_col >= 0 and len(row) > status_col and row[status_col] == STATUS_CANCELLED:
+                status = row[status_col] if status_col >= 0 and len(row) > status_col else ""
+                if status in self._DUP_IGNORE_STATUSES:
                     continue
                 return True
         return False
