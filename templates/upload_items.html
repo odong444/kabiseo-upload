@@ -8,29 +8,43 @@
     {% if items %}
     <p class="page-subtitle">'{{ query }}' 님의 제출 대상 ({{ items|length }}건)</p>
 
-    <div class="item-list">
+    <!-- 일괄 제출 버튼 -->
+    <div class="batch-actions">
+        <button type="button" class="btn btn-secondary btn-full batch-submit-btn" disabled onclick="batchUpload()">
+            전체 제출 (0건 선택됨)
+        </button>
+        <div class="batch-progress" style="display:none;">
+            <div class="progress-bar"><div class="progress-fill"></div></div>
+            <p class="progress-text">업로드 중...</p>
+        </div>
+    </div>
+
+    <div class="item-list" id="itemList">
         {% for item in items %}
-        <div class="item-card">
+        <div class="item-card" data-row="{{ item['_row_idx'] }}">
             <div class="item-info">
                 <div class="item-product">{{ item.get('제품명', '') }}</div>
                 <div class="item-detail">아이디: {{ item.get('아이디', '') }}</div>
                 <div class="item-detail">구매일: {{ item.get('구매일', '') }}</div>
-                <div class="item-detail">상태: {{ item.get('상태', '') }}</div>
+                <div class="item-detail">상태: <span class="item-status">{{ item.get('상태', '') }}</span></div>
             </div>
-            <form
-                action="{{ url_for('upload_' + capture_type + '_submit', row=item['_row_idx']) }}"
-                method="POST"
-                enctype="multipart/form-data"
-                class="upload-form"
-            >
-                <label class="file-label">
-                    <input type="file" name="capture" accept="image/*" required class="file-input"
-                        onchange="this.closest('form').querySelector('.file-name').textContent = this.files[0]?.name || ''; this.closest('form').querySelector('.submit-btn').disabled = false;">
-                    <span class="file-btn">&#128248; 사진 선택</span>
-                    <span class="file-name"></span>
-                </label>
-                <button type="submit" class="btn btn-primary submit-btn" disabled>제출</button>
-            </form>
+            <div class="upload-controls">
+                <form
+                    action="{{ url_for('upload_' + capture_type + '_submit', row=item['_row_idx']) }}"
+                    method="POST"
+                    enctype="multipart/form-data"
+                    class="upload-form"
+                >
+                    <label class="file-label">
+                        <input type="file" name="capture" accept="image/*" required class="file-input"
+                            onchange="onFileSelect(this)">
+                        <span class="file-btn">&#128248; 사진 선택</span>
+                        <span class="file-name"></span>
+                    </label>
+                    <button type="submit" class="btn btn-primary submit-btn btn-sm" disabled>제출</button>
+                </form>
+                <div class="upload-result" style="display:none;"></div>
+            </div>
         </div>
         {% endfor %}
     </div>
@@ -44,6 +58,106 @@
 
     <a href="{{ url_for('upload_' + capture_type) }}" class="back-link">&#8592; 다시 검색</a>
 </div>
+
+<script>
+const CAPTURE_TYPE = "{{ capture_type }}";
+
+function onFileSelect(input) {
+    const form = input.closest('form');
+    const card = input.closest('.item-card');
+    form.querySelector('.file-name').textContent = input.files[0]?.name || '';
+    form.querySelector('.submit-btn').disabled = !input.files.length;
+    updateBatchBtn();
+}
+
+function getSelectedCards() {
+    const cards = document.querySelectorAll('.item-card');
+    const selected = [];
+    cards.forEach(card => {
+        const input = card.querySelector('.file-input');
+        if (input && input.files.length > 0) {
+            selected.push(card);
+        }
+    });
+    return selected;
+}
+
+function updateBatchBtn() {
+    const btn = document.querySelector('.batch-submit-btn');
+    if (!btn) return;
+    const selected = getSelectedCards();
+    btn.disabled = selected.length === 0;
+    btn.textContent = `전체 제출 (${selected.length}건 선택됨)`;
+}
+
+async function batchUpload() {
+    const cards = getSelectedCards();
+    if (cards.length === 0) return;
+
+    const btn = document.querySelector('.batch-submit-btn');
+    const progressWrap = document.querySelector('.batch-progress');
+    const progressFill = document.querySelector('.progress-fill');
+    const progressText = document.querySelector('.progress-text');
+
+    btn.disabled = true;
+    btn.textContent = '업로드 중...';
+    progressWrap.style.display = 'block';
+
+    let done = 0;
+    let success = 0;
+    const total = cards.length;
+
+    for (const card of cards) {
+        const row = card.dataset.row;
+        const fileInput = card.querySelector('.file-input');
+        const resultDiv = card.querySelector('.upload-result');
+        const formDiv = card.querySelector('.upload-form');
+
+        if (!fileInput.files.length) continue;
+
+        const formData = new FormData();
+        formData.append('capture', fileInput.files[0]);
+        formData.append('capture_type', CAPTURE_TYPE);
+        formData.append('row', row);
+
+        progressText.textContent = `업로드 중... (${done + 1}/${total})`;
+        progressFill.style.width = `${((done) / total) * 100}%`;
+
+        try {
+            const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await resp.json();
+
+            if (data.ok) {
+                success++;
+                formDiv.style.display = 'none';
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span class="result-success">&#9989; 제출 완료</span>';
+                card.classList.add('uploaded');
+            } else {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<span class="result-fail">&#10060; ${data.message}</span>`;
+            }
+        } catch (e) {
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<span class="result-fail">&#10060; 네트워크 오류</span>';
+        }
+        done++;
+    }
+
+    progressFill.style.width = '100%';
+    progressText.textContent = `완료! ${success}/${total}건 제출 성공`;
+    btn.textContent = `전체 제출 완료 (${success}/${total})`;
+
+    if (success === total) {
+        setTimeout(() => {
+            btn.textContent = '모두 제출 완료!';
+        }, 500);
+    } else {
+        btn.disabled = false;
+        updateBatchBtn();
+    }
+}
+</script>
 {% endblock %}
 
 {% block nav %}

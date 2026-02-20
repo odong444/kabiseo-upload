@@ -15,7 +15,7 @@ eventlet.monkey_patch()
 import os
 import logging
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_socketio import SocketIO
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -169,6 +169,37 @@ def _handle_upload(capture_type: str, row: int):
         logger.error(f"업로드 에러: {e}", exc_info=True)
         flash(f"업로드 중 오류가 발생했습니다: {e}")
         return redirect(request.referrer or url_for("upload"))
+
+
+# ──────── API: AJAX 업로드 ────────
+
+@app.route("/api/upload", methods=["POST"])
+def api_upload():
+    """AJAX 단건 업로드 (일괄 제출에서 호출)"""
+    file = request.files.get("capture")
+    capture_type = request.form.get("capture_type", "")
+    row = request.form.get("row", "0")
+
+    if not file or file.filename == "":
+        return jsonify({"ok": False, "message": "파일을 선택해주세요."}), 400
+
+    if capture_type not in ("purchase", "review"):
+        return jsonify({"ok": False, "message": "잘못된 유형입니다."}), 400
+
+    if not models.drive_uploader or not models.sheets_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중입니다."}), 503
+
+    try:
+        row_idx = int(row)
+        desc = f"{capture_type}_row{row_idx}"
+        drive_link = models.drive_uploader.upload_from_flask_file(file, capture_type, desc)
+        models.sheets_manager.update_after_upload(capture_type, row_idx, drive_link)
+
+        label = "구매" if capture_type == "purchase" else "리뷰"
+        return jsonify({"ok": True, "message": f"{label} 캡쳐 제출 완료!"})
+    except Exception as e:
+        logger.error(f"AJAX 업로드 에러: {e}", exc_info=True)
+        return jsonify({"ok": False, "message": f"업로드 실패: {e}"}), 500
 
 
 # ──────── API: 진행현황 / 입금현황 (AJAX) ────────

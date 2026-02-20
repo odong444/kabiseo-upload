@@ -32,16 +32,21 @@ class DriveUploader:
             metadata["parents"] = [folder_id]
 
         uploaded = self.service.files().create(
-            body=metadata, media_body=media, fields="id, webViewLink"
+            body=metadata, media_body=media, fields="id, webViewLink",
+            supportsAllDrives=True,
         ).execute()
 
         file_id = uploaded["id"]
 
         # 공유 설정
-        self.service.permissions().create(
-            fileId=file_id,
-            body={"type": "anyone", "role": "reader"},
-        ).execute()
+        try:
+            self.service.permissions().create(
+                fileId=file_id,
+                body={"type": "anyone", "role": "reader"},
+                supportsAllDrives=True,
+            ).execute()
+        except Exception as e:
+            logger.warning(f"공유 설정 실패 (공유 드라이브는 자동 공유): {e}")
 
         link = uploaded.get("webViewLink", f"https://drive.google.com/file/d/{file_id}/view")
         logger.info(f"Drive 업로드 완료: {filename} → {link}")
