@@ -18,12 +18,17 @@ from modules.utils import today_str
 logger = logging.getLogger(__name__)
 
 # 상태 상수
+STATUS_APPLIED = "신청"
 STATUS_GUIDE_SENT = "가이드전달"
-STATUS_FORM_RECEIVED = "양식접수"
-STATUS_REVIEW_WAIT = "리뷰대기"
-STATUS_REVIEW_DONE = "리뷰완료"
-STATUS_SETTLED = "정산완료"
+STATUS_PURCHASE_DONE = "구매내역제출"
+STATUS_REVIEW_DONE = "리뷰제출"
+STATUS_SETTLED = "입금완료"
+STATUS_TIMEOUT = "타임아웃취소"
 STATUS_CANCELLED = "취소"
+
+# 하위 호환
+STATUS_FORM_RECEIVED = "구매내역제출"
+STATUS_REVIEW_WAIT = "리뷰대기"
 
 
 class SheetsManager:
@@ -168,9 +173,8 @@ class SheetsManager:
                 paid.append(item)
             elif status == STATUS_REVIEW_DONE:
                 pending.append(item)
-            elif status in (STATUS_FORM_RECEIVED, STATUS_GUIDE_SENT, STATUS_REVIEW_WAIT):
-                if status == STATUS_REVIEW_WAIT:
-                    no_review.append(item)
+            elif status == STATUS_PURCHASE_DONE:
+                no_review.append(item)
 
         return {"paid": paid, "pending": pending, "no_review": no_review}
 
@@ -188,7 +192,7 @@ class SheetsManager:
         """업로드 완료 후 시트 업데이트"""
         if capture_type == "purchase":
             self.update_cell_by_col(row_idx, "구매캡쳐링크", drive_link)
-            self.update_cell_by_col(row_idx, "상태", STATUS_REVIEW_WAIT)
+            self.update_cell_by_col(row_idx, "상태", STATUS_PURCHASE_DONE)
         elif capture_type == "review":
             self.update_cell_by_col(row_idx, "리뷰캡쳐링크", drive_link)
             self.update_cell_by_col(row_idx, "상태", STATUS_REVIEW_DONE)
@@ -211,6 +215,33 @@ class SheetsManager:
         self.update_cell_by_col(row_idx, "상태", STATUS_SETTLED)
         self.update_cell_by_col(row_idx, "입금금액", amount)
         self.update_cell_by_col(row_idx, "입금정리", today_str())
+
+    def cancel_by_timeout(self, name: str, phone: str, campaign_id: str, store_ids: list[str]):
+        """타임아웃 취소: 해당 유저의 해당 캠페인 신청/가이드전달 상태 행을 타임아웃취소로 변경"""
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        all_rows = ws.get_all_values()
+
+        name_col = self._find_col(headers, "수취인명")
+        phone_col = self._find_col(headers, "연락처")
+        cid_col = self._find_col(headers, "캠페인ID")
+        sid_col = self._find_col(headers, "아이디")
+        status_col = self._find_col(headers, "상태")
+
+        if any(c < 0 for c in (name_col, phone_col, cid_col, sid_col, status_col)):
+            return 0
+
+        cancelled = 0
+        for i, row in enumerate(all_rows[1:], start=2):
+            if len(row) <= max(name_col, phone_col, cid_col, sid_col, status_col):
+                continue
+            if (row[name_col] == name and row[phone_col] == phone and
+                row[cid_col] == campaign_id and
+                row[sid_col] in store_ids and
+                row[status_col] in (STATUS_APPLIED, STATUS_GUIDE_SENT)):
+                ws.update_cell(i, status_col + 1, STATUS_TIMEOUT)
+                cancelled += 1
+        return cancelled
 
     # ──────────── 캠페인 ────────────
 

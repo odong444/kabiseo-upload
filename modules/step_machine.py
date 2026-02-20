@@ -192,13 +192,23 @@ class StepMachine:
             ask_next = tpl.ASK_STORE_ID.format(n=next_n, current=next_n, total=account_count)
             return f"{confirm}\n\n{ask_next}"
 
-        # 모든 아이디 수집 완료 → 구매 가이드
+        # 모든 아이디 수집 완료 → 시트에 "신청" 상태로 등록 + 구매 가이드
         state.step = 4
         confirm = tpl.ID_CONFIRMED.format(store_id=store_id)
 
         id_summary = ", ".join(collected)
         if account_count > 1:
             confirm += f"\n\n🆔 전체 아이디: {id_summary}"
+
+        # 시트에 각 아이디별 "신청" 상태로 미리 등록
+        for sid in collected:
+            self.reviewers.register(
+                state.name, state.phone, campaign, sid
+            )
+
+        # 가이드 전달 → 상태 "가이드전달"로 업데이트
+        for sid in collected:
+            self._update_status_by_id(state.name, state.phone, campaign_id, sid, "가이드전달")
 
         # 구매 가이드 자동 전달
         guide = self._build_purchase_guide(campaign)
@@ -228,18 +238,19 @@ class StepMachine:
             missing_text = "\n".join(f"- {f}" for f in missing)
             return tpl.FORM_MISSING_FIELDS.format(missing_list=missing_text)
 
-        # 양식 저장 + 시트 등록
+        # 양식 저장 + 기존 시트 행 업데이트
         campaign = state.temp_data.get("campaign", {})
         store_ids = state.temp_data.get("store_ids", [])
+        campaign_id = campaign.get("캠페인ID", "")
 
         if not campaign or not store_ids:
             state.step = 0
             return "캠페인 정보가 없습니다. 처음부터 다시 진행해주세요.\n\n" + tpl.WELCOME_BACK.format(name=state.name)
 
-        # 각 아이디별 시트 등록
+        # 각 아이디별 양식 데이터 업데이트 (이미 step3에서 행 생성됨)
         for sid in store_ids:
-            self.reviewers.register(
-                state.name, state.phone, campaign, sid, parsed
+            self.reviewers.update_form_data(
+                state.name, state.phone, campaign_id, sid, parsed
             )
 
         state.step = 6
@@ -283,6 +294,33 @@ class StepMachine:
     def _step8_done(self, state: ReviewerState, message: str) -> str:
         state.step = 0
         return tpl.ALL_DONE + "\n\n" + tpl.WELCOME_BACK.format(name=state.name)
+
+    # ─────────── 시트 상태 업데이트 헬퍼 ───────────
+
+    def _update_status_by_id(self, name, phone, campaign_id, store_id, new_status):
+        """특정 아이디의 시트 행 상태 업데이트"""
+        try:
+            if not self.reviewers or not self.reviewers.sheets:
+                return
+            ws = self.reviewers.sheets._get_ws()
+            headers = self.reviewers.sheets._get_headers(ws)
+            all_rows = ws.get_all_values()
+
+            name_col = self.reviewers.sheets._find_col(headers, "수취인명")
+            phone_col = self.reviewers.sheets._find_col(headers, "연락처")
+            cid_col = self.reviewers.sheets._find_col(headers, "캠페인ID")
+            sid_col = self.reviewers.sheets._find_col(headers, "아이디")
+            status_col = self.reviewers.sheets._find_col(headers, "상태")
+
+            for i, row in enumerate(all_rows[1:], start=2):
+                if len(row) <= max(name_col, phone_col, cid_col, sid_col):
+                    continue
+                if (row[name_col] == name and row[phone_col] == phone and
+                    row[cid_col] == campaign_id and row[sid_col] == store_id):
+                    ws.update_cell(i, status_col + 1, new_status)
+                    break
+        except Exception as e:
+            logger.error(f"상태 업데이트 에러: {e}")
 
     # ─────────── 구매 가이드 빌더 ───────────
 
@@ -347,10 +385,11 @@ class StepMachine:
     @staticmethod
     def _status_emoji(status: str) -> str:
         return {
+            "신청": "⚪",
             "가이드전달": "🟡",
-            "양식접수": "🔵",
-            "리뷰대기": "🟠",
-            "리뷰완료": "🟢",
-            "정산완료": "✅",
+            "구매내역제출": "🔵",
+            "리뷰제출": "🟢",
+            "입금완료": "✅",
+            "타임아웃취소": "⏰",
             "취소": "⛔",
         }.get(status, "")

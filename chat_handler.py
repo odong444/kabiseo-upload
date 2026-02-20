@@ -72,6 +72,10 @@ def register_handlers(socketio):
             }, room=reviewer_id)
             return
 
+        # 타임아웃 경고 클리어
+        if models.timeout_manager:
+            models.timeout_manager.clear_warning(reviewer_id)
+
         # 입력중 표시
         emit("bot_typing", {"typing": True}, room=reviewer_id)
 

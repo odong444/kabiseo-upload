@@ -147,7 +147,7 @@ def settlement():
     items = []
     if models.sheets_manager:
         all_items = models.sheets_manager.get_all_reviewers()
-        items = [i for i in all_items if i.get("상태") == "리뷰완료"]
+        items = [i for i in all_items if i.get("상태") == "리뷰제출"]
     return render_template("admin/settlement.html", items=items)
 
 

@@ -26,7 +26,7 @@ timeout_manager = None
 step_machine = None
 
 
-def init_app(web_url: str = ""):
+def init_app(web_url: str = "", socketio=None):
     """앱 시작 시 매니저 초기화"""
     global sheets_manager, drive_uploader, campaign_manager
     global reviewer_manager, reviewer_grader, timeout_manager, step_machine
@@ -39,7 +39,6 @@ def init_app(web_url: str = ""):
     except Exception as e:
         import logging
         logging.warning(f"Google API 초기화 실패 (환경변수 확인 필요): {e}")
-        # 로컬 개발 시에도 서버는 기동되도록
         sheets_manager = None
         drive_uploader = None
 
@@ -60,6 +59,10 @@ def init_app(web_url: str = ""):
         web_url=web_url,
     ) if campaign_manager and reviewer_manager else None
 
-    # 타임아웃 매니저
+    # 타임아웃 매니저 (20분 취소)
     timeout_manager = TimeoutManager(state_store)
+    timeout_manager.set_sheets_manager(sheets_manager)
+    timeout_manager.set_chat_logger(chat_logger)
+    if socketio:
+        timeout_manager.set_socketio(socketio)
     timeout_manager.start()

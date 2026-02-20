@@ -43,7 +43,7 @@ if WEB_URL and not WEB_URL.startswith("http"):
     WEB_URL = f"https://{WEB_URL}"
 
 import models
-models.init_app(web_url=WEB_URL)
+models.init_app(web_url=WEB_URL, socketio=socketio)
 
 
 # ════════════════════════════════════════
