@@ -301,11 +301,17 @@ class StepMachine:
             self._update_status_by_id(state.name, state.phone, campaign_id, sid, "가이드전달")
 
         state.step = 4
+        state.temp_data["submitted_ids"] = []
         id_summary = ", ".join(ids)
         confirm = f"✅ 아이디 확인: {id_summary}"
 
         # 구매 가이드 자동 전달 (기존 계좌정보 + 결제금액 자동 포함)
-        guide = self._build_purchase_guide(campaign, state.name, state.phone)
+        guide = self._build_purchase_guide(campaign, state.name, state.phone, ids)
+
+        # 다중 계정 안내
+        if len(ids) > 1:
+            confirm += f"\n\n📋 {len(ids)}개 계정 각각 양식을 제출해주세요."
+
         return f"{confirm}\n\n{guide}"
 
     # ─────────── STEP 4: 구매가이드 전달됨 → 양식 대기 ───────────
@@ -315,46 +321,90 @@ class StepMachine:
         # 양식 입력이 온 경우 step5로 처리
         return self._step5_form(state, message)
 
-    # ─────────── STEP 5: 양식 접수 ───────────
+    # ─────────── STEP 5: 양식 접수 (아이디별 개별 처리) ───────────
 
     def _step5_form(self, state: ReviewerState, message: str) -> str:
         parsed = parse_full_form(message)
+        campaign = state.temp_data.get("campaign", {})
+        store_ids = state.temp_data.get("store_ids", [])
+        submitted_ids = state.temp_data.get("submitted_ids", [])
+        remaining_ids = [sid for sid in store_ids if sid not in submitted_ids]
 
         required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
         missing = [f for f in required if not parsed.get(f)]
-        campaign = state.temp_data.get("campaign", {})
 
         if missing:
             # 양식이 아닌 일반 메시지인 경우
             if len(missing) == len(required):
-                form_template = self._build_form_template(campaign, state.name, state.phone)
+                form_template = self._build_form_template(
+                    campaign, state.name, state.phone, remaining_ids
+                )
                 return f"구매 완료 후 양식을 입력해주세요.\n\n{form_template}"
             missing_text = "\n".join(f"- {f}" for f in missing)
-            form_template = self._build_form_template(campaign, state.name, state.phone)
+            form_template = self._build_form_template(
+                campaign, state.name, state.phone, remaining_ids
+            )
             return tpl.FORM_MISSING_FIELDS.format(
                 missing_list=missing_text,
                 form_template=form_template,
             )
 
-        # 양식 저장 + 기존 시트 행 업데이트
-        store_ids = state.temp_data.get("store_ids", [])
-        campaign_id = campaign.get("캠페인ID", "")
-
         if not campaign or not store_ids:
             state.step = 0
             return "캠페인 정보가 없습니다. 처음부터 다시 진행해주세요.\n\n" + tpl.WELCOME_BACK.format(name=state.name)
 
+        campaign_id = campaign.get("캠페인ID", "")
+
+        # 아이디 매칭: 1개면 자동, 다중이면 양식 내 아이디 필드로 매칭
+        form_id = parsed.get("아이디", "").strip()
+
+        if len(remaining_ids) == 1:
+            target_id = remaining_ids[0]
+        elif form_id:
+            if form_id in remaining_ids:
+                target_id = form_id
+            else:
+                return (
+                    f"⚠️ '{form_id}'은(는) 미제출 아이디 목록에 없습니다.\n"
+                    f"미제출 아이디: {', '.join(remaining_ids)}\n\n"
+                    f"양식에 정확한 아이디를 입력해주세요."
+                )
+        else:
+            # 다중 계정인데 아이디 미입력
+            return (
+                f"⚠️ 여러 계정 진행 중이므로 양식에 아이디를 입력해주세요.\n"
+                f"미제출 아이디: {', '.join(remaining_ids)}\n\n"
+                + self._build_form_template(campaign, state.name, state.phone, remaining_ids)
+            )
+
         # 결제금액은 캠페인에서 자동 설정
         parsed["결제금액"] = campaign.get("결제금액", "")
 
-        # 각 아이디별 양식 데이터 업데이트 (이미 step3에서 행 생성됨)
-        for sid in store_ids:
-            self.reviewers.update_form_data(
-                state.name, state.phone, campaign_id, sid, parsed
+        # 해당 아이디 행에 양식 데이터 업데이트
+        self.reviewers.update_form_data(
+            state.name, state.phone, campaign_id, target_id, parsed
+        )
+
+        # 제출 완료 트래킹
+        submitted_ids.append(target_id)
+        state.temp_data["submitted_ids"] = submitted_ids
+        new_remaining = [sid for sid in store_ids if sid not in submitted_ids]
+
+        upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
+
+        if new_remaining:
+            # 아직 미제출 아이디 남음 → 다음 양식 요청
+            form_template = self._build_form_template(
+                campaign, state.name, state.phone, new_remaining
+            )
+            return (
+                f"✅ [{target_id}] 양식 접수 완료!\n\n"
+                f"⏳ 남은 아이디: {', '.join(new_remaining)}\n"
+                f"다음 양식을 제출해주세요:\n\n{form_template}"
             )
 
+        # 모든 아이디 양식 제출 완료 → step 6
         state.step = 6
-        upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
         id_list = ", ".join(store_ids)
 
         return tpl.FORM_RECEIVED.format(
@@ -424,8 +474,9 @@ class StepMachine:
 
     # ─────────── 구매 가이드 빌더 ───────────
 
-    def _build_form_template(self, campaign: dict, name: str, phone: str) -> str:
-        """양식 템플릿 생성 (기존 정보 자동 채움)"""
+    def _build_form_template(self, campaign: dict, name: str, phone: str,
+                              store_ids: list = None) -> str:
+        """양식 템플릿 생성 (기존 계좌정보 자동 채움, 수취인/연락처는 비워둠)"""
         prev_info = {}
         try:
             if self.reviewers and self.reviewers.sheets:
@@ -433,18 +484,27 @@ class StepMachine:
         except Exception as e:
             logger.error(f"기존 정보 조회 에러: {e}")
 
-        lines = [
-            f"수취인명: {name}",
-            f"연락처: {phone}",
+        lines = []
+
+        # 다중 계정이면 아이디 필드 포함
+        if store_ids and len(store_ids) > 1:
+            lines.append("아이디: ")
+        elif store_ids and len(store_ids) == 1:
+            lines.append(f"아이디: {store_ids[0]}")
+
+        lines += [
+            "수취인명: ",
+            "연락처: ",
             f"은행: {prev_info.get('은행', '')}",
             f"계좌: {prev_info.get('계좌', '')}",
-            f"예금주: {prev_info.get('예금주', name)}",
+            f"예금주: {prev_info.get('예금주', '')}",
             f"주소: {prev_info.get('주소', '')}",
         ]
         return "\n".join(lines)
 
-    def _build_purchase_guide(self, campaign: dict, name: str, phone: str) -> str:
-        form_template = self._build_form_template(campaign, name, phone)
+    def _build_purchase_guide(self, campaign: dict, name: str, phone: str,
+                              store_ids: list = None) -> str:
+        form_template = self._build_form_template(campaign, name, phone, store_ids)
         payment_amount = campaign.get("결제금액", "확인필요")
         review_guide = campaign.get("리뷰가이드", "").strip() or "자율"
 

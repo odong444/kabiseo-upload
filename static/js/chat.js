@@ -196,6 +196,18 @@
                 '<div class="bubble-avatar">K</div>' +
                 '<div class="bubble-content">' + escapeHtml(message) + '</div>' +
                 '<span class="bubble-time">' + timeStr + '</span>';
+
+            // 사진 제출 안내 메시지에 액션 버튼 추가
+            if (message.indexOf('사진') !== -1 && message.indexOf('제출') !== -1) {
+                var btnWrap = document.createElement('div');
+                btnWrap.style.cssText = 'margin-top:8px;';
+                var btn = document.createElement('a');
+                btn.href = '/upload';
+                btn.className = 'chat-action-btn';
+                btn.textContent = '📸 사진 제출하기';
+                btnWrap.appendChild(btn);
+                bubble.querySelector('.bubble-content').appendChild(btnWrap);
+            }
         } else {
             bubble.innerHTML =
                 '<div class="bubble-content">' + escapeHtml(message) + '</div>' +
@@ -231,7 +243,10 @@
     function escapeHtml(text) {
         var div = document.createElement('div');
         div.textContent = text;
-        return div.innerHTML.replace(/\n/g, '<br>');
+        var escaped = div.innerHTML.replace(/\n/g, '<br>');
+        // URL 자동 하이퍼링크 처리
+        escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#4a90d9;text-decoration:underline;">$1</a>');
+        return escaped;
     }
 
     // ──────── 사이드바 ────────

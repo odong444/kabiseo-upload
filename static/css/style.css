@@ -831,6 +831,23 @@ body {
     transform: scale(0.96);
 }
 
+.chat-action-btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #4a90d9;
+    color: #fff !important;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none !important;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.chat-action-btn:active {
+    background: #357abd;
+}
+
 /* ──────── 관리자 버튼 ──────── */
 .admin-btn {
     display: inline-block;
