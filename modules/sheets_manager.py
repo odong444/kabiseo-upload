@@ -259,6 +259,35 @@ class SheetsManager:
                 return True
         return False
 
+    def get_user_campaign_ids(self, name: str, phone: str, campaign_id: str) -> list[str]:
+        """특정 캠페인에 해당 유저가 이미 등록한 아이디 목록 반환 (취소 제외)"""
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        all_rows = ws.get_all_values()
+
+        name_col = self._find_col(headers, "수취인명")
+        phone_col = self._find_col(headers, "연락처")
+        cid_col = self._find_col(headers, "캠페인ID")
+        sid_col = self._find_col(headers, "아이디")
+        status_col = self._find_col(headers, "상태")
+
+        if any(c < 0 for c in (name_col, phone_col, cid_col, sid_col)):
+            return []
+
+        ids = []
+        for row in all_rows[1:]:
+            if len(row) <= max(name_col, phone_col, cid_col, sid_col):
+                continue
+            if row[name_col] != name or row[phone_col] != phone or row[cid_col] != campaign_id:
+                continue
+            # 취소 상태 제외
+            if status_col >= 0 and len(row) > status_col and row[status_col] == STATUS_CANCELLED:
+                continue
+            store_id = row[sid_col]
+            if store_id:
+                ids.append(store_id)
+        return ids
+
     def update_campaign_cell(self, row_idx: int, col_name: str, value: str):
         """캠페인관리 시트의 특정 셀 업데이트"""
         try:

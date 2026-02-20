@@ -59,10 +59,11 @@ class CampaignManager:
     def get_all_campaigns(self) -> list[dict]:
         return self.sheets.get_all_campaigns()
 
-    def build_campaign_list_text(self) -> str:
-        """채팅용 캠페인 목록 텍스트"""
+    def build_campaign_list_text(self, name: str = "", phone: str = "") -> str:
+        """채팅용 캠페인 목록 텍스트 (유저의 기존 진행 아이디 표시)"""
         from modules.response_templates import (
-            CAMPAIGN_LIST_HEADER, CAMPAIGN_ITEM, CAMPAIGN_LIST_FOOTER, NO_CAMPAIGNS
+            CAMPAIGN_LIST_HEADER, CAMPAIGN_ITEM, CAMPAIGN_ITEM_WITH_IDS,
+            CAMPAIGN_LIST_FOOTER, NO_CAMPAIGNS
         )
 
         active = self.get_active_campaigns()
@@ -75,14 +76,35 @@ class CampaignManager:
             done = safe_int(c.get("완료수량", 0))
             remaining = c.get("_남은수량", total - done)
             review_fee = c.get("리뷰비", "") or "미정"
-            text += CAMPAIGN_ITEM.format(
-                idx=i,
-                product_name=c.get("상품명", ""),
-                store_name=c.get("업체명", ""),
-                option=c.get("옵션", "없음"),
-                remaining=remaining,
-                review_fee=review_fee,
-            )
+            campaign_id = c.get("캠페인ID", "")
+
+            # 유저의 기존 진행 아이디 조회
+            my_ids = []
+            if name and phone and campaign_id:
+                try:
+                    my_ids = self.sheets.get_user_campaign_ids(name, phone, campaign_id)
+                except Exception:
+                    pass
+
+            if my_ids:
+                text += CAMPAIGN_ITEM_WITH_IDS.format(
+                    idx=i,
+                    product_name=c.get("상품명", ""),
+                    store_name=c.get("업체명", ""),
+                    option=c.get("옵션", "없음"),
+                    remaining=remaining,
+                    review_fee=review_fee,
+                    my_ids=", ".join(my_ids),
+                )
+            else:
+                text += CAMPAIGN_ITEM.format(
+                    idx=i,
+                    product_name=c.get("상품명", ""),
+                    store_name=c.get("업체명", ""),
+                    option=c.get("옵션", "없음"),
+                    remaining=remaining,
+                    review_fee=review_fee,
+                )
         text += CAMPAIGN_LIST_FOOTER
         return text
 
