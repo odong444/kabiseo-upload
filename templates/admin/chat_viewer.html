@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 대화이력</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.chat_list') }}" class="active">대화이력</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>대화 이력</h1>
+
+        <form class="admin-search" method="GET" action="{{ url_for('admin.chat_list') }}">
+            <input type="text" name="q" placeholder="이름/연락처/키워드 검색" value="{{ q|default('') }}">
+            <button type="submit" class="btn btn-primary">검색</button>
+        </form>
+
+        <div class="chat-viewer-layout">
+            <!-- 리뷰어 목록 -->
+            <div class="reviewer-list-panel">
+                <h3>리뷰어 목록</h3>
+                {% for rid in reviewer_ids|default([]) %}
+                <a href="{{ url_for('admin.chat_viewer', reviewer_id=rid) }}"
+                   class="reviewer-list-item {% if reviewer_id == rid %}active{% endif %}">
+                    {{ rid }}
+                </a>
+                {% endfor %}
+                {% if not reviewer_ids|default([]) %}
+                <p class="admin-empty">대화 이력이 없습니다.</p>
+                {% endif %}
+            </div>
+
+            <!-- 대화 내용 -->
+            <div class="chat-view-panel">
+                {% if reviewer_id %}
+                <h3>{{ reviewer_id }}</h3>
+                <div class="admin-chat-messages">
+                    {% for msg in history %}
+                    <div class="admin-chat-msg {{ msg.sender }}">
+                        <div class="msg-bubble">{{ msg.message }}</div>
+                        <div class="msg-meta">
+                            <span class="msg-time">{{ msg.timestamp }}</span>
+                            {% if msg.sender == 'bot' %}
+                            <span class="msg-rating">
+                                <button class="rate-btn" onclick="rateMsg('{{ reviewer_id }}', {{ msg.timestamp }}, 'good')">&#128077;</button>
+                                <button class="rate-btn" onclick="rateMsg('{{ reviewer_id }}', {{ msg.timestamp }}, 'bad')">&#128078;</button>
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not history %}
+                    <p class="admin-empty">대화 내용이 없습니다.</p>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="admin-empty">왼쪽에서 리뷰어를 선택해주세요.</p>
+                {% endif %}
+            </div>
+        </div>
+    </main>
+
+    <script>
+    function rateMsg(reviewerId, timestamp, rating) {
+        fetch('{{ url_for("admin.rate_message") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({reviewer_id: reviewerId, timestamp: timestamp, rating: rating})
+        }).then(r => r.json()).then(d => {
+            if (d.ok) alert('평가 저장됨');
+        });
+    }
+    </script>
+</body>
+</html>

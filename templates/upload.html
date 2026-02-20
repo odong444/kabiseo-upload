@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}카비서 - 사진 제출{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <h1 class="page-title">사진 제출</h1>
+    <p class="page-subtitle">제출할 캡쳐 유형을 선택해주세요</p>
+
+    <div class="menu-buttons">
+        <a href="{{ url_for('upload_purchase') }}" class="btn btn-primary btn-large">
+            <span class="btn-icon">&#128722;</span>
+            <span class="btn-text">구매 캡쳐 제출</span>
+            <span class="btn-desc">주문 완료 화면 캡쳐</span>
+        </a>
+        <a href="{{ url_for('upload_review') }}" class="btn btn-secondary btn-large">
+            <span class="btn-icon">&#128221;</span>
+            <span class="btn-text">리뷰 캡쳐 제출</span>
+            <span class="btn-desc">리뷰 작성 완료 캡쳐</span>
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block nav %}
+<nav class="bottom-nav">
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#128172;</span>
+        <span class="nav-label">채팅</span>
+    </a>
+    <a href="/status" class="nav-item">
+        <span class="nav-icon">&#128203;</span>
+        <span class="nav-label">진행현황</span>
+    </a>
+    <a href="/upload" class="nav-item active">
+        <span class="nav-icon">&#128247;</span>
+        <span class="nav-label">사진제출</span>
+    </a>
+    <a href="/payment" class="nav-item">
+        <span class="nav-icon">&#128176;</span>
+        <span class="nav-label">입금</span>
+    </a>
+</nav>
+{% endblock %}

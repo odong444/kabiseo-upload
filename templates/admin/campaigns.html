@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 캠페인</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}" class="active">캠페인</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>캠페인 관리</h1>
+
+        {% if campaigns %}
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>캠페인ID</th>
+                        <th>제품명</th>
+                        <th>스토어명</th>
+                        <th>옵션</th>
+                        <th>총수량</th>
+                        <th>남은수량</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in campaigns %}
+                    <tr>
+                        <td>{{ c.get('캠페인ID', '') }}</td>
+                        <td>{{ c.get('제품명', '') }}</td>
+                        <td>{{ c.get('스토어명', '') }}</td>
+                        <td>{{ c.get('옵션', '') }}</td>
+                        <td>{{ c.get('총수량', '') }}</td>
+                        <td>{{ c.get('남은수량', '') }}</td>
+                        <td><span class="admin-status-badge">{{ c.get('상태', '모집중') }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="admin-empty">등록된 캠페인이 없습니다.</p>
+        {% endif %}
+    </main>
+</body>
+</html>

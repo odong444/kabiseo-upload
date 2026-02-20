@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}카비서 - 입금현황{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <h1 class="page-title">입금현황</h1>
+
+    <div id="paymentLoading" class="loading">불러오는 중...</div>
+    <div id="paymentContent" style="display:none;"></div>
+</div>
+
+<script>
+(function() {
+    const saved = localStorage.getItem('kabiseo_user');
+    if (!saved) { window.location.href = '/'; return; }
+    const user = JSON.parse(saved);
+
+    fetch(`/api/payment?name=${encodeURIComponent(user.name)}&phone=${encodeURIComponent(user.phone)}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('paymentLoading').style.display = 'none';
+            const container = document.getElementById('paymentContent');
+            container.style.display = 'block';
+
+            const paid = data.paid || [];
+            const pending = data.pending || [];
+            const noReview = data.no_review || [];
+
+            let html = '';
+
+            if (paid.length > 0) {
+                const total = paid.reduce((s, p) => s + (parseInt(p['입금액']) || 0), 0);
+                html += `<div class="payment-section">
+                    <h2 class="section-title payment-done">입금 완료 (${paid.length}건 / ${total.toLocaleString()}원)</h2>`;
+                paid.forEach(p => {
+                    html += `<div class="payment-item done">
+                        <span class="payment-product">${p['제품명'] || ''}</span>
+                        <span class="payment-id">${p['아이디'] || ''}</span>
+                        <span class="payment-amount">${Number(p['입금액'] || 0).toLocaleString()}원</span>
+                        <span class="payment-date">${p['입금일'] || ''}</span>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            if (pending.length > 0) {
+                html += `<div class="payment-section">
+                    <h2 class="section-title payment-pending">입금 예정 (${pending.length}건)</h2>`;
+                pending.forEach(p => {
+                    html += `<div class="payment-item pending">
+                        <span class="payment-product">${p['제품명'] || ''}</span>
+                        <span class="payment-id">${p['아이디'] || ''}</span>
+                        <span class="payment-date">리뷰완료(${p['리뷰제출일'] || ''})</span>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            if (noReview.length > 0) {
+                html += `<div class="payment-section">
+                    <h2 class="section-title payment-no-review">리뷰 미제출 (${noReview.length}건)</h2>`;
+                noReview.forEach(p => {
+                    html += `<div class="payment-item no-review">
+                        <span class="payment-product">${p['제품명'] || ''}</span>
+                        <span class="payment-id">${p['아이디'] || ''}</span>
+                        <span class="payment-date">기한: ${p['리뷰기한'] || ''}</span>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            if (!html) {
+                html = '<div class="empty-state"><p>입금 내역이 없습니다.</p></div>';
+            }
+
+            container.innerHTML = html;
+        })
+        .catch(err => {
+            document.getElementById('paymentLoading').textContent = '불러오기 실패. 새로고침 해주세요.';
+        });
+})();
+</script>
+{% endblock %}
+
+{% block nav %}
+<nav class="bottom-nav">
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#128172;</span>
+        <span class="nav-label">채팅</span>
+    </a>
+    <a href="/status" class="nav-item">
+        <span class="nav-icon">&#128203;</span>
+        <span class="nav-label">진행현황</span>
+    </a>
+    <a href="/upload" class="nav-item">
+        <span class="nav-icon">&#128247;</span>
+        <span class="nav-label">사진제출</span>
+    </a>
+    <a href="/payment" class="nav-item active">
+        <span class="nav-icon">&#128176;</span>
+        <span class="nav-label">입금</span>
+    </a>
+</nav>
+{% endblock %}

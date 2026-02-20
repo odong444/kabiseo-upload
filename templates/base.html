@@ -3,14 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>{% block title %}카비서 캡쳐 제출{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>{% block title %}카비서{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
 </head>
-<body>
-    <header>
-        <a href="{{ url_for('index') }}" class="logo">카비서</a>
+<body class="{% block body_class %}{% endblock %}">
+    {% block header %}
+    <header class="app-header">
+        <div class="header-inner">
+            <a href="/" class="logo">카비서</a>
+            {% block header_right %}{% endblock %}
+        </div>
     </header>
-    <main>
+    {% endblock %}
+
+    <main class="app-main">
         {% with messages = get_flashed_messages() %}
         {% if messages %}
         <div class="flash-messages">
@@ -23,5 +30,8 @@
 
         {% block content %}{% endblock %}
     </main>
+
+    {% block nav %}{% endblock %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>

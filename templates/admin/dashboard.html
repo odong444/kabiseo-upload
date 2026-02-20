@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 대시보드</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}" class="{% if not show_reviewers|default(false) %}active{% endif %}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.reviewers') }}" class="{% if show_reviewers|default(false) %}active{% endif %}">리뷰어</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        {% if show_reviewers|default(false) %}
+        <!-- 리뷰어 목록 -->
+        <h1>리뷰어 목록</h1>
+        <form class="admin-search" method="GET" action="{{ url_for('admin.reviewers') }}">
+            <input type="text" name="q" placeholder="이름/연락처/아이디 검색" value="{{ q|default('') }}">
+            <button type="submit" class="btn btn-primary">검색</button>
+        </form>
+
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>이름</th>
+                        <th>연락처</th>
+                        <th>아이디</th>
+                        <th>제품명</th>
+                        <th>상태</th>
+                        <th>구매일</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in reviewers|default([]) %}
+                    <tr>
+                        <td>{{ item.get('이름', '') }}</td>
+                        <td>{{ item.get('연락처', '') }}</td>
+                        <td>{{ item.get('아이디', '') }}</td>
+                        <td>{{ item.get('제품명', '') }}</td>
+                        <td><span class="admin-status-badge {{ item.get('상태', '')|lower }}">{{ item.get('상태', '') }}</span></td>
+                        <td>{{ item.get('구매일', '') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% else %}
+        <!-- 대시보드 -->
+        <h1>오늘 현황</h1>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.get('new_today', 0) }}</div>
+                <div class="stat-label">신규 신청</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.get('purchase_today', 0) }}</div>
+                <div class="stat-label">구매 완료</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.get('review_today', 0) }}</div>
+                <div class="stat-label">리뷰 완료</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.get('total', 0) }}</div>
+                <div class="stat-label">전체 건수</div>
+            </div>
+        </div>
+
+        <h2>최근 대화</h2>
+        <div class="recent-messages">
+            {% for msg in recent_messages %}
+            <div class="recent-msg">
+                <span class="msg-reviewer">{{ msg.reviewer_id }}</span>
+                <span class="msg-sender {% if msg.sender == 'bot' %}bot{% else %}user{% endif %}">{{ msg.sender }}</span>
+                <span class="msg-text">{{ msg.message[:80] }}{% if msg.message|length > 80 %}...{% endif %}</span>
+            </div>
+            {% endfor %}
+            {% if not recent_messages %}
+            <p class="admin-empty">아직 대화가 없습니다.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </main>
+</body>
+</html>

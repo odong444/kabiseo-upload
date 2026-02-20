@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="admin-login-page">
+        <div class="admin-login-box">
+            <h1>카비서 관리자</h1>
+
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for msg in messages %}
+                <div class="flash">{{ msg }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('admin.login_post') }}">
+                <div class="form-group">
+                    <input type="password" name="password" placeholder="관리자 비밀번호" required autofocus>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full">로그인</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

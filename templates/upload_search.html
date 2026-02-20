@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - 카비서{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <h1 class="page-title">{{ title }}</h1>
+    <p class="page-subtitle">이름 또는 예금주명으로 검색해주세요</p>
+
+    <form action="{{ url_for('upload_' + capture_type + '_search') }}" method="GET" class="search-form">
+        <input type="text" name="q" placeholder="이름 또는 예금주명" required autofocus autocomplete="off" class="search-input" id="searchName">
+        <input type="tel" name="phone" placeholder="연락처 (선택)" autocomplete="off" class="search-input" id="searchPhone">
+        <button type="submit" class="btn btn-primary">검색</button>
+    </form>
+
+    <a href="{{ url_for('upload') }}" class="back-link">&#8592; 돌아가기</a>
+</div>
+
+<script>
+// localStorage에서 이름/연락처 자동 채우기
+(function() {
+    const saved = localStorage.getItem('kabiseo_user');
+    if (saved) {
+        try {
+            const user = JSON.parse(saved);
+            const nameInput = document.getElementById('searchName');
+            const phoneInput = document.getElementById('searchPhone');
+            if (user.name && !nameInput.value) nameInput.value = user.name;
+            if (user.phone && !phoneInput.value) phoneInput.value = user.phone;
+        } catch(e) {}
+    }
+})();
+</script>
+{% endblock %}
+
+{% block nav %}
+<nav class="bottom-nav">
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#128172;</span>
+        <span class="nav-label">채팅</span>
+    </a>
+    <a href="/status" class="nav-item">
+        <span class="nav-icon">&#128203;</span>
+        <span class="nav-label">진행현황</span>
+    </a>
+    <a href="/upload" class="nav-item active">
+        <span class="nav-icon">&#128247;</span>
+        <span class="nav-label">사진제출</span>
+    </a>
+    <a href="/payment" class="nav-item">
+        <span class="nav-icon">&#128176;</span>
+        <span class="nav-label">입금</span>
+    </a>
+</nav>
+{% endblock %}

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 정산</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.settlement') }}" class="active">정산</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>정산 관리</h1>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% if items %}
+        <p>리뷰 완료 건: {{ items|length }}건</p>
+
+        <form method="POST" action="{{ url_for('admin.settlement_process') }}">
+            <div class="form-group">
+                <label>입금액 (일괄)</label>
+                <input type="number" name="amount" placeholder="입금액" required>
+            </div>
+
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
+                            <th>이름</th>
+                            <th>연락처</th>
+                            <th>아이디</th>
+                            <th>제품명</th>
+                            <th>리뷰제출일</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td><input type="checkbox" name="row_idx" value="{{ item['_row_idx'] }}"></td>
+                            <td>{{ item.get('이름', '') }}</td>
+                            <td>{{ item.get('연락처', '') }}</td>
+                            <td>{{ item.get('아이디', '') }}</td>
+                            <td>{{ item.get('제품명', '') }}</td>
+                            <td>{{ item.get('리뷰제출일', '') }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <button type="submit" class="btn btn-primary">선택 항목 정산 처리</button>
+        </form>
+        {% else %}
+        <p class="admin-empty">정산 대기 건이 없습니다.</p>
+        {% endif %}
+    </main>
+
+    <script>
+    function toggleAll(el) {
+        document.querySelectorAll('input[name="row_idx"]').forEach(cb => cb.checked = el.checked);
+    }
+    </script>
+</body>
+</html>

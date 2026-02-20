@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}카비서 - 로그인{% endblock %}
+
+{% block content %}
+<div class="login-page">
+    <div class="login-logo">
+        <div class="logo-icon">K</div>
+        <h1>카비서</h1>
+        <p class="login-subtitle">리뷰 체험단 도우미</p>
+    </div>
+
+    <div class="login-form-wrap">
+        <div class="login-warning">
+            계정 명의가 아닌, 실제 진행하시는 분의 이름과 연락처를 입력해주세요
+        </div>
+
+        <form id="loginForm" class="login-form">
+            <div class="form-group">
+                <label for="name">이름</label>
+                <input type="text" id="name" name="name" placeholder="이름 입력" required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="phone">연락처</label>
+                <input type="tel" id="phone" name="phone" placeholder="010-0000-0000" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">시작하기</button>
+        </form>
+    </div>
+</div>
+
+<script>
+(function() {
+    // localStorage에서 기존 정보 로드
+    const saved = localStorage.getItem('kabiseo_user');
+    if (saved) {
+        try {
+            const user = JSON.parse(saved);
+            if (user.name && user.phone) {
+                window.location.href = '/chat';
+                return;
+            }
+        } catch(e) {}
+    }
+
+    // 연락처 자동 포맷
+    const phoneInput = document.getElementById('phone');
+    phoneInput.addEventListener('input', function(e) {
+        let val = e.target.value.replace(/[^0-9]/g, '');
+        if (val.length > 3 && val.length <= 7) {
+            val = val.slice(0,3) + '-' + val.slice(3);
+        } else if (val.length > 7) {
+            val = val.slice(0,3) + '-' + val.slice(3,7) + '-' + val.slice(7,11);
+        }
+        e.target.value = val;
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const name = document.getElementById('name').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+
+        if (!name) { alert('이름을 입력해주세요.'); return; }
+        if (!/^010-\d{4}-\d{4}$/.test(phone)) {
+            alert('연락처를 올바른 형식으로 입력해주세요.\n예: 010-1234-5678');
+            return;
+        }
+
+        localStorage.setItem('kabiseo_user', JSON.stringify({name, phone}));
+        window.location.href = '/chat';
+    });
+})();
+</script>
+{% endblock %}

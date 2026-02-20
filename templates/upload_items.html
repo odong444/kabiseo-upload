@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - 카비서{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <h1 class="page-title">{{ title }}</h1>
+
+    {% if items %}
+    <p class="page-subtitle">'{{ query }}' 님의 제출 대상 ({{ items|length }}건)</p>
+
+    <div class="item-list">
+        {% for item in items %}
+        <div class="item-card">
+            <div class="item-info">
+                <div class="item-product">{{ item.get('제품명', '') }}</div>
+                <div class="item-detail">아이디: {{ item.get('아이디', '') }}</div>
+                <div class="item-detail">구매일: {{ item.get('구매일', '') }}</div>
+                <div class="item-detail">상태: {{ item.get('상태', '') }}</div>
+            </div>
+            <form
+                action="{{ url_for('upload_' + capture_type + '_submit', row=item['_row_idx']) }}"
+                method="POST"
+                enctype="multipart/form-data"
+                class="upload-form"
+            >
+                <label class="file-label">
+                    <input type="file" name="capture" accept="image/*" capture="environment" required class="file-input"
+                        onchange="this.closest('form').querySelector('.file-name').textContent = this.files[0]?.name || ''; this.closest('form').querySelector('.submit-btn').disabled = false;">
+                    <span class="file-btn">&#128248; 사진 선택</span>
+                    <span class="file-name"></span>
+                </label>
+                <button type="submit" class="btn btn-primary submit-btn" disabled>제출</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+        <p>'{{ query }}' 님 앞으로 제출할 항목이 없어요.</p>
+        <p>이름 또는 예금주명을 다시 확인해주세요.</p>
+    </div>
+    {% endif %}
+
+    <a href="{{ url_for('upload_' + capture_type) }}" class="back-link">&#8592; 다시 검색</a>
+</div>
+{% endblock %}
+
+{% block nav %}
+<nav class="bottom-nav">
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#128172;</span>
+        <span class="nav-label">채팅</span>
+    </a>
+    <a href="/status" class="nav-item">
+        <span class="nav-icon">&#128203;</span>
+        <span class="nav-label">진행현황</span>
+    </a>
+    <a href="/upload" class="nav-item active">
+        <span class="nav-icon">&#128247;</span>
+        <span class="nav-label">사진제출</span>
+    </a>
+    <a href="/payment" class="nav-item">
+        <span class="nav-icon">&#128176;</span>
+        <span class="nav-label">입금</span>
+    </a>
+</nav>
+{% endblock %}

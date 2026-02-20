@@ -1,109 +1,141 @@
 """
-app.py - Flask 웹 서버 (구매캡쳐 / 리뷰캡쳐 업로드)
+app.py - Flask 메인 + SocketIO
 
-Railway 배포용. 리뷰어가 모바일에서 접속하여
-예금주명 검색 → 해당 건에 이미지 업로드 → Google Drive 저장 → 시트 업데이트.
+카비서 웹 통합 서버:
+- 리뷰어 웹 채팅
+- 사진 업로드
+- 진행현황 / 입금현황
+- 관리자 대시보드
+- 서버PC 카카오톡 연동 API
 """
 
 import os
-from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+import logging
 
-from google_client import (
-    search_by_depositor,
-    upload_to_drive,
-    update_sheet_after_upload,
-    get_promotion_api_key,
-    get_campaigns_need_recruit,
-    record_promotion,
-    get_campaign_status,
-)
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask_socketio import SocketIO
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "kabiseo-upload-secret-key")
+app.secret_key = os.environ.get("SECRET_KEY", "kabiseo-web-secret-key")
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+
+# ──────── 블루프린트 등록 ────────
+from api import api_bp
+from admin import admin_bp
+
+app.register_blueprint(api_bp)
+app.register_blueprint(admin_bp)
+
+# ──────── WebSocket 핸들러 등록 ────────
+import chat_handler
+chat_handler.register_handlers(socketio)
+
+# ──────── 앱 초기화 ────────
+WEB_URL = os.environ.get("RAILWAY_PUBLIC_DOMAIN", "")
+if WEB_URL and not WEB_URL.startswith("http"):
+    WEB_URL = f"https://{WEB_URL}"
+
+import models
+models.init_app(web_url=WEB_URL)
 
 
-# ────────────────────── API 인증 ──────────────────────
-
-def require_api_key(f):
-    """Bearer 토큰 인증 데코레이터"""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        api_key = get_promotion_api_key()
-        if not api_key:
-            return jsonify({"error": "API key not configured on server"}), 500
-        auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Bearer ") or auth[7:] != api_key:
-            return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-    return decorated
-
-
-# ────────────────────── 라우트 ──────────────────────
+# ════════════════════════════════════════
+# 리뷰어 페이지 라우트
+# ════════════════════════════════════════
 
 @app.route("/")
 def index():
-    """메인 페이지: 구매캡쳐 / 리뷰캡쳐 선택"""
-    return render_template("index.html")
+    """메인: 로그인(이름+연락처) 또는 채팅 리다이렉트"""
+    return render_template("login.html")
 
 
-@app.route("/purchase")
-def purchase():
-    """구매캡쳐 검색 페이지"""
-    return render_template("search.html", capture_type="purchase", title="구매 캡쳐 제출")
+@app.route("/chat")
+def chat():
+    """채팅 화면"""
+    return render_template("chat.html")
 
 
-@app.route("/review")
-def review():
-    """리뷰캡쳐 검색 페이지"""
-    return render_template("search.html", capture_type="review", title="리뷰 캡쳐 제출")
+@app.route("/status")
+def status():
+    """내 진행현황"""
+    return render_template("status.html")
 
 
-@app.route("/purchase/search")
-def purchase_search():
-    """예금주 검색 → 양식접수 상태 목록"""
+@app.route("/payment")
+def payment():
+    """입금현황"""
+    return render_template("payment.html")
+
+
+# ──────── 사진 업로드 (기존 통합) ────────
+
+@app.route("/upload")
+def upload():
+    """사진 제출 메인"""
+    return render_template("upload.html")
+
+
+@app.route("/upload/purchase")
+def upload_purchase():
+    """구매캡쳐 검색"""
+    return render_template("upload_search.html", capture_type="purchase", title="구매 캡쳐 제출")
+
+
+@app.route("/upload/review")
+def upload_review():
+    """리뷰캡쳐 검색"""
+    return render_template("upload_search.html", capture_type="review", title="리뷰 캡쳐 제출")
+
+
+@app.route("/upload/purchase/search")
+def upload_purchase_search():
     q = request.args.get("q", "").strip()
+    phone = request.args.get("phone", "").strip()
     if not q:
-        flash("예금주명을 입력해주세요.")
-        return redirect(url_for("purchase"))
+        flash("검색어를 입력해주세요.")
+        return redirect(url_for("upload_purchase"))
 
-    items = search_by_depositor("purchase", q)
+    if models.sheets_manager:
+        items = models.sheets_manager.search_by_name_phone_or_depositor("purchase", q, phone)
+    else:
+        items = []
+
     return render_template(
-        "items.html",
-        capture_type="purchase",
-        title="구매 캡쳐 제출",
-        depositor=q,
-        items=items,
+        "upload_items.html", capture_type="purchase", title="구매 캡쳐 제출",
+        query=q, items=items,
     )
 
 
-@app.route("/review/search")
-def review_search():
-    """예금주 검색 → 리뷰대기 상태 목록"""
+@app.route("/upload/review/search")
+def upload_review_search():
     q = request.args.get("q", "").strip()
+    phone = request.args.get("phone", "").strip()
     if not q:
-        flash("예금주명을 입력해주세요.")
-        return redirect(url_for("review"))
+        flash("검색어를 입력해주세요.")
+        return redirect(url_for("upload_review"))
 
-    items = search_by_depositor("review", q)
+    if models.sheets_manager:
+        items = models.sheets_manager.search_by_name_phone_or_depositor("review", q, phone)
+    else:
+        items = []
+
     return render_template(
-        "items.html",
-        capture_type="review",
-        title="리뷰 캡쳐 제출",
-        depositor=q,
-        items=items,
+        "upload_items.html", capture_type="review", title="리뷰 캡쳐 제출",
+        query=q, items=items,
     )
 
 
-@app.route("/purchase/upload/<int:row>", methods=["POST"])
-def purchase_upload(row):
-    """구매캡쳐 업로드 → Drive 저장 → 시트 업데이트"""
+@app.route("/upload/purchase/<int:row>", methods=["POST"])
+def upload_purchase_submit(row):
     return _handle_upload("purchase", row)
 
 
-@app.route("/review/upload/<int:row>", methods=["POST"])
-def review_upload(row):
-    """리뷰캡쳐 업로드 → Drive 저장 → 시트 업데이트"""
+@app.route("/upload/review/<int:row>", methods=["POST"])
+def upload_review_submit(row):
     return _handle_upload("review", row)
 
 
@@ -112,71 +144,58 @@ def _handle_upload(capture_type: str, row: int):
     file = request.files.get("capture")
     if not file or file.filename == "":
         flash("파일을 선택해주세요.")
-        return redirect(request.referrer or url_for("index"))
+        return redirect(request.referrer or url_for("upload"))
+
+    if not models.drive_uploader or not models.sheets_manager:
+        flash("시스템 초기화 중입니다. 잠시 후 다시 시도해주세요.")
+        return redirect(request.referrer or url_for("upload"))
 
     try:
-        # Drive 업로드
         desc = f"{capture_type}_row{row}"
-        drive_link = upload_to_drive(file, capture_type=capture_type, description=desc)
-
-        # 시트 업데이트
-        update_sheet_after_upload(capture_type, row, drive_link)
+        drive_link = models.drive_uploader.upload_from_flask_file(file, capture_type, desc)
+        models.sheets_manager.update_after_upload(capture_type, row, drive_link)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
         return render_template(
-            "success.html",
+            "upload_success.html",
             title=f"{label} 캡쳐 제출 완료",
             message=f"{label} 캡쳐가 성공적으로 제출되었습니다!",
             capture_type=capture_type,
         )
-
     except Exception as e:
+        logger.error(f"업로드 에러: {e}", exc_info=True)
         flash(f"업로드 중 오류가 발생했습니다: {e}")
-        return redirect(request.referrer or url_for("index"))
+        return redirect(request.referrer or url_for("upload"))
 
 
-# ────────────────────── 홍보 캠페인 API ──────────────────────
+# ──────── API: 진행현황 / 입금현황 (AJAX) ────────
 
-@app.route("/api/campaigns/need-recruit")
-@require_api_key
-def api_need_recruit():
-    """홍보 필요한 캠페인 목록 (달성률 낮은 순)"""
-    try:
-        campaigns = get_campaigns_need_recruit()
-        return jsonify(campaigns)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/campaigns/<campaign_id>/recruited", methods=["POST"])
-@require_api_key
-def api_recruited(campaign_id):
-    """홍보 완료 보고"""
-    try:
-        data = request.get_json()
-        chatroom = data.get("chatroom", "")
-        posted_at = data.get("posted_at", "")
-        record_promotion(campaign_id, chatroom, posted_at)
-        return jsonify({"status": "ok"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route("/api/status")
+def api_status():
+    """리뷰어 진행현황 JSON"""
+    name = request.args.get("name", "").strip()
+    phone = request.args.get("phone", "").strip()
+    if not name or not phone or not models.reviewer_manager:
+        return {"in_progress": [], "completed": []}
+    items = models.reviewer_manager.get_items(name, phone)
+    return items
 
 
-@app.route("/api/campaigns/<campaign_id>/status")
-@require_api_key
-def api_campaign_status(campaign_id):
-    """캠페인 달성률 조회"""
-    try:
-        status = get_campaign_status(campaign_id)
-        if status is None:
-            return jsonify({"error": "Campaign not found"}), 404
-        return jsonify(status)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+@app.route("/api/payment")
+def api_payment():
+    """입금현황 JSON"""
+    name = request.args.get("name", "").strip()
+    phone = request.args.get("phone", "").strip()
+    if not name or not phone or not models.reviewer_manager:
+        return {"paid": [], "pending": [], "no_review": []}
+    payments = models.reviewer_manager.get_payments(name, phone)
+    return payments
 
 
-# ────────────────────── 실행 ──────────────────────
+# ════════════════════════════════════════
+# 실행
+# ════════════════════════════════════════
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    socketio.run(app, host="0.0.0.0", port=port, debug=True)
