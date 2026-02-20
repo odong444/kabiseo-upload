@@ -75,6 +75,51 @@ def campaigns():
     return render_template("admin/campaigns.html", campaigns=campaign_list)
 
 
+@admin_bp.route("/campaigns/<int:row>/edit", methods=["GET"])
+@admin_required
+def campaign_edit(row):
+    if not models.sheets_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.campaigns"))
+
+    all_campaigns = models.sheets_manager.get_all_campaigns()
+    campaign = None
+    for c in all_campaigns:
+        if c.get("_row_idx") == row:
+            campaign = c
+            break
+
+    if not campaign:
+        flash("캠페인을 찾을 수 없습니다.")
+        return redirect(url_for("admin.campaigns"))
+
+    return render_template("admin/campaign_edit.html", campaign=campaign, row=row)
+
+
+@admin_bp.route("/campaigns/<int:row>/edit", methods=["POST"])
+@admin_required
+def campaign_edit_post(row):
+    if not models.sheets_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.campaigns"))
+
+    editable_fields = [
+        "상태", "업체명", "상품명", "상품링크", "옵션", "키워드",
+        "유입방식", "총수량", "일수량", "완료수량",
+        "택배사", "리뷰제공", "리뷰기한일수", "리뷰비", "중복허용", "메모"
+    ]
+
+    for field_name in editable_fields:
+        value = request.form.get(field_name, "").strip()
+        try:
+            models.sheets_manager.update_campaign_cell(row, field_name, value)
+        except Exception as e:
+            logger.error(f"캠페인 수정 에러 ({field_name}): {e}")
+
+    flash("캠페인이 수정되었습니다.")
+    return redirect(url_for("admin.campaigns"))
+
+
 # ──────── 대화 이력 ────────
 
 @admin_bp.route("/chat/<reviewer_id>")

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 캠페인 수정</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}" class="active">캠페인</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>캠페인 수정</h1>
+        <p class="admin-subtitle">캠페인ID: {{ campaign.get('캠페인ID', '') }}</p>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="admin-flash">
+            {% for msg in messages %}
+            <p>{{ msg }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('admin.campaign_edit_post', row=row) }}" class="admin-form">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>상태</label>
+                    <select name="상태">
+                        {% for s in ['모집중', '진행중', '마감', '종료'] %}
+                        <option value="{{ s }}" {{ 'selected' if campaign.get('상태', '') == s }}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>업체명</label>
+                    <input type="text" name="업체명" value="{{ campaign.get('업체명', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>상품명</label>
+                    <input type="text" name="상품명" value="{{ campaign.get('상품명', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>상품링크</label>
+                    <input type="text" name="상품링크" value="{{ campaign.get('상품링크', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>옵션</label>
+                    <input type="text" name="옵션" value="{{ campaign.get('옵션', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>키워드</label>
+                    <input type="text" name="키워드" value="{{ campaign.get('키워드', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>유입방식</label>
+                    <input type="text" name="유입방식" value="{{ campaign.get('유입방식', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>총수량</label>
+                    <input type="number" name="총수량" value="{{ campaign.get('총수량', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>일수량</label>
+                    <input type="number" name="일수량" value="{{ campaign.get('일수량', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>완료수량</label>
+                    <input type="number" name="완료수량" value="{{ campaign.get('완료수량', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>택배사</label>
+                    <input type="text" name="택배사" value="{{ campaign.get('택배사', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>리뷰제공</label>
+                    <input type="text" name="리뷰제공" value="{{ campaign.get('리뷰제공', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>리뷰기한일수</label>
+                    <input type="number" name="리뷰기한일수" value="{{ campaign.get('리뷰기한일수', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>리뷰비 (원)</label>
+                    <input type="text" name="리뷰비" value="{{ campaign.get('리뷰비', '') }}" placeholder="예: 15000">
+                </div>
+
+                <div class="form-group">
+                    <label>중복허용</label>
+                    <select name="중복허용">
+                        <option value="" {{ 'selected' if not campaign.get('중복허용', '') }}>N (기본: 불허)</option>
+                        <option value="Y" {{ 'selected' if campaign.get('중복허용', '') == 'Y' }}>Y (허용)</option>
+                    </select>
+                </div>
+
+                <div class="form-group form-group-full">
+                    <label>메모</label>
+                    <textarea name="메모" rows="3">{{ campaign.get('메모', '') }}</textarea>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="admin-btn admin-btn-primary">저장</button>
+                <a href="{{ url_for('admin.campaigns') }}" class="admin-btn">취소</a>
+            </div>
+        </form>
+    </main>
+</body>
+</html>

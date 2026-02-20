@@ -3,9 +3,9 @@ step_machine.py - 핵심 STEP 0~7 대화 로직
 
 STEP 0: 메뉴 선택
 STEP 1: 캠페인 선택
-STEP 2: 본인 확인 (이름+연락처)
-STEP 3: 가이드 전달 + 아이디 입력 요청
-STEP 4: 양식 접수 (아이디 파싱)
+STEP 2: 아이디 입력 → 중복 체크
+STEP 3: 전체 양식 수집 (수취인명, 연락처, 은행, 계좌, 예금주, 주소, 닉네임, 결제금액)
+STEP 4: 확인 → 등록 + 가이드 전달
 STEP 5: 구매캡쳐 안내
 STEP 6: 리뷰캡쳐 안내
 STEP 7: 완료
@@ -13,7 +13,7 @@ STEP 7: 완료
 
 import logging
 from modules.state_store import StateStore, ReviewerState
-from modules.form_parser import parse_menu_choice, parse_campaign_choice, parse_form
+from modules.form_parser import parse_menu_choice, parse_campaign_choice, parse_form, parse_full_form, count_form_fields
 from modules.campaign_manager import CampaignManager
 from modules.reviewer_manager import ReviewerManager
 from modules.chat_logger import ChatLogger
@@ -66,6 +66,7 @@ class StepMachine:
         # "메뉴", "처음", "돌아가기" → STEP 0으로 리셋
         if message.strip() in ("메뉴", "처음", "돌아가기", "홈"):
             state.step = 0
+            state.temp_data = {}
             return tpl.WELCOME_BACK.format(name=state.name)
 
         if step == 0:
@@ -73,11 +74,11 @@ class StepMachine:
         elif step == 1:
             return self._step1_campaign(state, message)
         elif step == 2:
-            return self._step2_identity(state, message)
+            return self._step2_store_id(state, message)
         elif step == 3:
-            return self._step3_guide(state, message)
+            return self._step3_full_form(state, message)
         elif step == 4:
-            return self._step4_form(state, message)
+            return self._step4_register(state, message)
         elif step == 5:
             return self._step5_purchase(state, message)
         elif step == 6:
@@ -131,52 +132,94 @@ class StepMachine:
 
         state.selected_campaign_id = campaign.get("캠페인ID", str(choice))
         state.temp_data["campaign"] = campaign
-        state.step = 3  # 본인확인 skip (웹에서 이미 이름+연락처 있음)
+        state.step = 2
 
-        return tpl.GUIDE_MESSAGE.format(
+        # 아이디 입력 요청
+        return tpl.ASK_STORE_ID.format(
             product_name=campaign.get("상품명", ""),
             store_name=campaign.get("업체명", ""),
         )
 
-    def _step2_identity(self, state: ReviewerState, message: str) -> str:
-        """STEP 2: 본인 확인 (웹에서는 보통 skip)"""
-        state.step = 3
-        return tpl.IDENTITY_CONFIRMED.format(name=state.name)
+    def _step2_store_id(self, state: ReviewerState, message: str) -> str:
+        """STEP 2: 아이디 입력 + 중복 체크"""
+        stripped = message.strip()
 
-    def _step3_guide(self, state: ReviewerState, message: str) -> str:
-        """STEP 3: 아이디 입력 대기"""
-        return self._step4_form(state, message)
-
-    def _step4_form(self, state: ReviewerState, message: str) -> str:
-        """STEP 4: 양식 접수"""
+        # 아이디 파싱: "아이디: xxx" 형태이거나 단순 텍스트
         parsed = parse_form(message)
         store_id = parsed.get("아이디", "")
-
         if not store_id:
-            # 메시지 자체를 아이디로 시도 (단일 단어인 경우)
-            stripped = message.strip()
-            if stripped and " " not in stripped and len(stripped) < 30:
+            if stripped and len(stripped) < 30 and "\n" not in stripped:
                 store_id = stripped
             else:
-                return tpl.FORM_PARSE_FAIL
+                return "스토어 아이디를 입력해주세요."
 
         campaign = state.temp_data.get("campaign", {})
-        if not campaign:
+        campaign_id = campaign.get("캠페인ID", "")
+
+        # 중복 체크 (캠페인 설정에서 중복허용 여부 확인)
+        allow_dup = campaign.get("중복허용", "").strip().upper() in ("Y", "O", "예", "허용")
+        if not allow_dup:
+            is_dup = self.reviewers.check_duplicate(campaign_id, store_id)
+            if is_dup:
+                return tpl.DUPLICATE_FOUND.format(
+                    product_name=campaign.get("상품명", ""),
+                    store_id=store_id,
+                )
+
+        # 아이디 저장 후 양식 수집 단계로
+        state.temp_data["store_id"] = store_id
+        state.step = 3
+
+        return tpl.ASK_FULL_FORM.format(store_id=store_id)
+
+    def _step3_full_form(self, state: ReviewerState, message: str) -> str:
+        """STEP 3: 전체 양식 수집"""
+        parsed = parse_full_form(message)
+
+        # 필수 필드 체크
+        required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
+        missing = [f for f in required if not parsed.get(f)]
+
+        if missing:
+            missing_text = "\n".join(f"- {f}" for f in missing)
+            return tpl.FORM_MISSING_FIELDS.format(missing_list=missing_text)
+
+        # 양식 데이터 저장
+        state.temp_data["form_data"] = parsed
+        state.step = 4
+
+        # 바로 등록 처리 (확인 단계 생략하고 즉시 등록)
+        return self._do_register(state)
+
+    def _step4_register(self, state: ReviewerState, message: str) -> str:
+        """STEP 4: 예비 (step3에서 바로 등록하므로 여기 올 일 적음)"""
+        # 만약 여기 도달하면 메뉴로
+        state.step = 0
+        return tpl.WELCOME_BACK.format(name=state.name)
+
+    def _do_register(self, state: ReviewerState) -> str:
+        """실제 등록 처리 + 가이드 전달"""
+        campaign = state.temp_data.get("campaign", {})
+        store_id = state.temp_data.get("store_id", "")
+        form_data = state.temp_data.get("form_data", {})
+
+        if not campaign or not store_id:
             state.step = 0
             return "캠페인 정보가 없습니다. 처음부터 다시 진행해주세요.\n\n" + tpl.WELCOME_BACK.format(name=state.name)
 
         # 시트에 등록
         self.reviewers.register(
-            state.name, state.phone, campaign, store_id
+            state.name, state.phone, campaign, store_id, form_data
         )
 
         state.step = 5
-        state.temp_data["store_id"] = store_id
-
         upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
-        return tpl.FORM_RECEIVED.format(
+
+        return tpl.REGISTRATION_COMPLETE.format(
             product_name=campaign.get("상품명", ""),
+            store_name=campaign.get("업체명", ""),
             store_id=store_id,
+            recipient_name=form_data.get("수취인명", state.name),
             upload_url=upload_url,
         )
 

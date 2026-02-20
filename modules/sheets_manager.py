@@ -237,6 +237,56 @@ class SheetsManager:
                 return c
         return None
 
+    def check_duplicate(self, campaign_id: str, store_id: str) -> bool:
+        """같은 캠페인ID + 같은 아이디 중복 여부 확인"""
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        all_rows = ws.get_all_values()
+
+        cid_col = self._find_col(headers, "캠페인ID")
+        sid_col = self._find_col(headers, "아이디")
+        status_col = self._find_col(headers, "상태")
+        if cid_col < 0 or sid_col < 0:
+            return False
+
+        for row in all_rows[1:]:
+            if len(row) <= max(cid_col, sid_col):
+                continue
+            if row[cid_col] == campaign_id and row[sid_col] == store_id:
+                # 취소 상태는 제외
+                if status_col >= 0 and len(row) > status_col and row[status_col] == STATUS_CANCELLED:
+                    continue
+                return True
+        return False
+
+    def update_campaign_cell(self, row_idx: int, col_name: str, value: str):
+        """캠페인관리 시트의 특정 셀 업데이트"""
+        try:
+            ws = self.spreadsheet.worksheet("캠페인관리")
+            headers = self._get_headers(ws)
+            col = self._find_col(headers, col_name)
+            if col >= 0:
+                ws.update_cell(row_idx, col + 1, value)
+            else:
+                # 컬럼이 없으면 추가
+                new_col = len(headers) + 1
+                ws.update_cell(1, new_col, col_name)
+                ws.update_cell(row_idx, new_col, value)
+        except Exception as e:
+            logger.error(f"캠페인 셀 업데이트 에러: {e}")
+
+    def ensure_campaign_column(self, col_name: str):
+        """캠페인관리 시트에 컬럼이 없으면 추가"""
+        try:
+            ws = self.spreadsheet.worksheet("캠페인관리")
+            headers = self._get_headers(ws)
+            if col_name not in headers:
+                new_col = len(headers) + 1
+                ws.update_cell(1, new_col, col_name)
+                logger.info(f"캠페인관리 시트에 '{col_name}' 컬럼 추가됨")
+        except Exception as e:
+            logger.error(f"컬럼 추가 에러: {e}")
+
     def get_all_reviewers(self) -> list[dict]:
         """전체 리뷰어 목록"""
         ws = self._get_ws()

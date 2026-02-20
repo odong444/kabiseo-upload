@@ -77,6 +77,44 @@ def parse_form(text: str) -> dict:
     return result
 
 
+# 전체 양식 필드 파싱 대상
+FORM_FIELDS = [
+    ("수취인명", [r"수취인명?\s*[:：]\s*(.+?)(?:\n|$)", r"수취인\s*[:：]\s*(.+?)(?:\n|$)", r"이름\s*[:：]\s*(.+?)(?:\n|$)"]),
+    ("연락처", [r"연락처\s*[:：]\s*([\d\-]+)", r"전화번호?\s*[:：]\s*([\d\-]+)", r"(010[\-\s]?\d{4}[\-\s]?\d{4})"]),
+    ("은행", [r"은행\s*[:：]\s*(.+?)(?:\n|$|/|,)"]),
+    ("계좌", [r"계좌\s*(?:번호)?\s*[:：]\s*([\d\-]+)"]),
+    ("예금주", [r"예금주\s*[:：]\s*(.+?)(?:\n|$|/|,)"]),
+    ("주소", [r"주소\s*[:：]\s*(.+?)(?:\n|$)"]),
+    ("닉네임", [r"닉네임\s*[:：]\s*(.+?)(?:\n|$)", r"닉\s*[:：]\s*(.+?)(?:\n|$)"]),
+    ("결제금액", [r"결제금액?\s*[:：]\s*([\d,]+)", r"금액\s*[:：]\s*([\d,]+)"]),
+]
+
+
+def parse_full_form(text: str) -> dict:
+    """전체 양식 파싱 (수취인명, 연락처, 은행, 계좌, 예금주, 주소, 닉네임, 결제금액)
+
+    Returns: dict of parsed fields
+    """
+    result = {}
+
+    for field_name, patterns in FORM_FIELDS:
+        for p in patterns:
+            m = re.search(p, text, re.MULTILINE)
+            if m:
+                val = m.group(1).strip()
+                if val:
+                    result[field_name] = val
+                break
+
+    return result
+
+
+def count_form_fields(parsed: dict) -> int:
+    """파싱된 양식 필드 수 (필수 필드 기준)"""
+    required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
+    return sum(1 for f in required if parsed.get(f))
+
+
 def parse_menu_choice(text: str) -> int | None:
     """메뉴 번호 파싱 (1~5)"""
     text = text.strip()

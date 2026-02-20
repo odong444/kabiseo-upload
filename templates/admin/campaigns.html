@@ -24,6 +24,16 @@
     <main class="admin-main">
         <h1>캠페인 관리</h1>
 
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="admin-flash">
+            {% for msg in messages %}
+            <p>{{ msg }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
         {% if campaigns %}
         <div class="admin-table-wrap">
             <table class="admin-table">
@@ -35,7 +45,10 @@
                         <th>옵션</th>
                         <th>총수량</th>
                         <th>완료수량</th>
+                        <th>리뷰비</th>
+                        <th>중복허용</th>
                         <th>상태</th>
+                        <th>관리</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -47,7 +60,13 @@
                         <td>{{ c.get('옵션', '') }}</td>
                         <td>{{ c.get('총수량', '') }}</td>
                         <td>{{ c.get('완료수량', '') }}</td>
+                        <td>{{ c.get('리뷰비', '') }}</td>
+                        <td>{{ c.get('중복허용', '') }}</td>
                         <td><span class="admin-status-badge">{{ c.get('상태', '모집중') }}</span></td>
+                        <td>
+                            <a href="{{ url_for('admin.campaign_edit', row=c.get('_row_idx', 0)) }}"
+                               class="admin-btn admin-btn-sm">수정</a>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

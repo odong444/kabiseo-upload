@@ -74,13 +74,14 @@ class CampaignManager:
             total = safe_int(c.get("총수량", 0))
             done = safe_int(c.get("완료수량", 0))
             remaining = c.get("_남은수량", total - done)
+            review_fee = c.get("리뷰비", "") or "미정"
             text += CAMPAIGN_ITEM.format(
                 idx=i,
                 product_name=c.get("상품명", ""),
                 store_name=c.get("업체명", ""),
                 option=c.get("옵션", "없음"),
                 remaining=remaining,
-                price=c.get("결제금액", "?"),
+                review_fee=review_fee,
             )
         text += CAMPAIGN_LIST_FOOTER
         return text
