@@ -219,6 +219,10 @@ class SheetsManager:
             self.update_cell_by_col(row_idx, "리뷰캡쳐링크", drive_link)
             self.update_cell_by_col(row_idx, "상태", STATUS_REVIEW_DONE)
             self.update_cell_by_col(row_idx, "리뷰제출일", today_str())
+            # 반려 사유 클리어 (재제출)
+            row_data = self.get_row_dict(row_idx)
+            if row_data.get("비고", "").startswith("반려"):
+                self.update_cell_by_col(row_idx, "비고", "")
 
     def update_status(self, row_idx: int, status: str):
         self.update_cell_by_col(row_idx, "상태", status)
@@ -236,11 +240,12 @@ class SheetsManager:
         """리뷰 검수 승인 → 입금대기"""
         self.update_cell_by_col(row_idx, "상태", STATUS_PAYMENT_WAIT)
 
-    def reject_review(self, row_idx: int):
+    def reject_review(self, row_idx: int, reason: str = ""):
         """리뷰 검수 반려 → 구매내역제출로 되돌리고 리뷰캡쳐링크 삭제"""
         self.update_cell_by_col(row_idx, "상태", STATUS_PURCHASE_DONE)
         self.update_cell_by_col(row_idx, "리뷰캡쳐링크", "")
         self.update_cell_by_col(row_idx, "리뷰제출일", "")
+        self.update_cell_by_col(row_idx, "비고", f"반려: {reason}" if reason else "반려")
 
     def process_settlement(self, row_idx: int, amount: str):
         """정산 처리"""

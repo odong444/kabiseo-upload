@@ -143,6 +143,19 @@ def chat_list():
 
 # ──────── 리뷰 검수 ────────
 
+def _notify_reviewer_reject(row_data: dict, reason: str):
+    """반려 시 리뷰어에게 채팅 알림 전송"""
+    reviewer_name = row_data.get("진행자이름", "") or row_data.get("수취인명", "")
+    reviewer_phone = row_data.get("진행자연락처", "") or row_data.get("연락처", "")
+    if reviewer_name and reviewer_phone:
+        rid = f"{reviewer_name}_{reviewer_phone}"
+        msg = f"리뷰 검수 반려: {reason}\n리뷰 캡쳐를 다시 제출해주세요."
+        if models.chat_logger:
+            models.chat_logger.log(rid, "bot", msg)
+        if models.timeout_manager and models.timeout_manager._socketio:
+            models.timeout_manager._socketio.emit("bot_message", {"message": msg}, room=rid)
+
+
 def _sort_by_date_asc(items, date_key="날짜"):
     """날짜 오름차순 정렬 (오래된 것 먼저)"""
     def sort_key(item):
@@ -197,19 +210,9 @@ def reviews_reject():
         try:
             row_idx = int(row_str)
             row_data = models.sheets_manager.get_row_dict(row_idx)
-            models.sheets_manager.reject_review(row_idx)
+            models.sheets_manager.reject_review(row_idx, reason)
             processed += 1
-
-            # 리뷰어에게 반려 알림 (WebSocket + 채팅 기록)
-            reviewer_name = row_data.get("진행자이름", "") or row_data.get("수취인명", "")
-            reviewer_phone = row_data.get("진행자연락처", "") or row_data.get("연락처", "")
-            if reviewer_name and reviewer_phone:
-                rid = f"{reviewer_name}_{reviewer_phone}"
-                msg = f"리뷰 검수 반려: {reason}\n리뷰 캡쳐를 다시 제출해주세요."
-                if models.chat_logger:
-                    models.chat_logger.log(rid, "bot", msg)
-                if models.timeout_manager and models.timeout_manager._socketio:
-                    models.timeout_manager._socketio.emit("bot_message", {"message": msg}, room=rid)
+            _notify_reviewer_reject(row_data, reason)
         except Exception as e:
             logger.error(f"검수 반려 에러 (row {row_str}): {e}")
 
@@ -243,17 +246,8 @@ def api_reviews_reject():
     reason = data.get("reason", "").strip() or "리뷰 사진을 다시 확인해주세요."
     try:
         row_data = models.sheets_manager.get_row_dict(int(row_idx))
-        models.sheets_manager.reject_review(int(row_idx))
-
-        reviewer_name = row_data.get("진행자이름", "") or row_data.get("수취인명", "")
-        reviewer_phone = row_data.get("진행자연락처", "") or row_data.get("연락처", "")
-        if reviewer_name and reviewer_phone:
-            rid = f"{reviewer_name}_{reviewer_phone}"
-            msg = f"리뷰 검수 반려: {reason}\n리뷰 캡쳐를 다시 제출해주세요."
-            if models.chat_logger:
-                models.chat_logger.log(rid, "bot", msg)
-            if models.timeout_manager and models.timeout_manager._socketio:
-                models.timeout_manager._socketio.emit("bot_message", {"message": msg}, room=rid)
+        models.sheets_manager.reject_review(int(row_idx), reason)
+        _notify_reviewer_reject(row_data, reason)
         return jsonify({"ok": True})
     except Exception as e:
         logger.error(f"검수 반려 API 에러: {e}")

@@ -21,12 +21,17 @@
 
     <div class="item-list" id="itemList">
         {% for item in items %}
-        <div class="item-card" data-row="{{ item['_row_idx'] }}">
+        {% set remark = item.get('비고', '') %}
+        {% set is_rejected = remark.startswith('반려') %}
+        <div class="item-card{{ ' rejected' if is_rejected else '' }}" data-row="{{ item['_row_idx'] }}">
             <div class="item-info">
                 <div class="item-product">{{ item.get('제품명', '') }}</div>
                 <div class="item-detail">아이디: {{ item.get('아이디', '') }}</div>
                 <div class="item-detail">수취인: {{ item.get('수취인명', '') }} / {{ item.get('연락처', '') }}</div>
                 <div class="item-detail">구매일: {{ item.get('구매일', '') or item.get('날짜', '') }}</div>
+                {% if is_rejected %}
+                <div class="item-reject-notice">반려: {{ remark[3:].strip() if remark|length > 3 else '리뷰 사진을 다시 확인해주세요.' }}</div>
+                {% endif %}
             </div>
             <div class="upload-controls">
                 <form

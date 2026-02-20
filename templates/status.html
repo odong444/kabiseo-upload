@@ -49,17 +49,22 @@
                 let html = '<h2 class="section-title">진행중</h2>';
                 ip.forEach(item => {
                     const dot = statusEmoji[item['상태']] || '';
-                    html += `<div class="status-card">
+                    const remark = item['비고'] || '';
+                    const isRejected = remark.startsWith('반려');
+                    const rejectReason = isRejected ? remark.replace(/^반려[:：]?\s*/, '') : '';
+                    html += `<div class="status-card${isRejected ? ' rejected' : ''}">
                         <div class="status-card-header">
                             <span class="product-name">${item['제품명'] || ''}</span>
-                            <span class="status-badge">${dot} ${item['상태'] || ''}</span>
+                            <span class="status-badge">${isRejected ? '<span class="status-dot cancel"></span> 반려' : dot + ' ' + (item['상태'] || '')}</span>
                         </div>
                         <div class="status-card-body">
                             <div class="info-row"><span class="label">아이디</span><span>${item['아이디'] || ''}</span></div>
                             ${item['구매일'] ? `<div class="info-row"><span class="label">구매일</span><span>${item['구매일']}</span></div>` : ''}
                             ${item['리뷰기한'] ? `<div class="info-row"><span class="label">리뷰기한</span><span>${item['리뷰기한']}</span></div>` : ''}
+                            ${isRejected ? `<div class="info-row reject-notice"><span class="label">반려 사유</span><span>${rejectReason || '리뷰 사진을 다시 확인해주세요.'}</span></div>` : ''}
                         </div>
-                        ${(item['상태'] === '양식접수' || item['상태'] === '리뷰대기') ?
+                        ${isRejected ? `<a href="/upload" class="btn btn-primary btn-sm">리뷰 다시 제출하기</a>` :
+                          (item['상태'] === '양식접수' || item['상태'] === '리뷰대기' || item['상태'] === '구매내역제출') ?
                             `<a href="/upload" class="btn btn-primary btn-sm">사진 제출하기</a>` : ''}
                     </div>`;
                 });
