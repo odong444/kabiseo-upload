@@ -463,8 +463,7 @@ class StepMachine:
                 errors.append("아이디가 입력되지 않은 양식이 있습니다.")
                 continue
 
-            # 결제금액 자동 설정 + 시트 업데이트
-            parsed["결제금액"] = campaign.get("결제금액", "")
+            # 시트 업데이트 (결제금액은 리뷰어 입력값 우선)
             self.reviewers.update_form_data(
                 state.name, state.phone, campaign_id, target_id, parsed,
                 campaign=campaign,
@@ -602,9 +601,13 @@ class StepMachine:
         elif store_ids and len(store_ids) == 1:
             lines.append(f"아이디: {store_ids[0]}")
 
+        # 캠페인 결제금액을 기본값으로 표시 (리뷰어가 수정 가능)
+        guide_amount = campaign.get("결제금액", "") if campaign else ""
+
         lines += [
             "수취인명: ",
             "연락처: ",
+            f"결제금액: {guide_amount}",
             f"은행: {prev_info.get('은행', '')}",
             f"계좌: {prev_info.get('계좌', '')}",
             f"예금주: {prev_info.get('예금주', '')}",

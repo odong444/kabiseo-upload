@@ -91,9 +91,12 @@ class ReviewerManager:
             if not matched:
                 continue
 
-            # 양식 필드 업데이트
+            # 양식 필드 업데이트 (결제금액: 리뷰어 입력 우선, 없으면 캠페인 fallback)
             review_fee = safe_int(camp.get("리뷰비", 0))
-            purchase_amount = safe_int(form_data.get("결제금액", "") or camp.get("결제금액", 0))
+            raw_payment = form_data.get("결제금액", "")
+            if raw_payment:
+                raw_payment = str(raw_payment).replace(",", "")
+            purchase_amount = safe_int(raw_payment or camp.get("결제금액", 0))
             deposit_amount = review_fee + purchase_amount if (review_fee or purchase_amount) else ""
             update_fields = {
                 "수취인명": form_data.get("수취인명", ""),
@@ -103,7 +106,7 @@ class ReviewerManager:
                 "예금주": form_data.get("예금주", ""),
                 "주소": form_data.get("주소", ""),
                 "닉네임": form_data.get("닉네임", ""),
-                "결제금액": form_data.get("결제금액", ""),
+                "결제금액": raw_payment or "",
                 "리뷰비": str(review_fee) if review_fee else "",
                 "입금금액": str(deposit_amount) if deposit_amount else "",
             }
