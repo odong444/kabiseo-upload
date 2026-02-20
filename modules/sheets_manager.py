@@ -61,22 +61,33 @@ class SheetsManager:
 
     # ──────────── 검색 ────────────
 
+    def _match_reviewer(self, row, headers, name: str, phone: str) -> bool:
+        """진행자이름+진행자연락처 또는 수취인명+연락처로 매칭"""
+        # 1순위: 진행자이름+진행자연락처
+        jn_col = self._find_col(headers, "진행자이름")
+        jp_col = self._find_col(headers, "진행자연락처")
+        if jn_col >= 0 and jp_col >= 0 and len(row) > max(jn_col, jp_col):
+            if row[jn_col] == name and row[jp_col] == phone:
+                return True
+
+        # 2순위 (하위호환): 수취인명+연락처
+        rn_col = self._find_col(headers, "수취인명")
+        rp_col = self._find_col(headers, "연락처")
+        if rn_col >= 0 and rp_col >= 0 and len(row) > max(rn_col, rp_col):
+            if row[rn_col] == name and row[rp_col] == phone:
+                return True
+
+        return False
+
     def search_by_name_phone(self, name: str, phone: str) -> list[dict]:
-        """이름+연락처로 전체 건 검색"""
+        """진행자이름+진행자연락처 (또는 수취인명+연락처)로 전체 건 검색"""
         ws = self._get_ws()
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
 
-        name_col = self._find_col(headers, "수취인명")
-        phone_col = self._find_col(headers, "연락처")
-        if name_col < 0 or phone_col < 0:
-            return []
-
         results = []
         for i, row in enumerate(all_rows[1:], start=2):
-            if len(row) <= max(name_col, phone_col):
-                continue
-            if row[name_col] == name and row[phone_col] == phone:
+            if self._match_reviewer(row, headers, name, phone):
                 row_dict = {headers[j]: row[j] for j in range(len(headers)) if j < len(row)}
                 row_dict["_row_idx"] = i
                 results.append(row_dict)
@@ -105,35 +116,35 @@ class SheetsManager:
                 results.append(row_dict)
         return results
 
+    # 사진 제출 대상 상태
+    _PURCHASE_UPLOAD_STATUSES = {STATUS_GUIDE_SENT}  # 가이드전달 → 구매캡쳐 제출 대기
+    _REVIEW_UPLOAD_STATUSES = {STATUS_PURCHASE_DONE}  # 구매내역제출 → 리뷰캡쳐 제출 대기
+
     def search_by_name_phone_or_depositor(self, capture_type: str, query: str, phone: str = "") -> list[dict]:
-        """이름+연락처 또는 예금주로 검색"""
+        """진행자/수취인/예금주로 검색 (사진 제출 대상)"""
         ws = self._get_ws()
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
 
-        name_col = self._find_col(headers, "수취인명")
-        phone_col = self._find_col(headers, "연락처")
         depositor_col = self._find_col(headers, "예금주")
         status_col = self._find_col(headers, "상태")
 
         if status_col < 0:
             return []
 
-        target_status = STATUS_FORM_RECEIVED if capture_type == "purchase" else STATUS_REVIEW_WAIT
+        target_statuses = self._PURCHASE_UPLOAD_STATUSES if capture_type == "purchase" else self._REVIEW_UPLOAD_STATUSES
 
         results = []
         for i, row in enumerate(all_rows[1:], start=2):
             if len(row) <= status_col:
                 continue
-            if row[status_col] != target_status:
+            if row[status_col] not in target_statuses:
                 continue
 
             matched = False
-            # 이름+연락처 매칭
-            if name_col >= 0 and phone_col >= 0 and phone:
-                if len(row) > max(name_col, phone_col):
-                    if row[name_col] == query and row[phone_col] == phone:
-                        matched = True
+            # 진행자이름+진행자연락처 또는 수취인명+연락처 매칭
+            if phone:
+                matched = self._match_reviewer(row, headers, query, phone)
             # 예금주 매칭
             if not matched and depositor_col >= 0 and len(row) > depositor_col:
                 if row[depositor_col] == query:
@@ -222,25 +233,25 @@ class SheetsManager:
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
 
-        name_col = self._find_col(headers, "수취인명")
-        phone_col = self._find_col(headers, "연락처")
         cid_col = self._find_col(headers, "캠페인ID")
         sid_col = self._find_col(headers, "아이디")
         status_col = self._find_col(headers, "상태")
 
-        if any(c < 0 for c in (name_col, phone_col, cid_col, sid_col, status_col)):
+        if any(c < 0 for c in (cid_col, sid_col, status_col)):
             return 0
 
         cancelled = 0
         for i, row in enumerate(all_rows[1:], start=2):
-            if len(row) <= max(name_col, phone_col, cid_col, sid_col, status_col):
+            if len(row) <= max(cid_col, sid_col, status_col):
                 continue
-            if (row[name_col] == name and row[phone_col] == phone and
-                row[cid_col] == campaign_id and
-                row[sid_col] in store_ids and
-                row[status_col] in (STATUS_APPLIED, STATUS_GUIDE_SENT)):
-                ws.update_cell(i, status_col + 1, STATUS_TIMEOUT)
-                cancelled += 1
+            if row[cid_col] != campaign_id or row[sid_col] not in store_ids:
+                continue
+            if row[status_col] not in (STATUS_APPLIED, STATUS_GUIDE_SENT):
+                continue
+            if not self._match_reviewer(row, headers, name, phone):
+                continue
+            ws.update_cell(i, status_col + 1, STATUS_TIMEOUT)
+            cancelled += 1
         return cancelled
 
     # ──────────── 캠페인 ────────────
@@ -306,16 +317,9 @@ class SheetsManager:
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
 
-        name_col = self._find_col(headers, "수취인명")
-        phone_col = self._find_col(headers, "연락처")
-        if name_col < 0 or phone_col < 0:
-            return {}
-
         # 뒤에서부터 검색 (최신 항목 우선)
         for row in reversed(all_rows[1:]):
-            if len(row) <= max(name_col, phone_col):
-                continue
-            if row[name_col] == name and row[phone_col] == phone:
+            if not self._match_reviewer(row, headers, name, phone):
                 row_dict = {headers[j]: row[j] for j in range(len(headers)) if j < len(row)}
                 result = {}
                 for key in ("은행", "계좌", "예금주", "주소"):
@@ -335,23 +339,22 @@ class SheetsManager:
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
 
-        name_col = self._find_col(headers, "수취인명")
-        phone_col = self._find_col(headers, "연락처")
         cid_col = self._find_col(headers, "캠페인ID")
         sid_col = self._find_col(headers, "아이디")
         status_col = self._find_col(headers, "상태")
 
-        if any(c < 0 for c in (name_col, phone_col, cid_col, sid_col)):
+        if cid_col < 0 or sid_col < 0:
             return []
 
         ids = []
         for row in all_rows[1:]:
-            if len(row) <= max(name_col, phone_col, cid_col, sid_col):
+            if len(row) <= max(cid_col, sid_col):
                 continue
-            if row[name_col] != name or row[phone_col] != phone or row[cid_col] != campaign_id:
+            if row[cid_col] != campaign_id:
+                continue
+            if not self._match_reviewer(row, headers, name, phone):
                 continue
             status = row[status_col] if status_col >= 0 and len(row) > status_col else ""
-            # 미완료/취소 상태 제외 (중복 체크 기준과 동일)
             if status in self._DUP_IGNORE_STATUSES:
                 continue
             store_id = row[sid_col]
@@ -386,6 +389,18 @@ class SheetsManager:
                 logger.info(f"캠페인관리 시트에 '{col_name}' 컬럼 추가됨")
         except Exception as e:
             logger.error(f"컬럼 추가 에러: {e}")
+
+    def ensure_main_column(self, col_name: str):
+        """카비서_정리 시트에 컬럼이 없으면 끝에 추가"""
+        try:
+            ws = self._get_ws()
+            headers = self._get_headers(ws)
+            if col_name not in headers:
+                new_col = len(headers) + 1
+                ws.update_cell(1, new_col, col_name)
+                logger.info(f"카비서_정리 시트에 '{col_name}' 컬럼 추가됨")
+        except Exception as e:
+            logger.error(f"메인 시트 컬럼 추가 에러: {e}")
 
     def get_all_reviewers(self) -> list[dict]:
         """전체 리뷰어 목록"""

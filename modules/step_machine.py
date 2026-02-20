@@ -556,27 +556,28 @@ class StepMachine:
     # ─────────── 시트 상태 업데이트 헬퍼 ───────────
 
     def _update_status_by_id(self, name, phone, campaign_id, store_id, new_status):
-        """특정 아이디의 시트 행 상태 업데이트"""
+        """특정 아이디의 시트 행 상태 업데이트 (진행자이름+진행자연락처로 검색)"""
         try:
             if not self.reviewers or not self.reviewers.sheets:
                 return
-            ws = self.reviewers.sheets._get_ws()
-            headers = self.reviewers.sheets._get_headers(ws)
+            sheets = self.reviewers.sheets
+            ws = sheets._get_ws()
+            headers = sheets._get_headers(ws)
             all_rows = ws.get_all_values()
 
-            name_col = self.reviewers.sheets._find_col(headers, "수취인명")
-            phone_col = self.reviewers.sheets._find_col(headers, "연락처")
-            cid_col = self.reviewers.sheets._find_col(headers, "캠페인ID")
-            sid_col = self.reviewers.sheets._find_col(headers, "아이디")
-            status_col = self.reviewers.sheets._find_col(headers, "상태")
+            cid_col = sheets._find_col(headers, "캠페인ID")
+            sid_col = sheets._find_col(headers, "아이디")
+            status_col = sheets._find_col(headers, "상태")
 
             for i, row in enumerate(all_rows[1:], start=2):
-                if len(row) <= max(name_col, phone_col, cid_col, sid_col):
+                if cid_col < 0 or sid_col < 0 or len(row) <= max(cid_col, sid_col):
                     continue
-                if (row[name_col] == name and row[phone_col] == phone and
-                    row[cid_col] == campaign_id and row[sid_col] == store_id):
-                    ws.update_cell(i, status_col + 1, new_status)
-                    break
+                if row[cid_col] != campaign_id or row[sid_col] != store_id:
+                    continue
+                if not sheets._match_reviewer(row, headers, name, phone):
+                    continue
+                ws.update_cell(i, status_col + 1, new_status)
+                break
         except Exception as e:
             logger.error(f"상태 업데이트 에러: {e}")
 

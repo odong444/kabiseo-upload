@@ -43,6 +43,12 @@ def init_app(web_url: str = "", socketio=None):
         drive_uploader = None
 
     if sheets_manager:
+        # 필수 컬럼 보장
+        sheets_manager.ensure_main_column("진행자이름")
+        sheets_manager.ensure_campaign_column("결제금액")
+        sheets_manager.ensure_campaign_column("리뷰가이드")
+        sheets_manager.ensure_campaign_column("중복허용")
+
         campaign_manager = CampaignManager(sheets_manager)
         reviewer_manager = ReviewerManager(sheets_manager)
         reviewer_grader = ReviewerGrader(sheets_manager)
