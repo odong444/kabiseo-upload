@@ -326,12 +326,12 @@ body {
 .sidebar-logout:active { background: #eee; }
 
 /* 채팅 컨테이너 */
-.chat-container {
+.chat-container, .chat-body {
     max-width: 480px;
     width: 100%;
     margin: 0 auto;
 }
-.chat-messages { padding: 16px; min-height: 100%; }
+.chat-messages { padding: 16px; }
 
 /* 채팅 버블 */
 .chat-bubble {

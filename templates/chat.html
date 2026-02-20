@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" style="height:100%;overflow:hidden;">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -7,17 +7,23 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js"></script>
     <style>
-        html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#b2c7d9; }
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            background: #b2c7d9 !important;
+        }
         #chatApp {
             display: flex;
             flex-direction: column;
             height: 100%;
             width: 100%;
-            overflow: hidden;
         }
-        #chatApp > .chat-header { flex-shrink: 0; }
-        #chatApp > .chat-container { flex: 1 1 0; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
-        #chatApp > .chat-input-area { flex-shrink: 0; }
+        #chatApp > .chat-header { flex: 0 0 auto; }
+        #chatApp > .chat-body { flex: 1 1 0; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
+        #chatApp > .chat-input-area { flex: 0 0 auto; }
     </style>
 </head>
 <body>
@@ -49,7 +55,7 @@
         </div>
     </aside>
 
-    <!-- 메인 채팅 래퍼 -->
+    <!-- 메인 채팅 -->
     <div id="chatApp">
         <header class="chat-header">
             <div class="chat-header-inner">
@@ -64,7 +70,7 @@
             </div>
         </header>
 
-        <div class="chat-container" id="chatContainer">
+        <div class="chat-body" id="chatContainer">
             <div class="chat-messages" id="chatMessages"></div>
         </div>
 
