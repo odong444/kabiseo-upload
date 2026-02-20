@@ -5,6 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>카비서 관리자 - 정산</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .settlement-toolbar {
+        display: flex; justify-content: space-between; align-items: center;
+        flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+    }
+    .settlement-toolbar .left { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .page-size-select {
+        padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;
+        font-size: 14px; background: #fff;
+    }
+    .download-btn {
+        padding: 8px 18px; border: 1px solid #ddd; border-radius: 8px;
+        background: #fff; cursor: pointer; font-size: 14px; font-weight: 600;
+        text-decoration: none; color: #333; display: inline-flex; align-items: center; gap: 4px;
+    }
+    .download-btn:hover { background: #f0f0f0; }
+    .pagination {
+        display: flex; gap: 4px; align-items: center; flex-wrap: wrap;
+    }
+    .pagination button, .pagination span {
+        padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px;
+        background: #fff; cursor: pointer; font-size: 13px;
+    }
+    .pagination button:hover { background: #f0f0f0; }
+    .pagination button:disabled { opacity: .4; cursor: default; }
+    .pagination .active { background: #fee500; font-weight: 700; border-color: #e6cf00; }
+    .settlement-bottom {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-top: 16px; flex-wrap: wrap; gap: 12px;
+    }
+    </style>
 </head>
 <body class="admin-body">
     <header class="admin-header">
@@ -36,52 +67,131 @@
         {% endwith %}
 
         {% if items %}
-        <p>입금대기 건: {{ items|length }}건</p>
-
-        <form method="POST" action="{{ url_for('admin.settlement_process') }}">
-            <div class="form-group">
-                <label>입금액 (일괄)</label>
-                <input type="number" name="amount" placeholder="입금액" required>
+        <div class="settlement-toolbar">
+            <div class="left">
+                <span>입금대기: <strong>{{ items|length }}</strong>건</span>
+                <select class="page-size-select" id="pageSize" onchange="changePage(1)">
+                    <option value="50">50건</option>
+                    <option value="75">75건</option>
+                    <option value="100" selected>100건</option>
+                    <option value="200">200건</option>
+                    <option value="300">300건</option>
+                </select>
+                <a href="{{ url_for('admin.settlement_download') }}" class="download-btn">CSV 다운로드</a>
             </div>
+            <div class="pagination" id="pagination"></div>
+        </div>
 
+        <form method="POST" action="{{ url_for('admin.settlement_process') }}" id="settlementForm">
             <div class="admin-table-wrap">
                 <table class="admin-table">
                     <thead>
                         <tr>
                             <th><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
                             <th>수취인명</th>
-                            <th>연락처</th>
                             <th>아이디</th>
                             <th>제품명</th>
+                            <th>은행</th>
+                            <th>계좌</th>
+                            <th>예금주</th>
+                            <th>입금금액</th>
                             <th>리뷰제출일</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for item in items %}
-                        <tr>
-                            <td><input type="checkbox" name="row_idx" value="{{ item['_row_idx'] }}"></td>
-                            <td>{{ item.get('수취인명', '') }}</td>
-                            <td>{{ item.get('연락처', '') }}</td>
-                            <td>{{ item.get('아이디', '') }}</td>
-                            <td>{{ item.get('제품명', '') }}</td>
-                            <td>{{ item.get('리뷰제출일', '') }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
+                    <tbody id="tableBody"></tbody>
                 </table>
             </div>
 
-            <button type="submit" class="btn btn-primary">선택 항목 정산 처리</button>
+            <div class="settlement-bottom">
+                <div class="pagination" id="paginationBottom"></div>
+                <button type="submit" class="btn btn-primary" onclick="return submitSettlement()">선택 항목 입금완료 처리</button>
+            </div>
         </form>
+
         {% else %}
         <p class="admin-empty">정산 대기 건이 없습니다.</p>
         {% endif %}
     </main>
 
     <script>
-    function toggleAll(el) {
-        document.querySelectorAll('input[name="row_idx"]').forEach(cb => cb.checked = el.checked);
+    var ALL_ITEMS = {{ items | tojson if items else '[]' }};
+    var currentPage = 1;
+
+    function getPageSize() {
+        return parseInt(document.getElementById('pageSize').value) || 100;
     }
+
+    function getTotalPages() {
+        return Math.max(1, Math.ceil(ALL_ITEMS.length / getPageSize()));
+    }
+
+    function changePage(page) {
+        var total = getTotalPages();
+        if (page < 1) page = 1;
+        if (page > total) page = total;
+        currentPage = page;
+        renderTable();
+        renderPagination();
+        document.getElementById('selectAll').checked = false;
+    }
+
+    function renderTable() {
+        var size = getPageSize();
+        var start = (currentPage - 1) * size;
+        var end = Math.min(start + size, ALL_ITEMS.length);
+        var tbody = document.getElementById('tableBody');
+        var html = '';
+
+        for (var i = start; i < end; i++) {
+            var item = ALL_ITEMS[i];
+            html += '<tr>'
+                + '<td><input type="checkbox" name="row_idx" value="' + item['_row_idx'] + '"></td>'
+                + '<td>' + (item['수취인명'] || '') + '</td>'
+                + '<td>' + (item['아이디'] || '') + '</td>'
+                + '<td>' + (item['제품명'] || '') + '</td>'
+                + '<td>' + (item['은행'] || '') + '</td>'
+                + '<td>' + (item['계좌'] || '') + '</td>'
+                + '<td>' + (item['예금주'] || '') + '</td>'
+                + '<td><strong>' + (item['입금금액'] || '-') + '</strong></td>'
+                + '<td>' + (item['리뷰제출일'] || '') + '</td>'
+                + '</tr>';
+        }
+        tbody.innerHTML = html;
+    }
+
+    function renderPagination() {
+        var total = getTotalPages();
+        var html = '';
+        html += '<button onclick="changePage(' + (currentPage - 1) + ')" ' + (currentPage <= 1 ? 'disabled' : '') + '>&laquo;</button>';
+
+        var startP = Math.max(1, currentPage - 3);
+        var endP = Math.min(total, currentPage + 3);
+        if (startP > 1) html += '<button onclick="changePage(1)">1</button><span>...</span>';
+
+        for (var p = startP; p <= endP; p++) {
+            html += '<button onclick="changePage(' + p + ')" class="' + (p === currentPage ? 'active' : '') + '">' + p + '</button>';
+        }
+
+        if (endP < total) html += '<span>...</span><button onclick="changePage(' + total + ')">' + total + '</button>';
+        html += '<button onclick="changePage(' + (currentPage + 1) + ')" ' + (currentPage >= total ? 'disabled' : '') + '>&raquo;</button>';
+
+        document.getElementById('pagination').innerHTML = html;
+        document.getElementById('paginationBottom').innerHTML = html;
+    }
+
+    function toggleAll(el) {
+        document.querySelectorAll('#tableBody input[name="row_idx"]').forEach(function(cb) { cb.checked = el.checked; });
+    }
+
+    function submitSettlement() {
+        var checked = document.querySelectorAll('#tableBody input[name="row_idx"]:checked');
+        if (checked.length === 0) { alert('항목을 선택해주세요.'); return false; }
+        return confirm(checked.length + '건을 입금완료 처리하시겠습니까?');
+    }
+
+    // 초기 렌더링
+    renderTable();
+    renderPagination();
     </script>
 </body>
 </html>
