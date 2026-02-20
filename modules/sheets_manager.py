@@ -278,6 +278,55 @@ class SheetsManager:
             logger.info(f"시트 기반 타임아웃 취소: {cancelled}건 ({hours}시간 초과)")
         return cancelled
 
+    def delete_old_cancelled_rows(self) -> int:
+        """신청일+1일 지난 취소/타임아웃취소 행 삭제"""
+        from datetime import datetime, timedelta
+        from modules.utils import now_kst
+
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        all_rows = ws.get_all_values()
+
+        status_col = self._find_col(headers, "상태")
+        date_col = self._find_col(headers, "날짜")
+
+        if status_col < 0 or date_col < 0:
+            return 0
+
+        cutoff = now_kst() - timedelta(days=1)
+        rows_to_delete = []
+
+        for i, row in enumerate(all_rows[1:], start=2):
+            if len(row) <= max(status_col, date_col):
+                continue
+            if row[status_col] not in (STATUS_TIMEOUT, STATUS_CANCELLED):
+                continue
+
+            date_str = row[date_col].strip()
+            if not date_str:
+                continue
+
+            try:
+                row_date = datetime.strptime(date_str, "%Y-%m-%d")
+                row_date = row_date.replace(tzinfo=cutoff.tzinfo)
+                if row_date < cutoff:
+                    rows_to_delete.append(i)
+            except ValueError:
+                continue
+
+        # 아래→위 순서로 삭제 (인덱스 밀림 방지)
+        deleted = 0
+        for row_idx in reversed(rows_to_delete):
+            try:
+                ws.delete_rows(row_idx)
+                deleted += 1
+            except Exception as e:
+                logger.error(f"행 삭제 에러 (row {row_idx}): {e}")
+
+        if deleted:
+            logger.info(f"취소 행 삭제: {deleted}건 (신청일+1일 초과)")
+        return deleted
+
     def cancel_by_timeout(self, name: str, phone: str, campaign_id: str, store_ids: list[str]):
         """타임아웃 취소: 해당 유저의 해당 캠페인 신청/가이드전달 상태 행을 타임아웃취소로 변경"""
         ws = self._get_ws()

@@ -138,9 +138,13 @@ class TimeoutManager:
         self._warned.discard(rid)
 
     def _check_sheet_stale(self):
-        """시트에서 오래된 신청/가이드전달 건을 타임아웃 취소"""
+        """시트에서 오래된 건 처리: 타임아웃 취소 + 취소 행 삭제"""
         if not self._sheets_manager:
             return
         cancelled = self._sheets_manager.cancel_stale_rows(hours=1)
         if cancelled:
             logger.info(f"시트 기반 자동 취소: {cancelled}건")
+
+        deleted = self._sheets_manager.delete_old_cancelled_rows()
+        if deleted:
+            logger.info(f"취소 행 자동 삭제: {deleted}건")
