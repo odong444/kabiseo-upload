@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}카비서 캡쳐 제출{% endblock %}
+
+{% block content %}
+<h1>캡쳐 제출</h1>
+<p class="subtitle">제출할 캡쳐 유형을 선택해주세요</p>
+
+<div class="menu-buttons">
+    <a href="{{ url_for('purchase') }}" class="btn btn-primary btn-large">
+        <span class="btn-icon">🛒</span>
+        <span class="btn-text">구매 캡쳐 제출</span>
+        <span class="btn-desc">주문 완료 화면 캡쳐</span>
+    </a>
+    <a href="{{ url_for('review') }}" class="btn btn-secondary btn-large">
+        <span class="btn-icon">📝</span>
+        <span class="btn-text">리뷰 캡쳐 제출</span>
+        <span class="btn-desc">리뷰 작성 완료 캡쳐</span>
+    </a>
+</div>
+{% endblock %}

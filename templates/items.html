@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - {{ depositor }} - 카비서{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+{% if items %}
+<p class="subtitle">'{{ depositor }}' 님의 제출 대상 ({{ items|length }}건)</p>
+
+<div class="item-list">
+    {% for item in items %}
+    <div class="item-card">
+        <div class="item-info">
+            <div class="item-product">{{ item.get('제품명', '') }}</div>
+            <div class="item-detail">아이디: {{ item.get('아이디', '') }}</div>
+            <div class="item-detail">구매일: {{ item.get('구매일', '') }}</div>
+            <div class="item-detail">상태: {{ item.get('상태', '') }}</div>
+        </div>
+        <form
+            action="{{ url_for(capture_type + '_upload', row=item['_row_idx']) }}"
+            method="POST"
+            enctype="multipart/form-data"
+            class="upload-form"
+        >
+            <label class="file-label">
+                <input
+                    type="file"
+                    name="capture"
+                    accept="image/*"
+                    capture="environment"
+                    required
+                    class="file-input"
+                    onchange="this.closest('form').querySelector('.file-name').textContent = this.files[0]?.name || ''; this.closest('form').querySelector('.submit-btn').disabled = false;"
+                >
+                <span class="file-btn">📸 사진 선택</span>
+                <span class="file-name"></span>
+            </label>
+            <button type="submit" class="btn btn-primary submit-btn" disabled>제출</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+    <p>'{{ depositor }}' 님 앞으로 제출할 항목이 없어요.</p>
+    <p>예금주명을 다시 확인해주세요.</p>
+</div>
+{% endif %}
+
+<a href="{{ url_for(capture_type) }}" class="back-link">← 다시 검색</a>
+{% endblock %}

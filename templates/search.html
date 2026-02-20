@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - 카비서{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="subtitle">예금주명으로 검색해주세요</p>
+
+<form action="{{ url_for(capture_type + '_search') }}" method="GET" class="search-form">
+    <input
+        type="text"
+        name="q"
+        placeholder="예금주명 입력"
+        required
+        autofocus
+        autocomplete="off"
+        class="search-input"
+    >
+    <button type="submit" class="btn btn-primary">검색</button>
+</form>
+
+<a href="{{ url_for('index') }}" class="back-link">← 돌아가기</a>
+{% endblock %}
