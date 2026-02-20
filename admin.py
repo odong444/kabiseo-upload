@@ -139,6 +139,74 @@ def chat_list():
     return render_template("admin/chat_viewer.html", reviewer_ids=reviewer_ids, reviewer_id=None, history=[], q=q)
 
 
+# ──────── 리뷰 검수 ────────
+
+@admin_bp.route("/reviews")
+@admin_required
+def reviews():
+    items = []
+    if models.sheets_manager:
+        all_items = models.sheets_manager.get_all_reviewers()
+        items = [i for i in all_items if i.get("상태") == "리뷰제출"]
+    return render_template("admin/reviews.html", items=items)
+
+
+@admin_bp.route("/reviews/approve", methods=["POST"])
+@admin_required
+def reviews_approve():
+    if not models.sheets_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.reviews"))
+
+    row_indices = request.form.getlist("row_idx")
+    processed = 0
+    for row_str in row_indices:
+        try:
+            row_idx = int(row_str)
+            models.sheets_manager.approve_review(row_idx)
+            processed += 1
+        except Exception as e:
+            logger.error(f"검수 승인 에러 (row {row_str}): {e}")
+
+    flash(f"{processed}건 승인 완료 (입금대기)")
+    return redirect(url_for("admin.reviews"))
+
+
+@admin_bp.route("/reviews/reject", methods=["POST"])
+@admin_required
+def reviews_reject():
+    if not models.sheets_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.reviews"))
+
+    row_indices = request.form.getlist("row_idx")
+    reason = request.form.get("reason", "").strip() or "리뷰 사진을 다시 확인해주세요."
+    processed = 0
+
+    for row_str in row_indices:
+        try:
+            row_idx = int(row_str)
+            row_data = models.sheets_manager.get_row_dict(row_idx)
+            models.sheets_manager.reject_review(row_idx)
+            processed += 1
+
+            # 리뷰어에게 반려 알림 (WebSocket + 채팅 기록)
+            reviewer_name = row_data.get("진행자이름", "") or row_data.get("수취인명", "")
+            reviewer_phone = row_data.get("진행자연락처", "") or row_data.get("연락처", "")
+            if reviewer_name and reviewer_phone:
+                rid = f"{reviewer_name}_{reviewer_phone}"
+                msg = f"리뷰 검수 반려: {reason}\n리뷰 캡쳐를 다시 제출해주세요."
+                if models.chat_logger:
+                    models.chat_logger.log(rid, "bot", msg)
+                if models.timeout_manager and models.timeout_manager._socketio:
+                    models.timeout_manager._socketio.emit("bot_message", {"message": msg}, room=rid)
+        except Exception as e:
+            logger.error(f"검수 반려 에러 (row {row_str}): {e}")
+
+    flash(f"{processed}건 반려 완료")
+    return redirect(url_for("admin.reviews"))
+
+
 # ──────── 정산 관리 ────────
 
 @admin_bp.route("/settlement")
@@ -147,7 +215,7 @@ def settlement():
     items = []
     if models.sheets_manager:
         all_items = models.sheets_manager.get_all_reviewers()
-        items = [i for i in all_items if i.get("상태") == "리뷰제출"]
+        items = [i for i in all_items if i.get("상태") == "입금대기"]
     return render_template("admin/settlement.html", items=items)
 
 

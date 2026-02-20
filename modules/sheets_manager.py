@@ -22,6 +22,7 @@ STATUS_APPLIED = "신청"
 STATUS_GUIDE_SENT = "가이드전달"
 STATUS_PURCHASE_DONE = "구매내역제출"
 STATUS_REVIEW_DONE = "리뷰제출"
+STATUS_PAYMENT_WAIT = "입금대기"
 STATUS_SETTLED = "입금완료"
 STATUS_TIMEOUT = "타임아웃취소"
 STATUS_CANCELLED = "취소"
@@ -230,6 +231,16 @@ class SheetsManager:
         for h in headers:
             new_row.append(data.get(h, ""))
         ws.append_row(new_row, value_input_option="USER_ENTERED")
+
+    def approve_review(self, row_idx: int):
+        """리뷰 검수 승인 → 입금대기"""
+        self.update_cell_by_col(row_idx, "상태", STATUS_PAYMENT_WAIT)
+
+    def reject_review(self, row_idx: int):
+        """리뷰 검수 반려 → 구매내역제출로 되돌리고 리뷰캡쳐링크 삭제"""
+        self.update_cell_by_col(row_idx, "상태", STATUS_PURCHASE_DONE)
+        self.update_cell_by_col(row_idx, "리뷰캡쳐링크", "")
+        self.update_cell_by_col(row_idx, "리뷰제출일", "")
 
     def process_settlement(self, row_idx: int, amount: str):
         """정산 처리"""
