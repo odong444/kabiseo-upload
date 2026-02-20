@@ -234,11 +234,29 @@
         return div.innerHTML.replace(/\n/g, '<br>');
     }
 
-    // ──────── 메뉴 토글 ────────
+    // ──────── 사이드바 ────────
     var menuToggle = document.getElementById('menuToggle');
-    if (menuToggle) {
-        menuToggle.addEventListener('click', function() {
-            if (confirm('로그아웃하시겠습니까?\n(다른 이름으로 접속하려면 로그아웃 해주세요)')) {
+    var sidebar = document.getElementById('sidebar');
+    var sidebarOverlay = document.getElementById('sidebarOverlay');
+    var sidebarClose = document.getElementById('sidebarClose');
+    var logoutBtn = document.getElementById('logoutBtn');
+
+    function openSidebar() {
+        sidebar.classList.add('open');
+        sidebarOverlay.classList.add('open');
+    }
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('open');
+    }
+
+    if (menuToggle) menuToggle.addEventListener('click', openSidebar);
+    if (sidebarClose) sidebarClose.addEventListener('click', closeSidebar);
+    if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
+
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            if (confirm('로그아웃하시겠습니까?')) {
                 localStorage.removeItem('kabiseo_user');
                 window.location.href = '/';
             }
