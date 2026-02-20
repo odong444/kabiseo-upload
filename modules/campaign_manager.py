@@ -38,8 +38,11 @@ class CampaignManager:
         for c in all_campaigns:
             status = c.get("상태", "")
             if status in ("모집중", "진행중", ""):
-                remaining = safe_int(c.get("남은수량", 0))
+                total = safe_int(c.get("총수량", 0))
+                done = safe_int(c.get("완료수량", 0))
+                remaining = total - done
                 if remaining > 0:
+                    c["_남은수량"] = remaining
                     active.append(c)
         return active
 
@@ -68,24 +71,30 @@ class CampaignManager:
 
         text = CAMPAIGN_LIST_HEADER
         for i, c in enumerate(active, 1):
+            total = safe_int(c.get("총수량", 0))
+            done = safe_int(c.get("완료수량", 0))
+            remaining = c.get("_남은수량", total - done)
             text += CAMPAIGN_ITEM.format(
                 idx=i,
-                product_name=c.get("제품명", ""),
-                store_name=c.get("스토어명", ""),
+                product_name=c.get("상품명", ""),
+                store_name=c.get("업체명", ""),
                 option=c.get("옵션", "없음"),
-                remaining=c.get("남은수량", "?"),
-                price=c.get("체험비", "?"),
+                remaining=remaining,
+                price=c.get("결제금액", "?"),
             )
         text += CAMPAIGN_LIST_FOOTER
         return text
 
     def build_recruit_message(self, campaign: dict, web_url: str) -> str:
         """모집글 생성"""
+        total = safe_int(campaign.get("총수량", 0))
+        done = safe_int(campaign.get("완료수량", 0))
+        remaining = campaign.get("_남은수량", total - done)
         return RECRUIT_TEMPLATE.format(
-            product_name=campaign.get("제품명", ""),
-            store_name=campaign.get("스토어명", ""),
+            product_name=campaign.get("상품명", ""),
+            store_name=campaign.get("업체명", ""),
             option=campaign.get("옵션", "없음"),
-            remaining=campaign.get("남은수량", "?"),
+            remaining=remaining,
             method=campaign.get("유입방식", ""),
             review_type=campaign.get("리뷰제공", ""),
             web_url=web_url,
@@ -106,13 +115,13 @@ class CampaignManager:
         if not campaign:
             return {}
         total = safe_int(campaign.get("총수량", 0))
-        remaining = safe_int(campaign.get("남은수량", 0))
-        recruited = total - remaining
-        rate = (recruited / total * 100) if total > 0 else 0
+        done = safe_int(campaign.get("완료수량", 0))
+        remaining = total - done
+        rate = (done / total * 100) if total > 0 else 0
         return {
             "campaign_id": campaign_id,
             "total": total,
-            "recruited": recruited,
+            "recruited": done,
             "remaining": remaining,
             "rate": round(rate, 1),
         }

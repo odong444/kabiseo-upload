@@ -134,8 +134,8 @@ class StepMachine:
         state.step = 3  # 본인확인 skip (웹에서 이미 이름+연락처 있음)
 
         return tpl.GUIDE_MESSAGE.format(
-            product_name=campaign.get("제품명", ""),
-            store_name=campaign.get("스토어명", ""),
+            product_name=campaign.get("상품명", ""),
+            store_name=campaign.get("업체명", ""),
         )
 
     def _step2_identity(self, state: ReviewerState, message: str) -> str:
@@ -175,7 +175,7 @@ class StepMachine:
 
         upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
         return tpl.FORM_RECEIVED.format(
-            product_name=campaign.get("제품명", ""),
+            product_name=campaign.get("상품명", ""),
             store_id=store_id,
             upload_url=upload_url,
         )
@@ -231,18 +231,18 @@ class StepMachine:
                 text += f"\n📦 {item.get('제품명', '')}\n"
                 text += f"   아이디: {item.get('아이디', '')}\n"
                 text += f"   상태: {item.get('상태', '')} ✅\n"
-                if item.get("입금액"):
-                    text += f"   입금액: {item.get('입금액')}원\n"
+                if item.get("입금금액"):
+                    text += f"   입금액: {item.get('입금금액')}원\n"
 
         return text or "진행 중인 체험단이 없습니다."
 
     def _format_payments(self, payments: dict) -> str:
         text = ""
         if payments["paid"]:
-            total_amount = sum(int(p.get("입금액", 0) or 0) for p in payments["paid"])
+            total_amount = sum(int(p.get("입금금액", 0) or 0) for p in payments["paid"])
             text += f"💰 입금 완료 ({len(payments['paid'])}건 / {total_amount:,}원)\n"
             for p in payments["paid"]:
-                text += f"  ├── {p.get('제품명', '')} | {p.get('아이디', '')} | {p.get('입금액', '')}원 | {p.get('입금일', '')}\n"
+                text += f"  ├── {p.get('제품명', '')} | {p.get('아이디', '')} | {p.get('입금금액', '')}원 | {p.get('입금정리', '')}\n"
 
         if payments["pending"]:
             text += f"\n⏳ 입금 예정 ({len(payments['pending'])}건)\n"

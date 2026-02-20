@@ -30,11 +30,11 @@
                 <thead>
                     <tr>
                         <th>캠페인ID</th>
-                        <th>제품명</th>
-                        <th>스토어명</th>
+                        <th>상품명</th>
+                        <th>업체명</th>
                         <th>옵션</th>
                         <th>총수량</th>
-                        <th>남은수량</th>
+                        <th>완료수량</th>
                         <th>상태</th>
                     </tr>
                 </thead>
@@ -42,11 +42,11 @@
                     {% for c in campaigns %}
                     <tr>
                         <td>{{ c.get('캠페인ID', '') }}</td>
-                        <td>{{ c.get('제품명', '') }}</td>
-                        <td>{{ c.get('스토어명', '') }}</td>
+                        <td>{{ c.get('상품명', '') }}</td>
+                        <td>{{ c.get('업체명', '') }}</td>
                         <td>{{ c.get('옵션', '') }}</td>
                         <td>{{ c.get('총수량', '') }}</td>
-                        <td>{{ c.get('남은수량', '') }}</td>
+                        <td>{{ c.get('완료수량', '') }}</td>
                         <td><span class="admin-status-badge">{{ c.get('상태', '모집중') }}</span></td>
                     </tr>
                     {% endfor %}

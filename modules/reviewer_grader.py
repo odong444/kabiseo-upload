@@ -28,7 +28,7 @@ class ReviewerGrader:
         items = self.sheets.search_by_name_phone(name, phone)
         completed = sum(
             1 for item in items
-            if item.get("상태", "") in ("리뷰완료", "정산완료")
+            if item.get("상태", "") in ("리뷰완료", "정산완료", "완료")
         )
 
         if completed >= 10:

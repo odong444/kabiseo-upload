@@ -29,15 +29,15 @@
             let html = '';
 
             if (paid.length > 0) {
-                const total = paid.reduce((s, p) => s + (parseInt(p['입금액']) || 0), 0);
+                const total = paid.reduce((s, p) => s + (parseInt(p['입금금액']) || 0), 0);
                 html += `<div class="payment-section">
                     <h2 class="section-title payment-done">입금 완료 (${paid.length}건 / ${total.toLocaleString()}원)</h2>`;
                 paid.forEach(p => {
                     html += `<div class="payment-item done">
                         <span class="payment-product">${p['제품명'] || ''}</span>
                         <span class="payment-id">${p['아이디'] || ''}</span>
-                        <span class="payment-amount">${Number(p['입금액'] || 0).toLocaleString()}원</span>
-                        <span class="payment-date">${p['입금일'] || ''}</span>
+                        <span class="payment-amount">${Number(p['입금금액'] || 0).toLocaleString()}원</span>
+                        <span class="payment-date">${p['입금정리'] || ''}</span>
                     </div>`;
                 });
                 html += '</div>';

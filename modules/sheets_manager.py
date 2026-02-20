@@ -1,10 +1,15 @@
 """
-sheets_manager.py - Google Sheets CRUD (8탭 지원)
+sheets_manager.py - Google Sheets CRUD (6탭 지원)
 
-카비서_정리 시트의 주요 컬럼:
-이름, 연락처, 예금주, 아이디, 제품명, 스토어명, 옵션, 상태,
-캠페인ID, 구매일, 리뷰기한, 리뷰제출일, 구매캡쳐링크, 리뷰캡쳐링크,
-입금액, 입금일, 유입방식, 리뷰제공
+실제 시트 컬럼:
+카비서_정리: 회수여부, 캠페인ID, 업체명, 날짜, 제품명, 수취인명, 연락처,
+  은행, 계좌, 예금주, 결제금액, 아이디, 주문번호, 주소, 닉네임, 진행자연락처,
+  상태, 구매일, 구매캡쳐링크, 리뷰기한, 리뷰제출일, 리뷰캡쳐링크,
+  리뷰비, 입금금액, 입금정리, 비고
+
+캠페인관리: 캠페인ID, 등록일, 상태, 업체명, 상품명, 상품링크, 옵션, 키워드,
+  현재순위, 유입방식, 총수량, 일수량, 완료수량, 당일발송, 발송마감,
+  일최대건, 택배사, 3PL사용, 3PL비용, 주말작업, 리뷰제공, 리뷰기한일수, 메모
 """
 
 import logging
@@ -57,7 +62,7 @@ class SheetsManager:
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
 
-        name_col = self._find_col(headers, "이름")
+        name_col = self._find_col(headers, "수취인명")
         phone_col = self._find_col(headers, "연락처")
         if name_col < 0 or phone_col < 0:
             return []
@@ -101,7 +106,7 @@ class SheetsManager:
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
 
-        name_col = self._find_col(headers, "이름")
+        name_col = self._find_col(headers, "수취인명")
         phone_col = self._find_col(headers, "연락처")
         depositor_col = self._find_col(headers, "예금주")
         status_col = self._find_col(headers, "상태")
@@ -204,15 +209,15 @@ class SheetsManager:
     def process_settlement(self, row_idx: int, amount: str):
         """정산 처리"""
         self.update_cell_by_col(row_idx, "상태", STATUS_SETTLED)
-        self.update_cell_by_col(row_idx, "입금액", amount)
-        self.update_cell_by_col(row_idx, "입금일", today_str())
+        self.update_cell_by_col(row_idx, "입금금액", amount)
+        self.update_cell_by_col(row_idx, "입금정리", today_str())
 
     # ──────────── 캠페인 ────────────
 
     def get_all_campaigns(self) -> list[dict]:
-        """캠페인 시트에서 전체 목록 조회"""
+        """캠페인관리 시트에서 전체 목록 조회"""
         try:
-            ws = self.spreadsheet.worksheet("캠페인")
+            ws = self.spreadsheet.worksheet("캠페인관리")
         except Exception:
             return []
 
