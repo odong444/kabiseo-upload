@@ -197,6 +197,41 @@
                 '<div class="bubble-content">' + escapeHtml(message) + '</div>' +
                 '<span class="bubble-time">' + timeStr + '</span>';
 
+            // 양식 템플릿 복사 버튼
+            if (message.indexOf('수취인명:') !== -1 && message.indexOf('계좌:') !== -1) {
+                var formLines = message.split('\n').filter(function(l) {
+                    return /^(아이디|수취인명|연락처|은행|계좌|예금주|주소|닉네임)\s*[:：]/.test(l.trim());
+                });
+                if (formLines.length >= 3) {
+                    var formText = formLines.join('\n');
+                    var copyWrap = document.createElement('div');
+                    copyWrap.style.cssText = 'margin-top:8px;';
+                    var copyBtn = document.createElement('button');
+                    copyBtn.type = 'button';
+                    copyBtn.className = 'chat-action-btn';
+                    copyBtn.textContent = '📋 양식 복사';
+                    copyBtn.addEventListener('click', function() {
+                        navigator.clipboard.writeText(formText).then(function() {
+                            copyBtn.textContent = '✅ 복사됨!';
+                            setTimeout(function() { copyBtn.textContent = '📋 양식 복사'; }, 2000);
+                        }).catch(function() {
+                            // fallback
+                            var ta = document.createElement('textarea');
+                            ta.value = formText;
+                            ta.style.cssText = 'position:fixed;left:-9999px;';
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
+                            copyBtn.textContent = '✅ 복사됨!';
+                            setTimeout(function() { copyBtn.textContent = '📋 양식 복사'; }, 2000);
+                        });
+                    });
+                    copyWrap.appendChild(copyBtn);
+                    bubble.querySelector('.bubble-content').appendChild(copyWrap);
+                }
+            }
+
             // 사진 제출 안내 메시지에 액션 버튼 추가
             if (message.indexOf('사진') !== -1 && message.indexOf('제출') !== -1) {
                 var btnWrap = document.createElement('div');
