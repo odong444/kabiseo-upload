@@ -214,10 +214,13 @@ body {
 /* ──────── 채팅 페이지 (flex 레이아웃) ──────── */
 .chat-page {
     background: #b2c7d9;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    height: 100dvh;
     overflow: hidden;
 }
 .chat-page .app-main { display: none; }
