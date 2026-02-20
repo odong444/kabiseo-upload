@@ -96,7 +96,7 @@ def _handle_upload(capture_type: str, row: int):
     try:
         # Drive 업로드
         desc = f"{capture_type}_row{row}"
-        drive_link = upload_to_drive(file, description=desc)
+        drive_link = upload_to_drive(file, capture_type=capture_type, description=desc)
 
         # 시트 업데이트
         update_sheet_after_upload(capture_type, row, drive_link)

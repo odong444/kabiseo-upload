@@ -24,7 +24,8 @@ SCOPES = [
 # 환경변수에서 credentials JSON 복원 (base64 인코딩)
 _creds_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64", "")
 _spreadsheet_id = os.environ.get("SPREADSHEET_ID", "")
-_drive_folder_id = os.environ.get("DRIVE_FOLDER_ID", "")
+_drive_folder_order = os.environ.get("DRIVE_FOLDER_ORDER", "")
+_drive_folder_review = os.environ.get("DRIVE_FOLDER_REVIEW", "")
 
 
 def _get_credentials():
@@ -111,10 +112,13 @@ def update_sheet_after_upload(capture_type: str, row_idx: int, drive_link: str):
 
 # ────────────────────── Drive 함수 ──────────────────────
 
-def upload_to_drive(file_storage, description: str = "") -> str:
-    """Flask FileStorage → Google Drive 업로드 → 공유링크 반환"""
+def upload_to_drive(file_storage, capture_type: str = "purchase", description: str = "") -> str:
+    """Flask FileStorage → Google Drive 업로드 → 공유링크 반환
+
+    capture_type: "purchase" → order 폴더, "review" → review 폴더
+    """
     service = _get_drive_service()
-    folder_id = _drive_folder_id
+    folder_id = _drive_folder_order if capture_type == "purchase" else _drive_folder_review
 
     filename = file_storage.filename or "upload.jpg"
     content_type = file_storage.content_type or "image/jpeg"
