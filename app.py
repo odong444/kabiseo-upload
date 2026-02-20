@@ -276,10 +276,13 @@ def auth_callback():
     try:
         tokens = google_client.handle_oauth_callback(code)
         google_client.reset_drive_uploader()
-        # drive_uploader 재생성
         models.drive_uploader = google_client.get_drive_uploader()
+        # 토큰을 로그에 출력 (환경변수 설정용)
+        import json
+        tokens_json = json.dumps(tokens)
+        logger.info(f"OAUTH_TOKENS_FOR_ENV={tokens_json}")
         logger.info("OAuth 인증 완료, Drive 업로더 재생성")
-        return render_template("oauth_success.html")
+        return render_template("oauth_success.html", tokens_json=tokens_json)
     except Exception as e:
         logger.error(f"OAuth 콜백 에러: {e}", exc_info=True)
         return f"인증 실패: {e}", 500

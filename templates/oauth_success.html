@@ -7,6 +7,13 @@
     <h1>Google Drive 인증 완료</h1>
     <p class="success-message">사진 업로드 기능이 활성화되었습니다.</p>
 
+    {% if tokens_json %}
+    <details style="margin: 16px 0; text-align: left;">
+        <summary style="cursor: pointer; color: #888; font-size: 13px;">토큰 정보 (환경변수 설정용)</summary>
+        <textarea id="tokenArea" readonly style="width:100%; height:60px; font-size:12px; margin-top:8px; border-radius:8px; border:1px solid #ddd; padding:8px;">{{ tokens_json }}</textarea>
+    </details>
+    {% endif %}
+
     <div class="success-actions">
         <a href="{{ url_for('upload') }}" class="btn btn-primary">사진 제출하기</a>
         <a href="{{ url_for('index') }}" class="btn btn-outline">홈으로</a>
