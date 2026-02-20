@@ -157,7 +157,8 @@ def _make_upload_filename(capture_type: str, row_idx: int, original_name: str) -
 
     company = row_data.get("업체명", "").strip() or "업체"
     recipient = row_data.get("수취인명", "").strip() or "미지정"
-    return f"{company}_{recipient}_{label}{ext}"
+    purchase_date = row_data.get("구매일", "").strip().replace("-", "").replace("/", "").replace(".", "") or "날짜없음"
+    return f"{purchase_date}_{company}_{recipient}_{label}{ext}"
 
 
 def _handle_upload(capture_type: str, row: int):
