@@ -446,6 +446,7 @@ class StepMachine:
     def _build_purchase_guide(self, campaign: dict, name: str, phone: str) -> str:
         form_template = self._build_form_template(campaign, name, phone)
         payment_amount = campaign.get("결제금액", "확인필요")
+        review_guide = campaign.get("리뷰가이드", "").strip() or "자율"
 
         return tpl.PURCHASE_GUIDE.format(
             product_name=campaign.get("상품명", ""),
@@ -455,6 +456,7 @@ class StepMachine:
             entry_method=campaign.get("유입방식", "없음"),
             option=campaign.get("옵션", "없음"),
             payment_amount=payment_amount,
+            review_guide=review_guide,
             form_template=form_template,
         )
 

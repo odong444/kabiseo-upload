@@ -107,6 +107,11 @@
                 </div>
 
                 <div class="form-group">
+                    <label>리뷰가이드</label>
+                    <input type="text" name="리뷰가이드" value="{{ campaign.get('리뷰가이드', '') }}" placeholder="자율 / 50자이상 / 100자이상 등">
+                </div>
+
+                <div class="form-group">
                     <label>결제금액 (원)</label>
                     <input type="text" name="결제금액" value="{{ campaign.get('결제금액', '') }}" placeholder="리뷰어가 결제할 금액">
                 </div>

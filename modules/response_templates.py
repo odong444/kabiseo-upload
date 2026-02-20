@@ -79,6 +79,7 @@ PURCHASE_GUIDE = """📋 구매 가이드를 안내드립니다.
 📱 유입방식: {entry_method}
 📦 옵션: {option}
 💰 결제금액: {payment_amount}원
+📝 리뷰가이드: {review_guide}
 
 📌 구매 방법:
 1. 위 링크로 접속 또는 키워드 검색
