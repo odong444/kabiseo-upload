@@ -240,8 +240,8 @@ def google_auth():
         return f"OAuth 설정 오류: {e}", 500
 
 
-@app.route("/oauth2callback")
-def oauth2callback():
+@app.route("/auth/callback")
+def auth_callback():
     """Google OAuth 콜백"""
     import google_client
     code = request.args.get("code")
