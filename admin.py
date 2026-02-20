@@ -350,6 +350,43 @@ def reviewers():
 
 # ──────── API (AJAX) ────────
 
+@admin_bp.route("/api/fix-rejected-remarks", methods=["POST"])
+@admin_required
+def fix_rejected_remarks():
+    """반려 건 중 비고가 비어있는 것을 채워주는 일회성 API"""
+    if not models.sheets_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+
+    ws = models.sheets_manager._get_ws()
+    headers = models.sheets_manager._get_headers(ws)
+    all_rows = ws.get_all_values()
+
+    status_col = models.sheets_manager._find_col(headers, "상태")
+    remark_col = models.sheets_manager._find_col(headers, "비고")
+    review_link_col = models.sheets_manager._find_col(headers, "리뷰캡쳐링크")
+    review_date_col = models.sheets_manager._find_col(headers, "리뷰제출일")
+
+    if status_col < 0 or remark_col < 0:
+        return jsonify({"ok": False, "message": "컬럼 없음"})
+
+    fixed = 0
+    for i, row in enumerate(all_rows[1:], start=2):
+        if len(row) <= max(status_col, remark_col):
+            continue
+        # 구매내역제출 상태 + 비고 비어있음 + 리뷰캡쳐링크 비어있음 + 리뷰제출일 비어있음 → 반려 건
+        if row[status_col] != "구매내역제출":
+            continue
+        if row[remark_col].strip():
+            continue
+        has_review_link = review_link_col >= 0 and len(row) > review_link_col and row[review_link_col].strip()
+        has_review_date = review_date_col >= 0 and len(row) > review_date_col and row[review_date_col].strip()
+        if not has_review_link and not has_review_date:
+            ws.update_cell(i, remark_col + 1, "반려")
+            fixed += 1
+
+    return jsonify({"ok": True, "fixed": fixed})
+
+
 @admin_bp.route("/api/rate", methods=["POST"])
 @admin_required
 def rate_message():
