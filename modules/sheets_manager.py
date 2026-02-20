@@ -290,6 +290,32 @@ class SheetsManager:
                 return True
         return False
 
+    def get_user_prev_info(self, name: str, phone: str) -> dict:
+        """유저의 가장 최근 등록 정보에서 은행/계좌/예금주/주소 가져오기"""
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        all_rows = ws.get_all_values()
+
+        name_col = self._find_col(headers, "수취인명")
+        phone_col = self._find_col(headers, "연락처")
+        if name_col < 0 or phone_col < 0:
+            return {}
+
+        # 뒤에서부터 검색 (최신 항목 우선)
+        for row in reversed(all_rows[1:]):
+            if len(row) <= max(name_col, phone_col):
+                continue
+            if row[name_col] == name and row[phone_col] == phone:
+                row_dict = {headers[j]: row[j] for j in range(len(headers)) if j < len(row)}
+                result = {}
+                for key in ("은행", "계좌", "예금주", "주소"):
+                    val = row_dict.get(key, "").strip()
+                    if val:
+                        result[key] = val
+                if result:
+                    return result
+        return {}
+
     def get_user_campaign_ids(self, name: str, phone: str, campaign_id: str) -> list[str]:
         """특정 캠페인에 해당 유저가 이미 등록한 아이디 목록 반환 (취소 제외)"""
         ws = self._get_ws()

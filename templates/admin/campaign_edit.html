@@ -107,6 +107,11 @@
                 </div>
 
                 <div class="form-group">
+                    <label>결제금액 (원)</label>
+                    <input type="text" name="결제금액" value="{{ campaign.get('결제금액', '') }}" placeholder="리뷰어가 결제할 금액">
+                </div>
+
+                <div class="form-group">
                     <label>리뷰비 (원)</label>
                     <input type="text" name="리뷰비" value="{{ campaign.get('리뷰비', '') }}" placeholder="예: 15000">
                 </div>

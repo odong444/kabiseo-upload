@@ -4,14 +4,15 @@ step_machine.py - 핵심 STEP 0~8 대화 로직
 STEP 0: 메뉴 선택
 STEP 1: 캠페인 선택 (기존 진행 아이디 표시)
 STEP 2: 몇 개 계정 진행?
-STEP 3: 아이디 수집 (하나씩, 중복체크)
+STEP 3: 아이디 수집 (콤마 구분, 중복체크, 부분중복 처리)
 STEP 4: 구매 가이드 전달 + 양식 요청
-STEP 5: 양식 접수 (수취인명, 연락처, 은행, 계좌, 예금주, 주소, 닉네임, 결제금액)
+STEP 5: 양식 접수 (수취인명, 연락처, 은행, 계좌, 예금주, 주소)
 STEP 6: 구매캡쳐 대기
 STEP 7: 리뷰캡쳐 대기
 STEP 8: 완료 (입금대기)
 """
 
+import re
 import logging
 from modules.state_store import StateStore, ReviewerState
 from modules.form_parser import parse_menu_choice, parse_campaign_choice, parse_full_form
@@ -154,64 +155,157 @@ class StepMachine:
         state.step = 3
 
         if count == 1:
-            return tpl.ASK_STORE_ID_SINGLE
+            return "스토어 아이디를 입력해주세요."
         else:
-            return tpl.ASK_STORE_ID.format(n=1, current=1, total=count)
+            return f"스토어 아이디 {count}개를 입력해주세요.\n(콤마로 구분. 예: abc123, def456)"
 
-    # ─────────── STEP 3: 아이디 수집 ───────────
+    # ─────────── STEP 3: 아이디 수집 (콤마/스페이스 구분, 부분중복 처리) ───────────
 
     def _step3_collect_ids(self, state: ReviewerState, message: str) -> str:
-        store_id = message.strip()
-        if not store_id or len(store_id) > 30 or "\n" in store_id:
-            return "아이디를 정확히 입력해주세요. (한 줄에 하나)"
+        raw = message.strip()
+        if not raw:
+            return tpl.ASK_STORE_IDS
 
         campaign = state.temp_data.get("campaign", {})
         campaign_id = campaign.get("캠페인ID", "")
         account_count = state.temp_data.get("account_count", 1)
-        collected = state.temp_data.get("store_ids", [])
 
-        # 이미 이번에 입력한 아이디 중복 체크
-        if store_id in collected:
-            return f"⚠️ '{store_id}'는 이미 입력한 아이디입니다. 다른 아이디를 입력해주세요."
+        # ── 중복 처리 서브스테이트 ──
+        dup_state = state.temp_data.get("dup_state")
+
+        if dup_state == "ask":
+            # 유저가 1(줄여서 진행) or 2(대체 아이디 입력) 선택
+            if raw in ("1", "1번"):
+                valid_ids = state.temp_data.get("valid_ids", [])
+                state.temp_data["store_ids"] = valid_ids
+                state.temp_data["account_count"] = len(valid_ids)
+                self._clear_dup_state(state)
+                return self._register_and_guide(state)
+            elif raw in ("2", "2번"):
+                state.temp_data["dup_state"] = "replace"
+                dup_count = len(state.temp_data.get("dup_ids", []))
+                return f"대체할 아이디 {dup_count}개를 입력해주세요. (콤마로 구분)"
+            else:
+                valid_count = len(state.temp_data.get("valid_ids", []))
+                dup_count = len(state.temp_data.get("dup_ids", []))
+                return (
+                    f"1 또는 2를 선택해주세요.\n"
+                    f"1️⃣ 중복 제외 {valid_count}개로 진행\n"
+                    f"2️⃣ 중복 {dup_count}개를 다른 아이디로 대체"
+                )
+
+        if dup_state == "replace":
+            new_ids = [x.strip() for x in re.split(r'[,\s]+', raw) if x.strip()]
+            dup_count = len(state.temp_data.get("dup_ids", []))
+            valid_ids = state.temp_data.get("valid_ids", [])
+
+            if len(new_ids) != dup_count:
+                return f"⚠️ {dup_count}개 아이디를 입력해주세요. (현재 {len(new_ids)}개)"
+
+            # 입력 내 중복 체크
+            if len(new_ids) != len(set(new_ids)):
+                return "⚠️ 중복된 아이디가 있습니다. 다시 입력해주세요."
+
+            # 기존 valid_ids와 중복 체크
+            overlap = [sid for sid in new_ids if sid in valid_ids]
+            if overlap:
+                return f"⚠️ '{overlap[0]}'은(는) 이미 사용 가능한 아이디에 포함되어 있습니다. 다른 아이디를 입력해주세요."
+
+            # 시트 중복 체크
+            allow_dup = campaign.get("중복허용", "").strip().upper() in ("Y", "O", "예", "허용")
+            if not allow_dup:
+                for sid in new_ids:
+                    is_dup = self.reviewers.check_duplicate(campaign_id, sid)
+                    if is_dup:
+                        return (
+                            tpl.DUPLICATE_FOUND.format(store_id=sid) +
+                            f"\n\n대체할 아이디 {dup_count}개를 다시 입력해주세요."
+                        )
+
+            # 기존 valid + 새 아이디 합치기
+            valid_ids = state.temp_data.get("valid_ids", [])
+            all_ids = valid_ids + new_ids
+            state.temp_data["store_ids"] = all_ids
+            self._clear_dup_state(state)
+            return self._register_and_guide(state)
+
+        # ── 일반 ID 입력 처리 ──
+        ids = [x.strip() for x in re.split(r'[,\s]+', raw) if x.strip()]
+
+        if not ids:
+            return "아이디를 입력해주세요. (여러 개면 콤마로 구분)"
+
+        # 입력 수 체크
+        if len(ids) != account_count:
+            return f"⚠️ {account_count}개 아이디를 입력해주세요. (현재 {len(ids)}개 입력됨)\n콤마로 구분하여 입력해주세요."
+
+        # 아이디 내 중복 체크
+        if len(ids) != len(set(ids)):
+            return "⚠️ 중복된 아이디가 있습니다. 다시 입력해주세요."
 
         # 시트 중복 체크 (캠페인별 중복허용 설정 확인)
         allow_dup = campaign.get("중복허용", "").strip().upper() in ("Y", "O", "예", "허용")
         if not allow_dup:
-            is_dup = self.reviewers.check_duplicate(campaign_id, store_id)
-            if is_dup:
-                return tpl.DUPLICATE_FOUND.format(store_id=store_id)
+            dup_ids = []
+            valid_ids = []
+            for sid in ids:
+                is_dup = self.reviewers.check_duplicate(campaign_id, sid)
+                if is_dup:
+                    dup_ids.append(sid)
+                else:
+                    valid_ids.append(sid)
 
-        # 아이디 저장
-        collected.append(store_id)
-        state.temp_data["store_ids"] = collected
+            if dup_ids:
+                if not valid_ids:
+                    # 모두 중복
+                    dup_list = ", ".join(dup_ids)
+                    return f"⚠️ 입력하신 아이디가 모두 중복입니다: {dup_list}\n다시 입력해주세요."
 
-        # 아직 더 받아야 하면
-        if len(collected) < account_count:
-            next_n = len(collected) + 1
-            confirm = tpl.ID_CONFIRMED.format(store_id=store_id)
-            ask_next = tpl.ASK_STORE_ID.format(n=next_n, current=next_n, total=account_count)
-            return f"{confirm}\n\n{ask_next}"
+                # 일부 중복 → 선택지 제공
+                dup_list = ", ".join(dup_ids)
+                valid_list = ", ".join(valid_ids)
+                state.temp_data["dup_state"] = "ask"
+                state.temp_data["dup_ids"] = dup_ids
+                state.temp_data["valid_ids"] = valid_ids
 
-        # 모든 아이디 수집 완료 → 시트에 "신청" 상태로 등록 + 구매 가이드
-        state.step = 4
-        confirm = tpl.ID_CONFIRMED.format(store_id=store_id)
+                return (
+                    f"⚠️ 중복된 아이디: {dup_list}\n"
+                    f"✅ 사용 가능한 아이디: {valid_list}\n\n"
+                    f"어떻게 진행하시겠습니까?\n"
+                    f"1️⃣ 중복 제외 {len(valid_ids)}개로 진행\n"
+                    f"2️⃣ 중복 {len(dup_ids)}개를 다른 아이디로 대체"
+                )
 
-        id_summary = ", ".join(collected)
-        if account_count > 1:
-            confirm += f"\n\n🆔 전체 아이디: {id_summary}"
+        # 모두 통과
+        state.temp_data["store_ids"] = ids
+        return self._register_and_guide(state)
 
-        # 시트에 각 아이디별 "신청" 상태로 미리 등록
-        for sid in collected:
-            self.reviewers.register(
-                state.name, state.phone, campaign, sid
-            )
+    def _clear_dup_state(self, state: ReviewerState):
+        """중복 처리 임시 데이터 정리"""
+        state.temp_data.pop("dup_state", None)
+        state.temp_data.pop("dup_ids", None)
+        state.temp_data.pop("valid_ids", None)
 
-        # 가이드 전달 → 상태 "가이드전달"로 업데이트
-        for sid in collected:
+    def _register_and_guide(self, state: ReviewerState) -> str:
+        """아이디 등록 + 가이드 전달"""
+        campaign = state.temp_data.get("campaign", {})
+        campaign_id = campaign.get("캠페인ID", "")
+        ids = state.temp_data.get("store_ids", [])
+
+        # 시트에 각 아이디별 "신청" 상태로 등록
+        for sid in ids:
+            self.reviewers.register(state.name, state.phone, campaign, sid)
+
+        # 상태 "가이드전달"로 업데이트
+        for sid in ids:
             self._update_status_by_id(state.name, state.phone, campaign_id, sid, "가이드전달")
 
-        # 구매 가이드 자동 전달
-        guide = self._build_purchase_guide(campaign)
+        state.step = 4
+        id_summary = ", ".join(ids)
+        confirm = f"✅ 아이디 확인: {id_summary}"
+
+        # 구매 가이드 자동 전달 (기존 계좌정보 + 결제금액 자동 포함)
+        guide = self._build_purchase_guide(campaign, state.name, state.phone)
         return f"{confirm}\n\n{guide}"
 
     # ─────────── STEP 4: 구매가이드 전달됨 → 양식 대기 ───────────
@@ -228,24 +322,30 @@ class StepMachine:
 
         required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
         missing = [f for f in required if not parsed.get(f)]
+        campaign = state.temp_data.get("campaign", {})
 
         if missing:
             # 양식이 아닌 일반 메시지인 경우
             if len(missing) == len(required):
-                campaign = state.temp_data.get("campaign", {})
-                guide = self._build_purchase_guide(campaign)
-                return f"구매 완료 후 양식을 입력해주세요.\n\n{guide}"
+                form_template = self._build_form_template(campaign, state.name, state.phone)
+                return f"구매 완료 후 양식을 입력해주세요.\n\n{form_template}"
             missing_text = "\n".join(f"- {f}" for f in missing)
-            return tpl.FORM_MISSING_FIELDS.format(missing_list=missing_text)
+            form_template = self._build_form_template(campaign, state.name, state.phone)
+            return tpl.FORM_MISSING_FIELDS.format(
+                missing_list=missing_text,
+                form_template=form_template,
+            )
 
         # 양식 저장 + 기존 시트 행 업데이트
-        campaign = state.temp_data.get("campaign", {})
         store_ids = state.temp_data.get("store_ids", [])
         campaign_id = campaign.get("캠페인ID", "")
 
         if not campaign or not store_ids:
             state.step = 0
             return "캠페인 정보가 없습니다. 처음부터 다시 진행해주세요.\n\n" + tpl.WELCOME_BACK.format(name=state.name)
+
+        # 결제금액은 캠페인에서 자동 설정
+        parsed["결제금액"] = campaign.get("결제금액", "")
 
         # 각 아이디별 양식 데이터 업데이트 (이미 step3에서 행 생성됨)
         for sid in store_ids:
@@ -324,7 +424,29 @@ class StepMachine:
 
     # ─────────── 구매 가이드 빌더 ───────────
 
-    def _build_purchase_guide(self, campaign: dict) -> str:
+    def _build_form_template(self, campaign: dict, name: str, phone: str) -> str:
+        """양식 템플릿 생성 (기존 정보 자동 채움)"""
+        prev_info = {}
+        try:
+            if self.reviewers and self.reviewers.sheets:
+                prev_info = self.reviewers.sheets.get_user_prev_info(name, phone)
+        except Exception as e:
+            logger.error(f"기존 정보 조회 에러: {e}")
+
+        lines = [
+            f"수취인명: {name}",
+            f"연락처: {phone}",
+            f"은행: {prev_info.get('은행', '')}",
+            f"계좌: {prev_info.get('계좌', '')}",
+            f"예금주: {prev_info.get('예금주', name)}",
+            f"주소: {prev_info.get('주소', '')}",
+        ]
+        return "\n".join(lines)
+
+    def _build_purchase_guide(self, campaign: dict, name: str, phone: str) -> str:
+        form_template = self._build_form_template(campaign, name, phone)
+        payment_amount = campaign.get("결제금액", "확인필요")
+
         return tpl.PURCHASE_GUIDE.format(
             product_name=campaign.get("상품명", ""),
             store_name=campaign.get("업체명", ""),
@@ -332,6 +454,8 @@ class StepMachine:
             keyword=campaign.get("키워드", "없음"),
             entry_method=campaign.get("유입방식", "없음"),
             option=campaign.get("옵션", "없음"),
+            payment_amount=payment_amount,
+            form_template=form_template,
         )
 
     # ─────────── 포맷팅 ───────────

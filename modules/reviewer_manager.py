@@ -38,7 +38,7 @@ class ReviewerManager:
             "은행": fd.get("은행", ""),
             "계좌": fd.get("계좌", ""),
             "예금주": fd.get("예금주", name),
-            "결제금액": fd.get("결제금액", ""),
+            "결제금액": campaign.get("결제금액", ""),
             "아이디": store_id,
             "주소": fd.get("주소", ""),
             "닉네임": fd.get("닉네임", ""),
