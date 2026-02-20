@@ -389,12 +389,14 @@ class SheetsManager:
             logger.error(f"캠페인 셀 업데이트 에러: {e}")
 
     def ensure_campaign_column(self, col_name: str):
-        """캠페인관리 시트에 컬럼이 없으면 추가"""
+        """캠페인관리 시트에 컬럼이 없으면 추가 (열 부족 시 자동 확장)"""
         try:
             ws = self.spreadsheet.worksheet("캠페인관리")
             headers = self._get_headers(ws)
             if col_name not in headers:
                 new_col = len(headers) + 1
+                if new_col > ws.col_count:
+                    ws.add_cols(new_col - ws.col_count)
                 ws.update_cell(1, new_col, col_name)
                 logger.info(f"캠페인관리 시트에 '{col_name}' 컬럼 추가됨")
         except Exception as e:

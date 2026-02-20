@@ -48,6 +48,7 @@ def init_app(web_url: str = "", socketio=None):
         sheets_manager.ensure_campaign_column("결제금액")
         sheets_manager.ensure_campaign_column("리뷰가이드")
         sheets_manager.ensure_campaign_column("중복허용")
+        sheets_manager.ensure_campaign_column("리뷰비")
 
         campaign_manager = CampaignManager(sheets_manager)
         reviewer_manager = ReviewerManager(sheets_manager)
