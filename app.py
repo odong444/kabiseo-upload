@@ -142,6 +142,24 @@ def upload_review_submit(row):
     return _handle_upload("review", row)
 
 
+def _make_upload_filename(capture_type: str, row_idx: int, original_name: str) -> str:
+    """업로드 파일명 생성: 업체명_수취인명_구매내역(or 리뷰).확장자"""
+    import os as _os
+    ext = _os.path.splitext(original_name)[1] or ".jpg"
+    label = "구매내역" if capture_type == "purchase" else "리뷰"
+
+    row_data = {}
+    if models.sheets_manager:
+        try:
+            row_data = models.sheets_manager.get_row_dict(row_idx)
+        except Exception:
+            pass
+
+    company = row_data.get("업체명", "").strip() or "업체"
+    recipient = row_data.get("수취인명", "").strip() or "미지정"
+    return f"{company}_{recipient}_{label}{ext}"
+
+
 def _handle_upload(capture_type: str, row: int):
     """공통 업로드 처리"""
     file = request.files.get("capture")
@@ -154,8 +172,11 @@ def _handle_upload(capture_type: str, row: int):
         return redirect(request.referrer or url_for("upload"))
 
     try:
+        filename = _make_upload_filename(capture_type, row, file.filename)
         desc = f"{capture_type}_row{row}"
-        drive_link = models.drive_uploader.upload_from_flask_file(file, capture_type, desc)
+        drive_link = models.drive_uploader.upload(
+            file.read(), filename, file.content_type or "image/jpeg", capture_type, desc
+        )
         models.sheets_manager.update_after_upload(capture_type, row, drive_link)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
@@ -191,8 +212,11 @@ def api_upload():
 
     try:
         row_idx = int(row)
+        filename = _make_upload_filename(capture_type, row_idx, file.filename)
         desc = f"{capture_type}_row{row_idx}"
-        drive_link = models.drive_uploader.upload_from_flask_file(file, capture_type, desc)
+        drive_link = models.drive_uploader.upload(
+            file.read(), filename, file.content_type or "image/jpeg", capture_type, desc
+        )
         models.sheets_manager.update_after_upload(capture_type, row_idx, drive_link)
 
         label = "구매" if capture_type == "purchase" else "리뷰"

@@ -199,6 +199,16 @@ class SheetsManager:
         if col >= 0:
             ws.update_cell(row_idx, col + 1, value)
 
+    def get_row_dict(self, row_idx: int) -> dict:
+        """특정 행을 dict로 반환"""
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        try:
+            row = ws.row_values(row_idx)
+            return {headers[j]: row[j] for j in range(len(headers)) if j < len(row)}
+        except Exception:
+            return {}
+
     def update_after_upload(self, capture_type: str, row_idx: int, drive_link: str):
         """업로드 완료 후 시트 업데이트"""
         if capture_type == "purchase":
