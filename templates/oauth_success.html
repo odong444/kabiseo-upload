@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Google 인증 완료 - 카비서{% endblock %}
+
+{% block content %}
+<div class="success-page">
+    <div class="success-icon">&#9989;</div>
+    <h1>Google Drive 인증 완료</h1>
+    <p class="success-message">사진 업로드 기능이 활성화되었습니다.</p>
+
+    <div class="success-actions">
+        <a href="{{ url_for('upload') }}" class="btn btn-primary">사진 제출하기</a>
+        <a href="{{ url_for('index') }}" class="btn btn-outline">홈으로</a>
+    </div>
+</div>
+{% endblock %}

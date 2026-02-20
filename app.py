@@ -226,6 +226,40 @@ def api_payment():
     return payments
 
 
+# ──────── Google OAuth 인증 (Drive 업로드용) ────────
+
+@app.route("/auth")
+def google_auth():
+    """Google OAuth 인증 시작"""
+    import google_client
+    try:
+        auth_url = google_client.get_oauth_auth_url()
+        return redirect(auth_url)
+    except Exception as e:
+        logger.error(f"OAuth 인증 URL 생성 실패: {e}")
+        return f"OAuth 설정 오류: {e}", 500
+
+
+@app.route("/oauth2callback")
+def oauth2callback():
+    """Google OAuth 콜백"""
+    import google_client
+    code = request.args.get("code")
+    if not code:
+        return "인증 코드가 없습니다.", 400
+
+    try:
+        tokens = google_client.handle_oauth_callback(code)
+        google_client.reset_drive_uploader()
+        # drive_uploader 재생성
+        models.drive_uploader = google_client.get_drive_uploader()
+        logger.info("OAuth 인증 완료, Drive 업로더 재생성")
+        return render_template("oauth_success.html")
+    except Exception as e:
+        logger.error(f"OAuth 콜백 에러: {e}", exc_info=True)
+        return f"인증 실패: {e}", 500
+
+
 # ════════════════════════════════════════
 # 실행
 # ════════════════════════════════════════
