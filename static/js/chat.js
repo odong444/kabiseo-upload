@@ -143,6 +143,7 @@
         hideQuickButtons();
         appendMessage('user', message);
         chatInput.value = '';
+        chatInput.style.height = 'auto';
         scrollToBottom();
 
         socket.emit('user_message', {
@@ -153,11 +154,19 @@
     }
 
     sendBtn.addEventListener('click', sendMessage);
-    chatInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
+
+    // Enter = 줄바꿈 (기본), Shift+Enter = 전송
+    chatInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.shiftKey) {
             e.preventDefault();
             sendMessage();
         }
+    });
+
+    // textarea 높이 자동 조절
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
     });
 
     // ──────── UI 헬퍼 ────────

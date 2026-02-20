@@ -356,18 +356,24 @@ body {
     margin: 0 auto;
     display: flex;
     gap: 8px;
-    align-items: center;
+    align-items: flex-end;
 }
-.chat-input-wrap input {
+.chat-input-wrap textarea {
     flex: 1;
     padding: 12px 16px;
     border: 2px solid #e5e5e5;
-    border-radius: 24px;
+    border-radius: 20px;
     font-size: 15px;
     outline: none;
     -webkit-appearance: none;
+    resize: none;
+    overflow-y: auto;
+    min-height: 44px;
+    max-height: 120px;
+    line-height: 1.4;
+    font-family: inherit;
 }
-.chat-input-wrap input:focus { border-color: #fee500; }
+.chat-input-wrap textarea:focus { border-color: #fee500; }
 .send-btn {
     width: 44px;
     height: 44px;
