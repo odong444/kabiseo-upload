@@ -53,11 +53,90 @@ class StepMachine:
         return response
 
     def get_welcome(self, name: str, phone: str) -> str:
-        """접속 시 환영 메시지"""
+        """접속 시 환영 메시지 (진행 중 세션이면 복귀 안내)"""
         state = self.states.get(name, phone)
         if state.step == 0:
             return tpl.WELCOME_BACK.format(name=name)
-        return ""
+
+        # 진행 중인 세션 → 현재 단계 안내
+        return self._build_resume_message(state)
+
+    def _build_resume_message(self, state: ReviewerState) -> str:
+        """진행 중인 세션 복귀 안내 메시지"""
+        campaign = state.temp_data.get("campaign", {})
+        product = campaign.get("상품명", "")
+        store_ids = state.temp_data.get("store_ids", [])
+        submitted_ids = state.temp_data.get("submitted_ids", [])
+        id_summary = ", ".join(store_ids) if store_ids else ""
+
+        header = f"📌 진행 중인 신청이 있습니다.\n📦 {product}" if product else "📌 진행 중인 신청이 있습니다."
+
+        if state.step in (1,):
+            return f"{header}\n\n캠페인을 선택해주세요.\n(처음으로 돌아가려면 '메뉴' 입력)\n\n" + self.campaigns.build_campaign_list_text(state.name, state.phone)
+
+        elif state.step == 2:
+            return f"{header}\n\n몇 개 계정으로 진행하시겠습니까?\n(처음으로 돌아가려면 '메뉴' 입력)"
+
+        elif state.step == 3:
+            count = state.temp_data.get("account_count", 1)
+            dup_state = state.temp_data.get("dup_state")
+            if dup_state == "ask":
+                valid_count = len(state.temp_data.get("valid_ids", []))
+                dup_count = len(state.temp_data.get("dup_ids", []))
+                return (
+                    f"{header}\n\n중복 아이디 처리 대기 중입니다.\n"
+                    f"1️⃣ 중복 제외 {valid_count}개로 진행\n"
+                    f"2️⃣ 중복 {dup_count}개를 다른 아이디로 대체\n"
+                    f"(처음으로 돌아가려면 '메뉴' 입력)"
+                )
+            elif dup_state == "replace":
+                dup_count = len(state.temp_data.get("dup_ids", []))
+                return f"{header}\n\n대체할 아이디 {dup_count}개를 입력해주세요. (콤마로 구분)"
+            if count == 1:
+                return f"{header}\n\n스토어 아이디를 입력해주세요.\n(처음으로 돌아가려면 '메뉴' 입력)"
+            return f"{header}\n\n스토어 아이디 {count}개를 입력해주세요.\n(콤마로 구분)\n(처음으로 돌아가려면 '메뉴' 입력)"
+
+        elif state.step in (4, 5):
+            remaining = [sid for sid in store_ids if sid not in submitted_ids]
+            if remaining:
+                form_template = self._build_form_template(
+                    campaign, state.name, state.phone, remaining
+                )
+                return (
+                    f"{header}\n🆔 {id_summary}\n\n"
+                    f"⏳ 양식 미제출: {', '.join(remaining)}\n"
+                    f"구매 후 양식을 제출해주세요:\n\n{form_template}\n\n"
+                    f"(처음으로 돌아가려면 '메뉴' 입력)"
+                )
+            form_template = self._build_form_template(
+                campaign, state.name, state.phone, store_ids
+            )
+            return f"{header}\n🆔 {id_summary}\n\n양식을 제출해주세요:\n\n{form_template}\n\n(처음으로 돌아가려면 '메뉴' 입력)"
+
+        elif state.step == 6:
+            upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
+            return (
+                f"{header}\n🆔 {id_summary}\n\n"
+                f"📸 구매 캡쳐를 제출해주세요.\n"
+                f"🔗 사진 제출: {upload_url}\n\n"
+                f"(처음으로 돌아가려면 '메뉴' 입력)"
+            )
+
+        elif state.step == 7:
+            upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
+            deadline = state.temp_data.get("deadline", "확인 필요")
+            return (
+                f"{header}\n🆔 {id_summary}\n\n"
+                f"📸 리뷰 캡쳐를 제출해주세요.\n"
+                f"🔗 사진 제출: {upload_url}\n"
+                f"⏰ 리뷰 기한: {deadline}\n\n"
+                f"(처음으로 돌아가려면 '메뉴' 입력)"
+            )
+
+        elif state.step == 8:
+            return tpl.ALL_DONE + "\n\n" + tpl.WELCOME_BACK.format(name=state.name)
+
+        return tpl.WELCOME_BACK.format(name=state.name)
 
     def _dispatch(self, state: ReviewerState, message: str) -> str:
         step = state.step
