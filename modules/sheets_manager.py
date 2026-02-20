@@ -327,7 +327,10 @@ class SheetsManager:
         return {}
 
     def get_user_campaign_ids(self, name: str, phone: str, campaign_id: str) -> list[str]:
-        """특정 캠페인에 해당 유저가 이미 등록한 아이디 목록 반환 (취소 제외)"""
+        """특정 캠페인에 해당 유저가 실제 진행 중인 아이디 목록 반환
+
+        구매내역제출 이상 상태만 표시 (중복 체크 기준과 동일).
+        """
         ws = self._get_ws()
         headers = self._get_headers(ws)
         all_rows = ws.get_all_values()
@@ -347,8 +350,9 @@ class SheetsManager:
                 continue
             if row[name_col] != name or row[phone_col] != phone or row[cid_col] != campaign_id:
                 continue
-            # 취소 상태 제외
-            if status_col >= 0 and len(row) > status_col and row[status_col] == STATUS_CANCELLED:
+            status = row[status_col] if status_col >= 0 and len(row) > status_col else ""
+            # 미완료/취소 상태 제외 (중복 체크 기준과 동일)
+            if status in self._DUP_IGNORE_STATUSES:
                 continue
             store_id = row[sid_col]
             if store_id:
