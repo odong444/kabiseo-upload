@@ -25,8 +25,8 @@
             <div class="item-info">
                 <div class="item-product">{{ item.get('제품명', '') }}</div>
                 <div class="item-detail">아이디: {{ item.get('아이디', '') }}</div>
-                <div class="item-detail">구매일: {{ item.get('구매일', '') }}</div>
-                <div class="item-detail">상태: <span class="item-status">{{ item.get('상태', '') }}</span></div>
+                <div class="item-detail">수취인: {{ item.get('수취인명', '') }} / {{ item.get('연락처', '') }}</div>
+                <div class="item-detail">구매일: {{ item.get('구매일', '') or item.get('날짜', '') }}</div>
             </div>
             <div class="upload-controls">
                 <form
