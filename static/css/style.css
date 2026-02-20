@@ -729,6 +729,31 @@ body {
 }
 .rate-btn:hover { opacity: 1; }
 
+/* ──────── 퀵 버튼 ──────── */
+.quick-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 0;
+    margin-left: 38px;
+}
+.quick-btn {
+    padding: 10px 16px;
+    background: #fff;
+    border: 1.5px solid #fee500;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #3c1e1e;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s;
+}
+.quick-btn:active {
+    background: #fee500;
+    transform: scale(0.96);
+}
+
 /* ──────── 반응형 ──────── */
 @media (max-width: 768px) {
     .admin-nav { flex-wrap: wrap; gap: 2px; }

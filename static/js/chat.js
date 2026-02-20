@@ -29,6 +29,8 @@
     const chatContainer = document.getElementById('chatContainer');
     const botStatus = document.getElementById('botStatus');
 
+    let hasHistory = false;
+
     // ──────── SocketIO 연결 ────────
     const socket = io({
         transports: ['websocket', 'polling']
@@ -37,7 +39,6 @@
     socket.on('connect', function() {
         console.log('WebSocket 연결됨');
         botStatus.textContent = '온라인';
-        // 채팅방 입장
         socket.emit('join', { name: user.name, phone: user.phone });
     });
 
@@ -53,17 +54,20 @@
     // ──────── 메시지 수신 ────────
 
     socket.on('chat_history', function(data) {
-        // 이전 대화 이력 로드
         const messages = data.messages || [];
         chatMessages.innerHTML = '';
-        messages.forEach(function(msg) {
-            appendMessage(msg.sender, msg.message, msg.timestamp);
-        });
+        if (messages.length > 0) {
+            hasHistory = true;
+            messages.forEach(function(msg) {
+                appendMessage(msg.sender, msg.message, msg.timestamp);
+            });
+        }
         scrollToBottom();
     });
 
     socket.on('bot_message', function(data) {
         removeTyping();
+        hideQuickButtons();
         appendMessage('bot', data.message);
         scrollToBottom();
     });
@@ -81,18 +85,71 @@
         scrollToBottom();
     });
 
+    // ──────── 퀵 버튼으로 메시지 전송 ────────
+
+    function sendQuickMessage(text) {
+        appendMessage('user', text);
+        hideQuickButtons();
+        scrollToBottom();
+        socket.emit('user_message', {
+            name: user.name,
+            phone: user.phone,
+            message: text
+        });
+    }
+
+    // 전역으로 노출 (onclick에서 호출)
+    window.sendQuickMessage = sendQuickMessage;
+
+    // ──────── 시작 퀵버튼 표시 ────────
+
+    function showQuickButtons() {
+        if (document.getElementById('quickButtons')) return;
+        const wrap = document.createElement('div');
+        wrap.id = 'quickButtons';
+        wrap.className = 'quick-buttons';
+        wrap.innerHTML =
+            '<button class="quick-btn" onclick="sendQuickMessage(\'1\')">&#10024; 체험단 신청</button>' +
+            '<button class="quick-btn" onclick="sendQuickMessage(\'2\')">&#128203; 진행 상황</button>' +
+            '<button class="quick-btn" onclick="sendQuickMessage(\'3\')">&#128247; 사진 제출</button>' +
+            '<button class="quick-btn" onclick="sendQuickMessage(\'4\')">&#128176; 입금 현황</button>' +
+            '<button class="quick-btn" onclick="sendQuickMessage(\'5\')">&#128172; 기타 문의</button>';
+        chatMessages.appendChild(wrap);
+        scrollToBottom();
+    }
+
+    function hideQuickButtons() {
+        const el = document.getElementById('quickButtons');
+        if (el) el.remove();
+    }
+
+    // 환영 메시지 후 퀵버튼 표시 (약간 딜레이)
+    socket.on('bot_message', function() {
+        setTimeout(function() {
+            if (!document.getElementById('quickButtons')) {
+                // 마지막 봇 메시지가 메뉴 관련이면 퀵버튼 표시
+                const lastBot = chatMessages.querySelectorAll('.chat-bubble.bot .bubble-content');
+                if (lastBot.length > 0) {
+                    const lastText = lastBot[lastBot.length - 1].textContent;
+                    if (lastText.includes('체험단 신청') || lastText.includes('도와드릴까요') || lastText.includes('선택해주세요')) {
+                        showQuickButtons();
+                    }
+                }
+            }
+        }, 300);
+    });
+
     // ──────── 메시지 전송 ────────
 
     function sendMessage() {
         const message = chatInput.value.trim();
         if (!message) return;
 
-        // 사용자 메시지 표시
         appendMessage('user', message);
         chatInput.value = '';
+        hideQuickButtons();
         scrollToBottom();
 
-        // 서버로 전송
         socket.emit('user_message', {
             name: user.name,
             phone: user.phone,
@@ -165,7 +222,6 @@
     const menuToggle = document.getElementById('menuToggle');
     if (menuToggle) {
         menuToggle.addEventListener('click', function() {
-            // 간단한 메뉴: 로그아웃 기능
             if (confirm('로그아웃하시겠습니까?\n(다른 이름으로 접속하려면 로그아웃 해주세요)')) {
                 localStorage.removeItem('kabiseo_user');
                 window.location.href = '/';
