@@ -6,12 +6,24 @@
     <title>카비서 - 채팅</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#b2c7d9; }
+        #chatApp {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+        }
+        #chatApp > .chat-header { flex-shrink: 0; }
+        #chatApp > .chat-container { flex: 1 1 0; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
+        #chatApp > .chat-input-area { flex-shrink: 0; }
+    </style>
 </head>
-<body class="chat-page">
+<body>
 
     <!-- 사이드바 오버레이 -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
     <!-- 사이드바 -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -20,20 +32,16 @@
         </div>
         <nav class="sidebar-nav">
             <a href="/chat" class="sidebar-item active">
-                <span class="sidebar-icon">&#128172;</span>
-                <span>채팅</span>
+                <span class="sidebar-icon">&#128172;</span><span>채팅</span>
             </a>
             <a href="/status" class="sidebar-item">
-                <span class="sidebar-icon">&#128203;</span>
-                <span>진행현황</span>
+                <span class="sidebar-icon">&#128203;</span><span>진행현황</span>
             </a>
             <a href="/upload" class="sidebar-item">
-                <span class="sidebar-icon">&#128247;</span>
-                <span>사진제출</span>
+                <span class="sidebar-icon">&#128247;</span><span>사진제출</span>
             </a>
             <a href="/payment" class="sidebar-item">
-                <span class="sidebar-icon">&#128176;</span>
-                <span>입금현황</span>
+                <span class="sidebar-icon">&#128176;</span><span>입금현황</span>
             </a>
         </nav>
         <div class="sidebar-footer">
@@ -41,31 +49,34 @@
         </div>
     </aside>
 
-    <header class="chat-header">
-        <div class="chat-header-inner">
-            <div class="chat-profile">
-                <div class="profile-avatar">K</div>
-                <div class="profile-info">
-                    <span class="profile-name">카비서</span>
-                    <span class="profile-status" id="botStatus">온라인</span>
+    <!-- 메인 채팅 래퍼 -->
+    <div id="chatApp">
+        <header class="chat-header">
+            <div class="chat-header-inner">
+                <div class="chat-profile">
+                    <div class="profile-avatar">K</div>
+                    <div class="profile-info">
+                        <span class="profile-name">카비서</span>
+                        <span class="profile-status" id="botStatus">온라인</span>
+                    </div>
                 </div>
+                <button class="menu-btn" id="menuToggle">&#9776;</button>
             </div>
-            <button class="menu-btn" id="menuToggle">&#9776;</button>
+        </header>
+
+        <div class="chat-container" id="chatContainer">
+            <div class="chat-messages" id="chatMessages"></div>
         </div>
-    </header>
 
-    <div class="chat-container" id="chatContainer">
-        <div class="chat-messages" id="chatMessages"></div>
-    </div>
-
-    <div class="chat-input-area">
-        <div class="chat-input-wrap">
-            <textarea id="chatInput" placeholder="메시지를 입력하세요...&#10;(Shift+Enter: 전송)" rows="1" autocomplete="off"></textarea>
-            <button class="send-btn" id="sendBtn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                </svg>
-            </button>
+        <div class="chat-input-area">
+            <div class="chat-input-wrap">
+                <textarea id="chatInput" placeholder="메시지를 입력하세요...&#10;(Shift+Enter: 전송)" rows="1" autocomplete="off"></textarea>
+                <button class="send-btn" id="sendBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
         </div>
     </div>
 

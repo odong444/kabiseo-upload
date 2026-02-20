@@ -208,19 +208,7 @@ body {
 }
 .login-form { display: flex; flex-direction: column; gap: 12px; }
 
-/* ──────── 채팅 페이지 (flex 레이아웃) ──────── */
-.chat-page {
-    background: #b2c7d9;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-.chat-page .app-main { display: none; }
+/* ──────── 채팅 페이지 ──────── */
 
 .chat-header {
     background: #fee500;
@@ -342,10 +330,6 @@ body {
     max-width: 480px;
     width: 100%;
     margin: 0 auto;
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    min-height: 0;
 }
 .chat-messages { padding: 16px; min-height: 100%; }
 
@@ -431,11 +415,9 @@ body {
 
 /* 채팅 입력 */
 .chat-input-area {
-    flex-shrink: 0;
     background: #fff;
     border-top: 1px solid #e5e5e5;
     padding: 6px 16px;
-    z-index: 99;
 }
 .chat-input-wrap {
     max-width: 480px;
