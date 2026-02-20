@@ -53,10 +53,11 @@ class ReviewerManager:
         return 1
 
     def update_form_data(self, name: str, phone: str, campaign_id: str,
-                         store_id: str, form_data: dict):
+                         store_id: str, form_data: dict, campaign: dict = None):
         """기존 시트 행에 양식 데이터 업데이트
 
         name/phone: 진행자(로그인) 정보로 행 검색
+        campaign: 캠페인 데이터 (리뷰비, 리뷰기한일수 등)
         """
         ws = self.sheets._get_ws()
         headers = self.sheets._get_headers(ws)
@@ -69,6 +70,8 @@ class ReviewerManager:
         rp_col = self.sheets._find_col(headers, "연락처")
         cid_col = self.sheets._find_col(headers, "캠페인ID")
         sid_col = self.sheets._find_col(headers, "아이디")
+
+        camp = campaign or {}
 
         for i, row in enumerate(all_rows[1:], start=2):
             if cid_col < 0 or sid_col < 0 or len(row) <= max(cid_col, sid_col):
@@ -89,6 +92,7 @@ class ReviewerManager:
                 continue
 
             # 양식 필드 업데이트
+            review_fee = camp.get("리뷰비", "")
             update_fields = {
                 "수취인명": form_data.get("수취인명", ""),
                 "연락처": form_data.get("연락처", ""),
@@ -98,7 +102,18 @@ class ReviewerManager:
                 "주소": form_data.get("주소", ""),
                 "닉네임": form_data.get("닉네임", ""),
                 "결제금액": form_data.get("결제금액", ""),
+                "리뷰비": review_fee,
+                "입금금액": review_fee,
             }
+
+            # 리뷰기한 계산 (오늘 + 리뷰기한일수)
+            deadline_days = safe_int(camp.get("리뷰기한일수", 0))
+            if deadline_days > 0:
+                from datetime import timedelta
+                from modules.utils import now_kst
+                deadline = now_kst() + timedelta(days=deadline_days)
+                update_fields["리뷰기한"] = deadline.strftime("%Y-%m-%d")
+
             for col_name, value in update_fields.items():
                 if value:
                     col = self.sheets._find_col(headers, col_name)

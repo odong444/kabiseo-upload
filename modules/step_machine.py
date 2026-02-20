@@ -466,7 +466,8 @@ class StepMachine:
             # 결제금액 자동 설정 + 시트 업데이트
             parsed["결제금액"] = campaign.get("결제금액", "")
             self.reviewers.update_form_data(
-                state.name, state.phone, campaign_id, target_id, parsed
+                state.name, state.phone, campaign_id, target_id, parsed,
+                campaign=campaign,
             )
 
             submitted_ids.append(target_id)
