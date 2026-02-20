@@ -54,6 +54,11 @@ body {
     z-index: 100;
     padding-bottom: env(safe-area-inset-bottom);
 }
+/* 채팅 페이지에서는 fixed 해제, flex 하단 배치 */
+.chat-page .bottom-nav {
+    position: static;
+    flex-shrink: 0;
+}
 .nav-item {
     flex: 1;
     display: flex;
@@ -206,15 +211,21 @@ body {
 }
 .login-form { display: flex; flex-direction: column; gap: 12px; }
 
-/* ──────── 채팅 페이지 ──────── */
-.chat-page { background: #b2c7d9; }
-.chat-page .app-main { padding: 0; max-width: 100%; }
+/* ──────── 채팅 페이지 (flex 레이아웃) ──────── */
+.chat-page {
+    background: #b2c7d9;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+}
+.chat-page .app-main { display: none; }
 
 .chat-header {
     background: #fee500;
     padding: 12px 16px;
-    position: sticky;
-    top: 0;
+    flex-shrink: 0;
     z-index: 100;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
@@ -252,10 +263,12 @@ body {
 /* 채팅 컨테이너 */
 .chat-container {
     max-width: 480px;
+    width: 100%;
     margin: 0 auto;
-    height: calc(100vh - 56px - 54px - 50px - env(safe-area-inset-bottom));
+    flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    min-height: 0;
 }
 .chat-messages { padding: 16px; min-height: 100%; }
 
@@ -341,10 +354,7 @@ body {
 
 /* 채팅 입력 */
 .chat-input-area {
-    position: fixed;
-    bottom: calc(50px + env(safe-area-inset-bottom));
-    left: 0;
-    right: 0;
+    flex-shrink: 0;
     background: #fff;
     border-top: 1px solid #e5e5e5;
     padding: 6px 16px;
