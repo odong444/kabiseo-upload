@@ -92,7 +92,9 @@ class ReviewerManager:
                 continue
 
             # 양식 필드 업데이트
-            review_fee = camp.get("리뷰비", "")
+            review_fee = safe_int(camp.get("리뷰비", 0))
+            purchase_amount = safe_int(form_data.get("결제금액", "") or camp.get("결제금액", 0))
+            deposit_amount = review_fee + purchase_amount if (review_fee or purchase_amount) else ""
             update_fields = {
                 "수취인명": form_data.get("수취인명", ""),
                 "연락처": form_data.get("연락처", ""),
@@ -102,8 +104,8 @@ class ReviewerManager:
                 "주소": form_data.get("주소", ""),
                 "닉네임": form_data.get("닉네임", ""),
                 "결제금액": form_data.get("결제금액", ""),
-                "리뷰비": review_fee,
-                "입금금액": review_fee,
+                "리뷰비": str(review_fee) if review_fee else "",
+                "입금금액": str(deposit_amount) if deposit_amount else "",
             }
 
             # 리뷰기한 계산 (오늘 + 리뷰기한일수)
