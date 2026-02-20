@@ -29,8 +29,6 @@
     const chatContainer = document.getElementById('chatContainer');
     const botStatus = document.getElementById('botStatus');
 
-    let hasHistory = false;
-
     // ──────── SocketIO 연결 ────────
     const socket = io({
         transports: ['websocket', 'polling']
@@ -54,22 +52,24 @@
     // ──────── 메시지 수신 ────────
 
     socket.on('chat_history', function(data) {
-        const messages = data.messages || [];
+        var messages = data.messages || [];
         chatMessages.innerHTML = '';
-        if (messages.length > 0) {
-            hasHistory = true;
-            messages.forEach(function(msg) {
-                appendMessage(msg.sender, msg.message, msg.timestamp);
-            });
-        }
+        messages.forEach(function(msg) {
+            appendMessage(msg.sender, msg.message, msg.timestamp);
+        });
         scrollToBottom();
     });
 
     socket.on('bot_message', function(data) {
         removeTyping();
-        hideQuickButtons();
         appendMessage('bot', data.message);
         scrollToBottom();
+
+        // 메뉴 키워드가 포함되면 퀵버튼 표시
+        var msg = data.message || '';
+        if (msg.indexOf('체험단 신청') !== -1 || msg.indexOf('도와드릴까요') !== -1 || msg.indexOf('선택해주세요') !== -1 || msg.indexOf('기타 문의') !== -1) {
+            setTimeout(showQuickButtons, 200);
+        }
     });
 
     socket.on('bot_typing', function(data) {
@@ -85,11 +85,19 @@
         scrollToBottom();
     });
 
-    // ──────── 퀵 버튼으로 메시지 전송 ────────
+    // ──────── 퀵 버튼 ────────
+
+    var quickMenuItems = [
+        { label: '체험단 신청', value: '1' },
+        { label: '진행 상황', value: '2' },
+        { label: '사진 제출', value: '3' },
+        { label: '입금 현황', value: '4' },
+        { label: '기타 문의', value: '5' }
+    ];
 
     function sendQuickMessage(text) {
-        appendMessage('user', text);
         hideQuickButtons();
+        appendMessage('user', text);
         scrollToBottom();
         socket.emit('user_message', {
             name: user.name,
@@ -98,56 +106,43 @@
         });
     }
 
-    // 전역으로 노출 (onclick에서 호출)
-    window.sendQuickMessage = sendQuickMessage;
-
-    // ──────── 시작 퀵버튼 표시 ────────
-
     function showQuickButtons() {
-        if (document.getElementById('quickButtons')) return;
-        const wrap = document.createElement('div');
+        hideQuickButtons();
+        var wrap = document.createElement('div');
         wrap.id = 'quickButtons';
         wrap.className = 'quick-buttons';
-        wrap.innerHTML =
-            '<button class="quick-btn" onclick="sendQuickMessage(\'1\')">&#10024; 체험단 신청</button>' +
-            '<button class="quick-btn" onclick="sendQuickMessage(\'2\')">&#128203; 진행 상황</button>' +
-            '<button class="quick-btn" onclick="sendQuickMessage(\'3\')">&#128247; 사진 제출</button>' +
-            '<button class="quick-btn" onclick="sendQuickMessage(\'4\')">&#128176; 입금 현황</button>' +
-            '<button class="quick-btn" onclick="sendQuickMessage(\'5\')">&#128172; 기타 문의</button>';
+
+        quickMenuItems.forEach(function(item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'quick-btn';
+            btn.textContent = item.label;
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendQuickMessage(item.value);
+            });
+            wrap.appendChild(btn);
+        });
+
         chatMessages.appendChild(wrap);
         scrollToBottom();
     }
 
     function hideQuickButtons() {
-        const el = document.getElementById('quickButtons');
+        var el = document.getElementById('quickButtons');
         if (el) el.remove();
     }
-
-    // 환영 메시지 후 퀵버튼 표시 (약간 딜레이)
-    socket.on('bot_message', function() {
-        setTimeout(function() {
-            if (!document.getElementById('quickButtons')) {
-                // 마지막 봇 메시지가 메뉴 관련이면 퀵버튼 표시
-                const lastBot = chatMessages.querySelectorAll('.chat-bubble.bot .bubble-content');
-                if (lastBot.length > 0) {
-                    const lastText = lastBot[lastBot.length - 1].textContent;
-                    if (lastText.includes('체험단 신청') || lastText.includes('도와드릴까요') || lastText.includes('선택해주세요')) {
-                        showQuickButtons();
-                    }
-                }
-            }
-        }, 300);
-    });
 
     // ──────── 메시지 전송 ────────
 
     function sendMessage() {
-        const message = chatInput.value.trim();
+        var message = chatInput.value.trim();
         if (!message) return;
 
+        hideQuickButtons();
         appendMessage('user', message);
         chatInput.value = '';
-        hideQuickButtons();
         scrollToBottom();
 
         socket.emit('user_message', {
@@ -168,12 +163,12 @@
     // ──────── UI 헬퍼 ────────
 
     function appendMessage(sender, message, timestamp) {
-        const bubble = document.createElement('div');
+        var bubble = document.createElement('div');
         bubble.className = 'chat-bubble ' + sender;
 
-        const now = timestamp ? new Date(timestamp * 1000) : new Date();
-        const timeStr = now.getHours().toString().padStart(2, '0') + ':' +
-                        now.getMinutes().toString().padStart(2, '0');
+        var now = timestamp ? new Date(timestamp * 1000) : new Date();
+        var timeStr = now.getHours().toString().padStart(2, '0') + ':' +
+                      now.getMinutes().toString().padStart(2, '0');
 
         if (sender === 'bot') {
             bubble.innerHTML =
@@ -191,7 +186,7 @@
 
     function showTyping() {
         removeTyping();
-        const typing = document.createElement('div');
+        var typing = document.createElement('div');
         typing.className = 'chat-bubble bot';
         typing.id = 'typingIndicator';
         typing.innerHTML =
@@ -204,7 +199,7 @@
     }
 
     function removeTyping() {
-        const el = document.getElementById('typingIndicator');
+        var el = document.getElementById('typingIndicator');
         if (el) el.remove();
     }
 
@@ -213,13 +208,13 @@
     }
 
     function escapeHtml(text) {
-        const div = document.createElement('div');
+        var div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML.replace(/\n/g, '<br>');
     }
 
     // ──────── 메뉴 토글 ────────
-    const menuToggle = document.getElementById('menuToggle');
+    var menuToggle = document.getElementById('menuToggle');
     if (menuToggle) {
         menuToggle.addEventListener('click', function() {
             if (confirm('로그아웃하시겠습니까?\n(다른 이름으로 접속하려면 로그아웃 해주세요)')) {
