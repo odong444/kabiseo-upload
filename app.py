@@ -9,6 +9,9 @@ app.py - Flask 메인 + SocketIO
 - 서버PC 카카오톡 연동 API
 """
 
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import logging
 
