@@ -8,73 +8,76 @@
     <style>
     /* 모달 오버레이 */
     .modal-overlay {
-        display: none; position: fixed; inset: 0; background: rgba(0,0,0,.85);
+        display: none; position: fixed; inset: 0; background: rgba(0,0,0,.88);
         z-index: 1000; justify-content: center; align-items: center;
     }
     .modal-overlay.open { display: flex; }
 
-    /* 모달 박스 */
+    /* 모달 박스 - PC 풀스크린급 */
     .modal-box {
-        background: #fff; border-radius: 12px; width: 95vw; max-width: 960px;
-        max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;
+        background: #fff; border-radius: 10px;
+        width: 96vw; height: 94vh;
+        display: flex; flex-direction: column; overflow: hidden;
     }
 
     /* 모달 헤더 */
     .modal-header {
         display: flex; justify-content: space-between; align-items: center;
-        padding: 14px 20px; border-bottom: 1px solid #eee; flex-shrink: 0;
+        padding: 12px 24px; border-bottom: 1px solid #e0e0e0; flex-shrink: 0;
     }
-    .modal-header h3 { font-size: 16px; margin: 0; }
-    .modal-counter { color: #888; font-size: 14px; }
+    .modal-header h3 { font-size: 17px; margin: 0; font-weight: 700; }
+    .modal-counter { color: #888; font-size: 15px; font-weight: 600; }
     .modal-close {
-        background: none; border: none; font-size: 24px; cursor: pointer;
+        background: none; border: none; font-size: 28px; cursor: pointer;
         color: #888; padding: 0 4px; line-height: 1;
     }
+    .modal-close:hover { color: #333; }
 
     /* 모달 정보 바 */
     .modal-info {
-        display: flex; gap: 16px; padding: 10px 20px; background: #f8f9fa;
-        font-size: 13px; color: #555; flex-wrap: wrap; flex-shrink: 0;
+        display: flex; gap: 24px; padding: 10px 24px; background: #f8f9fa;
+        font-size: 14px; color: #555; flex-wrap: wrap; flex-shrink: 0;
     }
     .modal-info span { white-space: nowrap; }
-    .modal-info strong { color: #333; }
+    .modal-info strong { color: #222; }
 
-    /* 이미지 영역 */
+    /* 이미지 영역 - 최대한 크게 */
     .modal-images {
-        flex: 1; display: flex; gap: 8px; padding: 12px; overflow: auto;
-        min-height: 0;
+        flex: 1; display: flex; gap: 12px; padding: 12px 16px;
+        min-height: 0; overflow: hidden;
     }
     .modal-img-col {
-        flex: 1; display: flex; flex-direction: column; align-items: center;
+        flex: 1; display: flex; flex-direction: column;
         min-width: 0;
     }
     .modal-img-col .img-label {
-        font-size: 12px; font-weight: 700; color: #666; margin-bottom: 6px;
+        font-size: 13px; font-weight: 700; color: #555; margin-bottom: 6px;
+        text-align: center;
     }
-    .modal-img-col img {
-        max-width: 100%; max-height: 60vh; object-fit: contain;
-        border-radius: 6px; border: 1px solid #ddd; background: #f0f0f0;
+    .modal-img-col iframe {
+        flex: 1; width: 100%; border: 1px solid #ddd; border-radius: 8px;
+        background: #fafafa;
     }
     .modal-img-col .no-img {
-        display: flex; align-items: center; justify-content: center;
-        width: 100%; min-height: 200px; background: #f0f0f0;
-        border-radius: 6px; color: #aaa; font-size: 14px;
+        flex: 1; display: flex; align-items: center; justify-content: center;
+        background: #f0f0f0; border-radius: 8px; color: #aaa; font-size: 15px;
+        border: 1px solid #ddd;
     }
 
     /* 모달 하단 */
     .modal-footer {
         display: flex; justify-content: space-between; align-items: center;
-        padding: 12px 20px; border-top: 1px solid #eee; gap: 8px; flex-shrink: 0;
+        padding: 12px 24px; border-top: 1px solid #e0e0e0; flex-shrink: 0;
     }
-    .modal-nav { display: flex; gap: 8px; }
+    .modal-nav { display: flex; gap: 10px; }
     .modal-nav button {
-        padding: 8px 18px; border: 1px solid #ddd; border-radius: 8px;
-        background: #fff; cursor: pointer; font-size: 14px;
+        padding: 10px 24px; border: 1px solid #ddd; border-radius: 8px;
+        background: #fff; cursor: pointer; font-size: 15px; font-weight: 600;
     }
     .modal-nav button:hover { background: #f0f0f0; }
-    .modal-nav button:disabled { opacity: .4; cursor: default; }
-    .modal-actions { display: flex; gap: 8px; }
-    .modal-actions .btn { padding: 8px 20px; font-size: 14px; }
+    .modal-nav button:disabled { opacity: .35; cursor: default; }
+    .modal-actions { display: flex; gap: 10px; }
+    .modal-actions .btn { padding: 10px 28px; font-size: 15px; font-weight: 600; }
     </style>
 </head>
 <body class="admin-body">
@@ -124,19 +127,19 @@
                 </thead>
                 <tbody>
                     {% for item in items %}
-                    <tr class="review-row" data-idx="{{ loop.index0 }}" onclick="openModal({{ loop.index0 }})" style="cursor:pointer;">
+                    <tr class="review-row" onclick="openModal({{ loop.index0 }})" style="cursor:pointer;">
                         <td onclick="event.stopPropagation()"><input type="checkbox" class="row-check" value="{{ item['_row_idx'] }}"></td>
                         <td>{{ item.get('수취인명', '') }}</td>
                         <td>{{ item.get('아이디', '') }}</td>
                         <td>{{ item.get('제품명', '') }}</td>
                         <td>
                             {% if item.get('구매캡쳐링크') %}
-                            <span class="capture-link" onclick="event.stopPropagation(); openModal({{ loop.index0 }})">보기</span>
+                            <span class="capture-link">보기</span>
                             {% else %}-{% endif %}
                         </td>
                         <td>
                             {% if item.get('리뷰캡쳐링크') %}
-                            <span class="capture-link" onclick="event.stopPropagation(); openModal({{ loop.index0 }})">보기</span>
+                            <span class="capture-link">보기</span>
                             {% else %}-{% endif %}
                         </td>
                         <td>{{ item.get('리뷰제출일', '') }}</td>
@@ -160,7 +163,7 @@
         <div class="modal-overlay" id="reviewModal">
             <div class="modal-box">
                 <div class="modal-header">
-                    <h3 id="modalTitle">검수</h3>
+                    <h3>리뷰 검수</h3>
                     <span class="modal-counter" id="modalCounter"></span>
                     <button class="modal-close" onclick="closeModal()">&times;</button>
                 </div>
@@ -168,11 +171,11 @@
                 <div class="modal-images">
                     <div class="modal-img-col">
                         <div class="img-label">구매 캡쳐</div>
-                        <div id="purchaseImg"></div>
+                        <div id="purchaseImg" style="flex:1;display:flex;"></div>
                     </div>
                     <div class="modal-img-col">
                         <div class="img-label">리뷰 캡쳐</div>
-                        <div id="reviewImg"></div>
+                        <div id="reviewImg" style="flex:1;display:flex;"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -197,11 +200,21 @@
     var ITEMS = {{ items | tojson if items else '[]' }};
     var currentIdx = 0;
 
-    function driveImgUrl(link) {
+    function drivePreviewUrl(link) {
         if (!link) return '';
         var m = link.match(/\/d\/([^\/]+)/);
-        if (m) return 'https://drive.google.com/uc?id=' + m[1];
+        if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
         return link;
+    }
+
+    function renderFrame(containerId, link) {
+        var el = document.getElementById(containerId);
+        var previewUrl = drivePreviewUrl(link);
+        if (previewUrl) {
+            el.innerHTML = '<iframe src="' + previewUrl + '" frameborder="0" allowfullscreen></iframe>';
+        } else {
+            el.innerHTML = '<div class="no-img">미제출</div>';
+        }
     }
 
     function openModal(idx) {
@@ -212,6 +225,9 @@
 
     function closeModal() {
         document.getElementById('reviewModal').classList.remove('open');
+        // iframe 정리
+        document.getElementById('purchaseImg').innerHTML = '';
+        document.getElementById('reviewImg').innerHTML = '';
     }
 
     function navigate(dir) {
@@ -230,15 +246,8 @@
             '<span><strong>제품:</strong> ' + (item['제품명'] || '-') + '</span>' +
             '<span><strong>제출일:</strong> ' + (item['리뷰제출일'] || '-') + '</span>';
 
-        var pUrl = driveImgUrl(item['구매캡쳐링크']);
-        var rUrl = driveImgUrl(item['리뷰캡쳐링크']);
-
-        document.getElementById('purchaseImg').innerHTML = pUrl
-            ? '<img src="' + pUrl + '" alt="구매캡쳐" onclick="window.open(\'' + item['구매캡쳐링크'] + '\',\'_blank\')"  style="cursor:zoom-in;" onerror="this.outerHTML=\'<div class=no-img>로드 실패 (클릭하여 열기)</div>\'" />'
-            : '<div class="no-img">미제출</div>';
-        document.getElementById('reviewImg').innerHTML = rUrl
-            ? '<img src="' + rUrl + '" alt="리뷰캡쳐" onclick="window.open(\'' + item['리뷰캡쳐링크'] + '\',\'_blank\')" style="cursor:zoom-in;" onerror="this.outerHTML=\'<div class=no-img>로드 실패 (클릭하여 열기)</div>\'" />'
-            : '<div class="no-img">미제출</div>';
+        renderFrame('purchaseImg', item['구매캡쳐링크']);
+        renderFrame('reviewImg', item['리뷰캡쳐링크']);
 
         document.getElementById('prevBtn').disabled = currentIdx === 0;
         document.getElementById('nextBtn').disabled = currentIdx === ITEMS.length - 1;
