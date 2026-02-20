@@ -144,6 +144,7 @@
         appendMessage('user', message);
         chatInput.value = '';
         chatInput.style.height = 'auto';
+        chatInput.classList.remove('scrollable');
         scrollToBottom();
 
         socket.emit('user_message', {
@@ -163,10 +164,21 @@
         }
     });
 
-    // textarea 높이 자동 조절
+    // textarea 높이 자동 조절 (최대 3줄, 그 이상은 스크롤)
+    var maxTextareaHeight = 84; // 약 3줄
     chatInput.addEventListener('input', function() {
         this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        var newHeight = Math.min(this.scrollHeight, maxTextareaHeight);
+        this.style.height = newHeight + 'px';
+
+        // 3줄 초과 시 스크롤바 표시
+        if (this.scrollHeight > maxTextareaHeight) {
+            this.classList.add('scrollable');
+        } else {
+            this.classList.remove('scrollable');
+        }
+
+        scrollToBottom();
     });
 
     // ──────── UI 헬퍼 ────────
