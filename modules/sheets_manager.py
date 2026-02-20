@@ -237,6 +237,47 @@ class SheetsManager:
         self.update_cell_by_col(row_idx, "입금금액", amount)
         self.update_cell_by_col(row_idx, "입금정리", today_str())
 
+    def cancel_stale_rows(self, hours: int = 1) -> int:
+        """시트에서 N시간 이상 신청/가이드전달 상태인 행을 타임아웃취소 처리"""
+        from datetime import datetime, timedelta
+        from modules.utils import now_kst
+
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        all_rows = ws.get_all_values()
+
+        status_col = self._find_col(headers, "상태")
+        date_col = self._find_col(headers, "날짜")
+
+        if status_col < 0 or date_col < 0:
+            return 0
+
+        cutoff = now_kst() - timedelta(hours=hours)
+        cancelled = 0
+
+        for i, row in enumerate(all_rows[1:], start=2):
+            if len(row) <= max(status_col, date_col):
+                continue
+            if row[status_col] not in (STATUS_APPLIED, STATUS_GUIDE_SENT):
+                continue
+
+            date_str = row[date_col].strip()
+            if not date_str:
+                continue
+
+            try:
+                row_date = datetime.strptime(date_str, "%Y-%m-%d")
+                row_date = row_date.replace(tzinfo=cutoff.tzinfo)
+                if row_date < cutoff:
+                    ws.update_cell(i, status_col + 1, STATUS_TIMEOUT)
+                    cancelled += 1
+            except ValueError:
+                continue
+
+        if cancelled:
+            logger.info(f"시트 기반 타임아웃 취소: {cancelled}건 ({hours}시간 초과)")
+        return cancelled
+
     def cancel_by_timeout(self, name: str, phone: str, campaign_id: str, store_ids: list[str]):
         """타임아웃 취소: 해당 유저의 해당 캠페인 신청/가이드전달 상태 행을 타임아웃취소로 변경"""
         ws = self._get_ws()

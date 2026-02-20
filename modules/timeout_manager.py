@@ -56,11 +56,22 @@ class TimeoutManager:
         self._warned.discard(reviewer_id)
 
     def _check_loop(self):
+        sheet_check_counter = 0
         while self._running:
             try:
                 self._check_all()
             except Exception as e:
                 logger.error(f"타임아웃 체크 에러: {e}")
+
+            # 시트 기반 타임아웃: 10분마다 (15초 * 40 = 600초)
+            sheet_check_counter += 1
+            if sheet_check_counter >= 40:
+                sheet_check_counter = 0
+                try:
+                    self._check_sheet_stale()
+                except Exception as e:
+                    logger.error(f"시트 타임아웃 체크 에러: {e}")
+
             time.sleep(15)  # 15초마다 체크
 
     def _check_all(self):
@@ -125,3 +136,11 @@ class TimeoutManager:
         # 상태 리셋
         state.reset()
         self._warned.discard(rid)
+
+    def _check_sheet_stale(self):
+        """시트에서 오래된 신청/가이드전달 건을 타임아웃 취소"""
+        if not self._sheets_manager:
+            return
+        cancelled = self._sheets_manager.cancel_stale_rows(hours=1)
+        if cancelled:
+            logger.info(f"시트 기반 자동 취소: {cancelled}건")
