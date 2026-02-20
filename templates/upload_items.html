@@ -24,7 +24,7 @@
                 class="upload-form"
             >
                 <label class="file-label">
-                    <input type="file" name="capture" accept="image/*" capture="environment" required class="file-input"
+                    <input type="file" name="capture" accept="image/*" required class="file-input"
                         onchange="this.closest('form').querySelector('.file-name').textContent = this.files[0]?.name || ''; this.closest('form').querySelector('.submit-btn').disabled = false;">
                     <span class="file-btn">&#128248; 사진 선택</span>
                     <span class="file-name"></span>
