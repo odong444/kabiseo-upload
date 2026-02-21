@@ -97,7 +97,7 @@ class AIHandler:
                 f"{self.relay_url}/ai",
                 json={"prompt": prompt},
                 headers=headers,
-                timeout=30,
+                timeout=60,
             )
             resp.raise_for_status()
 
@@ -105,7 +105,7 @@ class AIHandler:
             return data.get("response", "")
 
         except requests.Timeout:
-            logger.warning("AI 릴레이 타임아웃 (30초)")
+            logger.warning("AI 릴레이 타임아웃 (60초)")
             return ""
         except Exception as e:
             logger.error(f"AI 릴레이 에러: {e}")
