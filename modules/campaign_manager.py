@@ -100,7 +100,7 @@ class CampaignManager:
                     if item.get("캠페인ID") == campaign_id:
                         sid = item.get("아이디", "").strip()
                         status = item.get("상태", "")
-                        if sid:
+                        if sid and status not in ("타임아웃취소", "취소"):
                             my_history.append({"id": sid, "status": status})
                 if my_history:
                     card["my_history"] = my_history
