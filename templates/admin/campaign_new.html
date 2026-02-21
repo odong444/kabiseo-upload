@@ -15,6 +15,52 @@
             padding-bottom: 8px;
             border-bottom: 2px solid #fee500;
         }
+        .hidden { display: none !important; }
+        .radio-group { display: flex; gap: 16px; align-items: center; padding: 10px 0; }
+        .radio-group label { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; margin-bottom: 0; }
+        .radio-group input[type="radio"] { width: auto; margin: 0; }
+        .dup-days-input { display: inline-block; width: 80px; margin: 0 6px; }
+        .calc-hint {
+            font-size: 12px; color: #888; margin-top: 6px;
+            background: #f9f9f9; padding: 8px 12px; border-radius: 6px;
+        }
+        .file-upload-area {
+            border: 2px dashed #ddd; border-radius: 8px; padding: 20px;
+            text-align: center; cursor: pointer; transition: border-color 0.2s;
+        }
+        .file-upload-area:hover { border-color: #fee500; }
+        .file-upload-area.has-file { border-color: #4caf50; background: #f0faf0; }
+        .file-upload-area input[type="file"] { display: none; }
+        .file-upload-label { color: #888; font-size: 14px; }
+        .file-upload-area.has-file .file-upload-label { color: #4caf50; font-weight: 600; }
+        .preview-modal {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;
+        }
+        .preview-modal.active { display: flex; }
+        .preview-content {
+            background: #fff; border-radius: 12px; padding: 24px; max-width: 500px;
+            width: 90%; max-height: 80vh; overflow-y: auto; position: relative;
+        }
+        .preview-close {
+            position: absolute; top: 12px; right: 16px; font-size: 24px;
+            cursor: pointer; color: #999; background: none; border: none;
+        }
+        .preview-section { margin-bottom: 20px; }
+        .preview-section h4 { font-size: 14px; color: #3c1e1e; margin-bottom: 8px; }
+        .preview-card {
+            background: #f9f9f9; border-radius: 8px; padding: 16px;
+            border-left: 4px solid #fee500; font-size: 13px; line-height: 1.6;
+        }
+        .preview-recruit {
+            background: #f0f7ff; border-radius: 8px; padding: 16px;
+            font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+        }
+        .form-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+        .admin-btn-preview {
+            background: #fee500; color: #3c1e1e; border-color: #fee500; font-weight: 600;
+        }
+        .admin-btn-preview:hover { background: #f5d800; }
     </style>
 </head>
 <body class="admin-body">
@@ -49,261 +95,57 @@
         {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('admin.campaign_new_post') }}" class="admin-form">
+        <form id="campaignForm" method="POST" action="{{ url_for('admin.campaign_new_post') }}" enctype="multipart/form-data" class="admin-form">
 
-            <!-- 기본 정보 -->
+            <!-- 캠페인 정보 -->
             <div class="form-section">
-                <h3>기본 정보</h3>
+                <h3>캠페인 정보</h3>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>캠페인유형</label>
-                        <select name="캠페인유형">
-                            <option value="구매형리뷰">구매형리뷰</option>
-                            <option value="배송형체험단">배송형체험단</option>
-                            <option value="기타">기타</option>
-                        </select>
+                        <label>캠페인제목 (상품명) *</label>
+                        <input type="text" name="상품명" required placeholder="예: 들기름 300ml">
                     </div>
                     <div class="form-group">
-                        <label>플랫폼</label>
-                        <select name="플랫폼">
+                        <label>업체명 *</label>
+                        <input type="text" name="업체명" required placeholder="예: 건강한들녘">
+                    </div>
+                    <div class="form-group">
+                        <label>플랫폼 *</label>
+                        <select name="플랫폼" id="platformSelect" required>
                             <option value="스마트스토어">스마트스토어</option>
                             <option value="쿠팡">쿠팡</option>
-                            <option value="기타">기타</option>
+                            <option value="오늘의집">오늘의집</option>
+                            <option value="11번가">11번가</option>
+                            <option value="지마켓">지마켓</option>
+                            <option value="올리브영">올리브영</option>
+                            <option value="기타">기타 (직접입력)</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>업체명</label>
-                        <input type="text" name="업체명" placeholder="업체명 입력">
+                    <div class="form-group hidden" id="platformCustomWrap">
+                        <label>플랫폼 직접입력</label>
+                        <input type="text" id="platformCustom" placeholder="플랫폼명 입력">
                     </div>
                     <div class="form-group">
-                        <label>상품명</label>
-                        <input type="text" name="상품명" placeholder="상품명 입력">
-                    </div>
-                    <div class="form-group">
-                        <label>상품번호</label>
-                        <input type="text" name="상품번호" placeholder="상품번호 입력">
-                    </div>
-                    <div class="form-group">
-                        <label>상품링크</label>
-                        <input type="text" name="상품링크" placeholder="https://...">
-                    </div>
-                    <div class="form-group">
-                        <label>상품이미지URL</label>
-                        <input type="text" name="상품이미지" placeholder="https://...">
-                    </div>
-                    <div class="form-group">
-                        <label>총수량 (모집인원)</label>
-                        <input type="number" name="총수량" placeholder="예: 10">
+                        <label>캠페인유형 *</label>
+                        <select name="캠페인유형" required>
+                            <option value="실배송">실배송</option>
+                            <option value="빈박스">빈박스</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>상품금액</label>
-                        <input type="text" name="상품금액" placeholder="예: 29000">
+                        <input type="text" name="상품금액" placeholder="예: 29,000">
                     </div>
                     <div class="form-group">
-                        <label>리워드</label>
-                        <input type="text" name="리워드" placeholder="예: 전액환급">
-                    </div>
-                    <div class="form-group">
-                        <label>결제금액 (원)</label>
-                        <input type="text" name="결제금액" placeholder="리뷰어가 결제할 금액">
-                    </div>
-                    <div class="form-group">
-                        <label>리뷰비 (원)</label>
-                        <input type="text" name="리뷰비" placeholder="예: 15000">
-                    </div>
-                </div>
-            </div>
-
-            <!-- 구매 조건 -->
-            <div class="form-section">
-                <h3>구매 조건</h3>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>유입방식</label>
-                        <select name="유입방식">
-                            <option value="키워드구매">키워드구매</option>
-                            <option value="링크구매">링크구매</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>키워드</label>
-                        <input type="text" name="키워드" placeholder="검색 키워드">
-                    </div>
-                    <div class="form-group">
-                        <label>키워드위치</label>
-                        <input type="text" name="키워드위치" placeholder="예: 1페이지 3번째">
-                    </div>
-                    <div class="form-group">
-                        <label>체류시간</label>
-                        <input type="text" name="체류시간" placeholder="예: 3분 이상">
-                    </div>
-                    <div class="form-group">
-                        <label>상품찜필수</label>
-                        <select name="상품찜필수">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>알림받기필수</label>
-                        <select name="알림받기필수">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>광고클릭금지</label>
-                        <select name="광고클릭금지">
-                            <option value="Y" selected>Y</option>
-                            <option value="N">N</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>결제방법</label>
-                        <select name="결제방법">
-                            <option value="자율">자율</option>
-                            <option value="네이버페이">네이버페이</option>
-                            <option value="지정">지정</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>블라인드계정금지</label>
-                        <select name="블라인드계정금지">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>재구매확인</label>
-                        <select name="재구매확인">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>구매가능시간</label>
-                        <input type="text" name="구매가능시간" placeholder="예: 09:00~18:00">
-                    </div>
-                    <div class="form-group">
-                        <label>한달중복허용</label>
-                        <select name="한달중복허용">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>중복허용</label>
-                        <select name="중복허용">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 옵션 설정 -->
-            <div class="form-section">
-                <h3>옵션 설정</h3>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>옵션지정방식</label>
-                        <select name="옵션지정방식">
-                            <option value="자율">자율</option>
-                            <option value="지정예정">지정예정</option>
-                            <option value="세부지정">세부지정</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>옵션</label>
-                        <input type="text" name="옵션" placeholder="단일 옵션 텍스트">
+                        <label>리워드 (리뷰비)</label>
+                        <input type="text" name="리뷰비" placeholder="예: 15,000">
                     </div>
                     <div class="form-group form-group-full">
-                        <label>옵션목록</label>
-                        <textarea name="옵션목록" rows="3" placeholder="JSON 또는 콤마 구분 형식&#10;예: 옵션A, 옵션B, 옵션C"></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 배송 설정 -->
-            <div class="form-section">
-                <h3>배송 설정</h3>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>배송메모필수</label>
-                        <select name="배송메모필수">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>배송메모내용</label>
-                        <input type="text" name="배송메모내용" placeholder="배송 시 메모 내용">
-                    </div>
-                    <div class="form-group">
-                        <label>배송메모안내링크</label>
-                        <input type="text" name="배송메모안내링크" placeholder="https://...">
-                    </div>
-                    <div class="form-group">
-                        <label>당일발송</label>
-                        <select name="당일발송">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>발송마감</label>
-                        <input type="text" name="발송마감" placeholder="예: 14:00">
-                    </div>
-                    <div class="form-group">
-                        <label>택배사</label>
-                        <input type="text" name="택배사" placeholder="예: CJ대한통운">
-                    </div>
-                </div>
-            </div>
-
-            <!-- 리뷰 설정 -->
-            <div class="form-section">
-                <h3>리뷰 설정</h3>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>리뷰타입</label>
-                        <select name="리뷰타입">
-                            <option value="자율">자율</option>
-                            <option value="텍스트제공">텍스트제공</option>
-                            <option value="이미지제공">이미지제공</option>
-                            <option value="포토리뷰필수">포토리뷰필수</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>리뷰기한일수</label>
-                        <input type="number" name="리뷰기한일수" value="7" placeholder="예: 7">
-                    </div>
-                    <div class="form-group">
-                        <label>리뷰이미지폴더</label>
-                        <input type="text" name="리뷰이미지폴더" placeholder="이미지 폴더 경로">
-                    </div>
-                    <div class="form-group">
-                        <label>리뷰가이드</label>
-                        <input type="text" name="리뷰가이드" placeholder="자율 / 50자이상 / 100자이상 등">
-                    </div>
-                    <div class="form-group">
-                        <label>리뷰제공</label>
-                        <input type="text" name="리뷰제공" placeholder="리뷰 제공 내용">
-                    </div>
-                    <div class="form-group form-group-full">
-                        <label>리뷰가이드내용</label>
-                        <textarea name="리뷰가이드내용" rows="4" placeholder="상세 리뷰 가이드 내용을 입력하세요"></textarea>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 추가 안내 -->
-            <div class="form-section">
-                <h3>추가 안내</h3>
-                <div class="form-grid">
-                    <div class="form-group form-group-full">
-                        <label>추가안내사항</label>
-                        <textarea name="추가안내사항" rows="4" placeholder="리뷰어에게 전달할 추가 안내사항을 입력하세요"></textarea>
+                        <label>상품이미지</label>
+                        <div class="file-upload-area" id="imageUploadArea">
+                            <input type="file" name="상품이미지" id="imageFile" accept="image/*">
+                            <div class="file-upload-label" id="imageLabel">클릭하여 이미지를 선택하세요 (JPG, PNG)</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -313,46 +155,264 @@
                 <h3>운영 설정</h3>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label>일수량</label>
-                        <input type="number" name="일수량" placeholder="하루 처리 수량">
+                        <label>총 모집인원 *</label>
+                        <input type="number" name="총수량" id="totalCount" required min="1" placeholder="예: 20">
                     </div>
                     <div class="form-group">
-                        <label>주말작업</label>
-                        <select name="주말작업">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
+                        <label>하루진행량</label>
+                        <input type="text" name="일수량" id="dailyCount" placeholder="숫자(예: 5) 또는 범위(예: 3-5)">
                     </div>
                     <div class="form-group">
-                        <label>신청마감일</label>
-                        <input type="date" name="신청마감일">
-                    </div>
-                    <div class="form-group">
-                        <label>공개여부</label>
-                        <select name="공개여부">
-                            <option value="Y" selected>Y</option>
-                            <option value="N">N</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>선정여부</label>
-                        <select name="선정여부">
-                            <option value="N">N</option>
-                            <option value="Y">Y</option>
-                        </select>
+                        <label>진행일수</label>
+                        <input type="number" name="진행일수" id="dayCount" min="1" placeholder="예: 4">
                     </div>
                     <div class="form-group form-group-full">
-                        <label>메모</label>
-                        <textarea name="메모" rows="3" placeholder="관리자 메모"></textarea>
+                        <div class="calc-hint hidden" id="calcHint"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>모집 및 구매진행시간</label>
+                        <input type="text" name="구매가능시간" placeholder="예: 18:00 ~ 익일 07:00">
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>중복진행 가능여부</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="중복진행" value="Y" checked> 가능</label>
+                            <label><input type="radio" name="중복진행" value="N"> 불가능</label>
+                            <label>
+                                <input type="radio" name="중복진행" value="텀" id="dupTermRadio"> 일정기간 텀
+                                <input type="number" class="dup-days-input hidden" id="dupDaysInput" min="1" placeholder="일">
+                                <span class="hidden" id="dupDaysLabel">일 후 가능</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>캠페인 가이드</label>
+                        <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용"></textarea>
                     </div>
                 </div>
             </div>
 
+            <!-- 숨겨진 필드: 중복허용 실제값 -->
+            <input type="hidden" name="중복허용" id="dupAllowValue" value="Y">
+
             <div class="form-actions">
+                <button type="button" class="admin-btn admin-btn-preview" id="previewBtn">미리보기</button>
                 <button type="submit" class="admin-btn admin-btn-primary">등록</button>
                 <a href="{{ url_for('admin.campaigns') }}" class="admin-btn">취소</a>
             </div>
         </form>
     </main>
+
+    <!-- 미리보기 모달 -->
+    <div class="preview-modal" id="previewModal">
+        <div class="preview-content">
+            <button class="preview-close" id="previewClose">&times;</button>
+            <h3 style="margin-bottom: 16px;">캠페인 미리보기</h3>
+
+            <div class="preview-section">
+                <h4>채팅 캠페인 카드</h4>
+                <div class="preview-card" id="previewCard">
+                    데이터를 입력해주세요.
+                </div>
+            </div>
+
+            <div class="preview-section">
+                <h4>모집글</h4>
+                <div class="preview-recruit" id="previewRecruit">
+                    데이터를 입력해주세요.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // 플랫폼 "기타" 토글
+        const platformSelect = document.getElementById('platformSelect');
+        const platformCustomWrap = document.getElementById('platformCustomWrap');
+        const platformCustom = document.getElementById('platformCustom');
+
+        platformSelect.addEventListener('change', function() {
+            if (this.value === '기타') {
+                platformCustomWrap.classList.remove('hidden');
+                platformCustom.focus();
+            } else {
+                platformCustomWrap.classList.add('hidden');
+                platformCustom.value = '';
+            }
+        });
+
+        // 중복진행 텀 토글
+        const dupRadios = document.querySelectorAll('input[name="중복진행"]');
+        const dupDaysInput = document.getElementById('dupDaysInput');
+        const dupDaysLabel = document.getElementById('dupDaysLabel');
+        const dupAllowValue = document.getElementById('dupAllowValue');
+
+        dupRadios.forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                if (this.value === '텀') {
+                    dupDaysInput.classList.remove('hidden');
+                    dupDaysLabel.classList.remove('hidden');
+                    dupDaysInput.focus();
+                } else {
+                    dupDaysInput.classList.add('hidden');
+                    dupDaysLabel.classList.add('hidden');
+                    dupDaysInput.value = '';
+                }
+                updateDupValue();
+            });
+        });
+
+        dupDaysInput.addEventListener('input', updateDupValue);
+
+        function updateDupValue() {
+            const selected = document.querySelector('input[name="중복진행"]:checked').value;
+            if (selected === '텀') {
+                const days = dupDaysInput.value || '30';
+                dupAllowValue.value = '텀:' + days;
+            } else {
+                dupAllowValue.value = selected;
+            }
+        }
+
+        // 하루진행량 + 진행일수 = 배분 계산
+        const totalCountEl = document.getElementById('totalCount');
+        const dailyCountEl = document.getElementById('dailyCount');
+        const dayCountEl = document.getElementById('dayCount');
+        const calcHint = document.getElementById('calcHint');
+
+        [totalCountEl, dailyCountEl, dayCountEl].forEach(function(el) {
+            el.addEventListener('input', updateCalcHint);
+        });
+
+        function updateCalcHint() {
+            const total = parseInt(totalCountEl.value) || 0;
+            const dailyStr = dailyCountEl.value.trim();
+            const days = parseInt(dayCountEl.value) || 0;
+
+            if (!total || !dailyStr || !days) {
+                calcHint.classList.add('hidden');
+                return;
+            }
+
+            // 범위 입력 (예: 3-5)
+            const rangeMatch = dailyStr.match(/^(\d+)\s*[-~]\s*(\d+)$/);
+            let distribution = [];
+
+            if (rangeMatch) {
+                const lo = parseInt(rangeMatch[1]);
+                const hi = parseInt(rangeMatch[2]);
+                let remaining = total;
+                for (let i = 0; i < days; i++) {
+                    if (i === days - 1) {
+                        distribution.push(Math.max(0, remaining));
+                    } else {
+                        const avg = remaining / (days - i);
+                        let val = Math.round(avg);
+                        val = Math.max(lo, Math.min(hi, val));
+                        val = Math.min(val, remaining);
+                        distribution.push(val);
+                        remaining -= val;
+                    }
+                }
+                const sum = distribution.reduce(function(a, b) { return a + b; }, 0);
+                calcHint.innerHTML = '예상 배분 (' + lo + '~' + hi + '명/일): ' + distribution.join(', ') + ' = <b>' + sum + '명</b>' +
+                    (sum !== total ? ' <span style="color:#e53e3e">(총 모집인원 ' + total + '명과 불일치)</span>' : ' ✅');
+            } else {
+                const daily = parseInt(dailyStr);
+                if (!daily) { calcHint.classList.add('hidden'); return; }
+                let remaining = total;
+                for (let i = 0; i < days; i++) {
+                    const val = Math.min(daily, remaining);
+                    distribution.push(val);
+                    remaining -= val;
+                }
+                const sum = distribution.reduce(function(a, b) { return a + b; }, 0);
+                calcHint.innerHTML = '예상 배분 (' + daily + '명/일): ' + distribution.join(', ') + ' = <b>' + sum + '명</b>' +
+                    (sum !== total ? ' <span style="color:#e53e3e">(총 모집인원 ' + total + '명과 불일치)</span>' : ' ✅');
+            }
+            calcHint.classList.remove('hidden');
+        }
+
+        // 이미지 업로드 영역
+        const imageUploadArea = document.getElementById('imageUploadArea');
+        const imageFile = document.getElementById('imageFile');
+        const imageLabel = document.getElementById('imageLabel');
+
+        imageUploadArea.addEventListener('click', function() { imageFile.click(); });
+        imageFile.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                imageLabel.textContent = this.files[0].name;
+                imageUploadArea.classList.add('has-file');
+            } else {
+                imageLabel.textContent = '클릭하여 이미지를 선택하세요 (JPG, PNG)';
+                imageUploadArea.classList.remove('has-file');
+            }
+        });
+
+        // 폼 submit 시 플랫폼 기타 값 대체
+        document.getElementById('campaignForm').addEventListener('submit', function() {
+            if (platformSelect.value === '기타' && platformCustom.value.trim()) {
+                platformSelect.value = '';
+                var hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = '플랫폼';
+                hiddenInput.value = platformCustom.value.trim();
+                this.appendChild(hiddenInput);
+            }
+        });
+
+        // 미리보기
+        const previewBtn = document.getElementById('previewBtn');
+        const previewModal = document.getElementById('previewModal');
+        const previewClose = document.getElementById('previewClose');
+        const previewCard = document.getElementById('previewCard');
+        const previewRecruit = document.getElementById('previewRecruit');
+
+        previewBtn.addEventListener('click', function() {
+            const formData = {
+                상품명: document.querySelector('[name="상품명"]').value,
+                업체명: document.querySelector('[name="업체명"]').value,
+                플랫폼: platformSelect.value === '기타' ? platformCustom.value : platformSelect.value,
+                총수량: document.querySelector('[name="총수량"]').value,
+                상품금액: document.querySelector('[name="상품금액"]').value,
+                리뷰비: document.querySelector('[name="리뷰비"]').value,
+                구매가능시간: document.querySelector('[name="구매가능시간"]').value,
+                캠페인가이드: document.querySelector('[name="캠페인가이드"]').value,
+                중복허용: dupAllowValue.value,
+            };
+
+            fetch("{{ url_for('admin.api_campaign_preview') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.card) {
+                    var c = data.card;
+                    var html = '<div style="margin-bottom:8px;font-weight:700;font-size:15px;">' + (c.name || '') + '</div>';
+                    html += '<div>🏪 ' + (c.store || '') + '</div>';
+                    html += '<div>🔍 ' + (c.method || '미정') + '</div>';
+                    html += '<div>👥 남은 ' + (c.remaining || 0) + '자리</div>';
+                    if (c.price) html += '<div>💰 ' + c.price + '원</div>';
+                    previewCard.innerHTML = html;
+                }
+                if (data.recruit_text) {
+                    previewRecruit.textContent = data.recruit_text;
+                }
+                previewModal.classList.add('active');
+            })
+            .catch(function(err) {
+                alert('미리보기 오류: ' + err.message);
+            });
+        });
+
+        previewClose.addEventListener('click', function() { previewModal.classList.remove('active'); });
+        previewModal.addEventListener('click', function(e) {
+            if (e.target === previewModal) previewModal.classList.remove('active');
+        });
+    })();
+    </script>
 </body>
 </html>

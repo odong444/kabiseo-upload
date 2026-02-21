@@ -142,27 +142,34 @@ def campaign_new_post():
 
     campaign_id = str(uuid.uuid4())[:8]
 
-    # All form fields
+    # 간소화된 필드
     fields = [
-        "캠페인유형", "플랫폼", "업체명", "상품명", "상품번호", "상품링크",
-        "상품이미지", "총수량", "상품금액", "리워드", "결제금액", "리뷰비",
-        "유입방식", "키워드", "키워드위치", "체류시간",
-        "상품찜필수", "알림받기필수", "광고클릭금지", "결제방법",
-        "블라인드계정금지", "재구매확인", "구매가능시간", "한달중복허용", "중복허용",
-        "옵션지정방식", "옵션목록", "옵션",
-        "배송메모필수", "배송메모내용", "배송메모안내링크",
-        "당일발송", "발송마감", "택배사",
-        "리뷰타입", "리뷰가이드내용", "리뷰기한일수", "리뷰이미지폴더",
-        "리뷰가이드", "리뷰제공",
-        "추가안내사항",
-        "일수량", "주말작업", "신청마감일", "공개여부", "선정여부", "메모",
+        "캠페인유형", "플랫폼", "업체명", "상품명",
+        "총수량", "일수량", "진행일수",
+        "상품금액", "리뷰비", "중복허용", "구매가능시간", "캠페인가이드",
     ]
 
     data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
     for field in fields:
         data[field] = request.form.get(field, "").strip()
 
-    # Add as new row to campaign sheet
+    # 상품이미지 파일 업로드
+    image_file = request.files.get("상품이미지")
+    if image_file and image_file.filename:
+        try:
+            if models.drive_uploader:
+                link = models.drive_uploader.upload_from_flask_file(
+                    image_file, capture_type="purchase",
+                    description=f"캠페인 상품이미지: {data.get('상품명', '')}"
+                )
+                data["상품이미지"] = link
+        except Exception as e:
+            logger.error(f"상품이미지 업로드 에러: {e}")
+
+    # 새 컬럼 확보
+    models.sheets_manager.ensure_campaign_columns(["진행일수", "캠페인가이드"])
+
+    # 시트에 행 추가
     try:
         ws = models.sheets_manager.spreadsheet.worksheet("캠페인관리")
         headers = ws.row_values(1)
@@ -552,3 +559,51 @@ def rate_message():
     rating = data.get("rating", "")
     ok = models.chat_logger.rate_message(reviewer_id, timestamp, rating)
     return jsonify({"ok": ok})
+
+
+@admin_bp.route("/api/campaign/preview", methods=["POST"])
+@admin_required
+def api_campaign_preview():
+    """캠페인 등록 미리보기 (카드 + 모집글)"""
+    data = request.get_json(silent=True) or {}
+    from modules.utils import safe_int
+
+    product_name = data.get("상품명", "")
+    store_name = data.get("업체명", "")
+    total = safe_int(data.get("총수량", 0))
+    product_price = data.get("상품금액", "") or "확인필요"
+    review_fee = data.get("리뷰비", "") or "미정"
+    buy_time = data.get("구매가능시간", "")
+
+    # 카드 데이터 (chat.js에서 렌더링하는 형식과 동일)
+    card = {
+        "name": product_name,
+        "store": store_name,
+        "method": "미정",
+        "remaining": total,
+        "urgent": total <= 5,
+        "price": product_price,
+    }
+
+    # 모집글 텍스트
+    recruit_lines = [
+        "📢 리뷰 체험단 모집 📢",
+        "",
+        f"✨ {product_name} ✨",
+        f"🏪 {store_name}",
+        "",
+        f"💰 상품금액: {product_price}원",
+        f"👥 남은 {total}명",
+    ]
+    if buy_time:
+        recruit_lines.append(f"⏰ 진행시간: {buy_time}")
+    recruit_lines += [
+        "👉 아래 링크에서 신청해주세요!",
+        "",
+        "#리뷰체험단 #블로그체험단",
+    ]
+
+    return jsonify({
+        "card": card,
+        "recruit_text": "\n".join(recruit_lines),
+    })

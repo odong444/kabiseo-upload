@@ -1105,6 +1105,28 @@ class StepMachine:
         """조건부 구매 가이드 자동 생성"""
         form_template = self._build_form_template(campaign, name, phone, store_ids)
 
+        # 캠페인가이드(자유기술)가 있으면 우선 사용
+        custom_guide = campaign.get("캠페인가이드", "").strip()
+        if custom_guide:
+            product_name = campaign.get("상품명", "")
+            parts = [
+                "━━━━━━━━━━━━━━━━━━",
+                f"📌 {product_name} 구매 가이드",
+                "━━━━━━━━━━━━━━━━━━",
+                "",
+                custom_guide,
+                "",
+            ]
+            buy_time = campaign.get("구매가능시간", "").strip()
+            if buy_time:
+                parts.append(f"⏰ 구매 가능 시간: {buy_time}")
+                parts.append("")
+            parts.append("✏️ 구매 완료 후 아래 양식을 입력해주세요:")
+            parts.append("")
+            parts.append(form_template)
+            return "\n".join(parts)
+
+        # 기존 개별 필드 기반 가이드 (하위호환)
         product_name = campaign.get("상품명", "")
         store_name = campaign.get("업체명", "")
         entry_method = campaign.get("유입방식", "").strip()
