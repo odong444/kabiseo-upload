@@ -104,6 +104,10 @@ class CampaignManager:
             today_done = today_counts.get(campaign_id, 0)
             daily_full = daily_target > 0 and today_done >= daily_target
 
+            # 금일 마감 캠페인은 목록에서 제외
+            if daily_full:
+                continue
+
             card = {
                 "value": f"campaign_{i}",
                 "name": c.get("상품명", ""),
