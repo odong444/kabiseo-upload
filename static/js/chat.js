@@ -108,9 +108,9 @@
         { label: '기타 문의', value: '5' }
     ];
 
-    function sendQuickMessage(text) {
+    function sendQuickMessage(text, displayText) {
         disableAllButtons();
-        appendMessage('user', text);
+        appendMessage('user', displayText || text);
         scrollToBottom();
         socket.emit('user_message', {
             name: user.name,
@@ -133,7 +133,7 @@
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                sendQuickMessage(item.value);
+                sendQuickMessage(item.value, item.label);
             });
             wrap.appendChild(btn);
         });
@@ -191,7 +191,7 @@
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                sendQuickMessage(item.value);
+                sendQuickMessage(item.value, item.label);
             });
             wrap.appendChild(btn);
         });
@@ -247,7 +247,7 @@
             btn.addEventListener('click', function(e) {
                 e.preventDefault();
                 e.stopPropagation();
-                sendQuickMessage(c.value);
+                sendQuickMessage(c.value, c.name);
             });
             card.appendChild(btn);
 
@@ -378,7 +378,7 @@
         submitBtn.style.cssText = 'display:block;width:100%;padding:12px;border:none;border-radius:8px;background:#d1d5db;color:#fff;font-size:15px;font-weight:600;cursor:not-allowed;';
         submitBtn.addEventListener('click', function() {
             var allIds = Object.keys(selected).concat(newIds);
-            sendQuickMessage('__ms__' + allIds.join(','));
+            sendQuickMessage('__ms__' + allIds.join(','), allIds.join(', '));
         });
         wrap.appendChild(submitBtn);
 
@@ -396,7 +396,7 @@
                 btn.textContent = item.label;
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
-                    sendQuickMessage(item.value);
+                    sendQuickMessage(item.value, item.label);
                 });
                 btnWrap.appendChild(btn);
             });
