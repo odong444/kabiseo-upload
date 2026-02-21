@@ -260,9 +260,11 @@ class SheetsManager:
 
     def process_settlement(self, row_idx: int, amount: str):
         """정산 처리"""
+        self.ensure_main_column("입금완료")
         self.update_cell_by_col(row_idx, "상태", STATUS_SETTLED)
         self.update_cell_by_col(row_idx, "입금금액", amount)
         self.update_cell_by_col(row_idx, "입금정리", today_str())
+        self.update_cell_by_col(row_idx, "입금완료", today_str())
 
     def cancel_stale_rows(self, hours: int = 1) -> int:
         """시트에서 N시간 이상 신청/가이드전달 상태인 행을 타임아웃취소 처리"""
