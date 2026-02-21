@@ -414,6 +414,14 @@ class StepMachine:
             cards = self.campaigns.build_campaign_cards(state.name, state.phone)
             return _resp("해당 번호의 캠페인이 없습니다. 다시 선택해주세요.", cards=cards)
 
+        # 금일 모집목표 도달 체크
+        if self.campaigns.is_daily_full(campaign):
+            cards = self.campaigns.build_campaign_cards(state.name, state.phone)
+            return _resp(
+                f"'{campaign.get('상품명', '')}' 캠페인은 오늘 모집이 마감되었습니다.\n내일 다시 신청해주세요!",
+                cards=cards
+            )
+
         state.selected_campaign_id = campaign.get("캠페인ID", str(choice))
         state.temp_data["campaign"] = campaign
         state.temp_data["store_ids"] = []

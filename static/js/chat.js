@@ -232,7 +232,11 @@
             if (c.daily_target && c.daily_target > 0) {
                 var todayDone = c.today_done || 0;
                 var dailyRemain = Math.max(0, c.daily_target - todayDone);
-                recruitHtml += '<div class="campaign-card-row"><span class="campaign-card-icon">📊</span> 금일 모집 : ' + dailyRemain + ' / ' + c.daily_target + ' (남은자리 / 금일목표)</div>';
+                if (c.daily_full) {
+                    recruitHtml += '<div class="campaign-card-row" style="color:#e53e3e;font-weight:600;"><span class="campaign-card-icon">🚫</span> 금일 모집 마감</div>';
+                } else {
+                    recruitHtml += '<div class="campaign-card-row"><span class="campaign-card-icon">📊</span> 금일 모집 : ' + dailyRemain + ' / ' + c.daily_target + '</div>';
+                }
             }
 
             card.innerHTML =
@@ -246,12 +250,19 @@
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'campaign-card-btn';
-            btn.textContent = '신청하기';
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                sendQuickMessage(c.value, c.name);
-            });
+            if (c.daily_full) {
+                btn.textContent = '금일 마감';
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+            } else {
+                btn.textContent = '신청하기';
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    sendQuickMessage(c.value, c.name);
+                });
+            }
             card.appendChild(btn);
 
             wrap.appendChild(card);

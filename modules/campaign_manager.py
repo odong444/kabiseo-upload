@@ -102,6 +102,7 @@ class CampaignManager:
                     daily_target = safe_int(daily_str)
 
             today_done = today_counts.get(campaign_id, 0)
+            daily_full = daily_target > 0 and today_done >= daily_target
 
             card = {
                 "value": f"campaign_{i}",
@@ -111,6 +112,7 @@ class CampaignManager:
                 "remaining": remaining,
                 "daily_target": daily_target,
                 "today_done": today_done,
+                "daily_full": daily_full,
                 "urgent": remaining <= 5,
             }
 
@@ -226,6 +228,25 @@ class CampaignManager:
             c["모집글"] = self.build_recruit_message(c, web_url)
             result.append(c)
         return result
+
+    def is_daily_full(self, campaign: dict) -> bool:
+        """해당 캠페인의 금일 모집목표 도달 여부"""
+        import re
+        daily_str = campaign.get("일수량", "").strip()
+        if not daily_str:
+            return False
+        range_match = re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
+        daily_target = safe_int(range_match.group(2)) if range_match else safe_int(daily_str)
+        if daily_target <= 0:
+            return False
+        campaign_id = campaign.get("캠페인ID", "")
+        if not campaign_id:
+            return False
+        try:
+            counts = self.sheets.count_today_all_campaigns()
+            return counts.get(campaign_id, 0) >= daily_target
+        except Exception:
+            return False
 
     def get_campaign_stats(self, campaign_id: str) -> dict:
         """캠페인 달성률"""
