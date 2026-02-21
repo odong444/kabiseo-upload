@@ -435,7 +435,7 @@ class SheetsManager:
 
         # 뒤에서부터 검색 (최신 항목 우선)
         for row in reversed(all_rows[1:]):
-            if not self._match_reviewer(row, headers, name, phone):
+            if self._match_reviewer(row, headers, name, phone):
                 row_dict = {headers[j]: row[j] for j in range(len(headers)) if j < len(row)}
                 result = {}
                 for key in ("은행", "계좌", "예금주", "주소"):
