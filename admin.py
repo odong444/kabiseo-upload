@@ -580,8 +580,10 @@ def api_campaign_preview():
     card = {
         "name": product_name,
         "store": store_name,
-        "method": "미정",
+        "total": total,
         "remaining": total,
+        "daily_target": 0,
+        "today_done": 0,
         "urgent": total <= 5,
         "price": product_price,
     }

@@ -64,6 +64,7 @@ class CampaignManager:
 
     def build_campaign_cards(self, name: str = "", phone: str = "") -> list[dict]:
         """채팅용 캠페인 카드 데이터 (chat.js에서 렌더링)"""
+        import re
         active = self.get_active_campaigns()
         if not active:
             return []
@@ -76,20 +77,40 @@ class CampaignManager:
             except Exception:
                 pass
 
+        # 오늘 캠페인별 진행 건수 (시트 1회 읽기)
+        today_counts = {}
+        try:
+            today_counts = self.sheets.count_today_all_campaigns()
+        except Exception:
+            pass
+
         cards = []
         for i, c in enumerate(active, 1):
             total = safe_int(c.get("총수량", 0))
             done = safe_int(c.get("완료수량", 0))
             remaining = c.get("_남은수량", total - done)
-            method = c.get("유입방식", "")
             campaign_id = c.get("캠페인ID", "")
+
+            # 하루진행량 파싱 (숫자 또는 범위 "3-5")
+            daily_str = c.get("일수량", "").strip()
+            daily_target = 0
+            if daily_str:
+                range_match = re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
+                if range_match:
+                    daily_target = safe_int(range_match.group(2))
+                else:
+                    daily_target = safe_int(daily_str)
+
+            today_done = today_counts.get(campaign_id, 0)
 
             card = {
                 "value": f"campaign_{i}",
                 "name": c.get("상품명", ""),
                 "store": c.get("업체명", ""),
-                "method": method or "미정",
+                "total": total,
                 "remaining": remaining,
+                "daily_target": daily_target,
+                "today_done": today_done,
                 "urgent": remaining <= 5,
             }
 

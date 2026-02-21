@@ -228,15 +228,18 @@
                 historyHtml += '</div>';
             }
 
+            var recruitHtml = '<div class="campaign-card-row"><span class="campaign-card-icon">👥</span> 총 모집인원 : ' + (c.total || c.remaining) + '명</div>';
+            if (c.daily_target && c.daily_target > 0) {
+                var todayDone = c.today_done || 0;
+                var dailyRemain = Math.max(0, c.daily_target - todayDone);
+                recruitHtml += '<div class="campaign-card-row"><span class="campaign-card-icon">📊</span> 금일 모집 : ' + dailyRemain + ' / ' + c.daily_target + ' (남은자리 / 금일목표)</div>';
+            }
+
             card.innerHTML =
                 '<div class="campaign-card-header">' + escapeText(c.name) + urgentHtml + '</div>' +
                 '<div class="campaign-card-body">' +
                 '<div class="campaign-card-row"><span class="campaign-card-icon">🏪</span> ' + escapeText(c.store) + '</div>' +
-                '<div class="campaign-card-row"><span class="campaign-card-icon">' +
-                    (c.method === '링크유입' ? '🔗' : '🔍') +
-                '</span> ' + escapeText(c.method) + '</div>' +
-                '<div class="campaign-card-row remaining' + (c.urgent ? ' urgent' : '') + '">' +
-                '<span class="campaign-card-icon">👥</span> 남은 ' + c.remaining + '자리</div>' +
+                recruitHtml +
                 historyHtml +
                 '</div>';
 
