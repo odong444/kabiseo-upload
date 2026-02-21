@@ -173,7 +173,7 @@ class SheetsManager:
             status = item.get("상태", "")
             if status in (STATUS_SETTLED, STATUS_REVIEW_DONE):
                 completed.append(item)
-            elif status == STATUS_CANCELLED:
+            elif status in (STATUS_CANCELLED, STATUS_TIMEOUT):
                 continue
             else:
                 in_progress.append(item)

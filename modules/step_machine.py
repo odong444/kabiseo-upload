@@ -359,6 +359,11 @@ class StepMachine:
             state.temp_data.pop("cancel_confirm", None)
             return self._build_resume_message(state)
 
+        # 진행현황 전체 보기
+        if message == "__more_status__":
+            items = self.reviewers.get_items(state.name, state.phone)
+            return _resp(self._format_status(items), buttons=self._menu_buttons())
+
         choice = parse_menu_choice(message)
 
         if choice == 1:
@@ -374,7 +379,12 @@ class StepMachine:
             if not items["in_progress"] and not items["completed"]:
                 return _resp("진행 중인 체험단이 없습니다. 체험단을 신청해보세요!",
                              buttons=self._menu_buttons())
-            return _resp(self._format_status(items), buttons=self._menu_buttons())
+            total_count = len(items["in_progress"]) + len(items["completed"])
+            text = self._format_status(items, limit=5)
+            buttons = self._menu_buttons()
+            if total_count > 5:
+                buttons = [{"label": f"전체 보기 ({total_count}건)", "value": "__more_status__"}] + buttons
+            return _resp(text, buttons=buttons)
 
         elif choice == 3:
             upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
@@ -1285,12 +1295,22 @@ class StepMachine:
 
     # ─────────── 포맷팅 ───────────
 
-    def _format_status(self, items: dict) -> str:
+    def _format_status(self, items: dict, limit: int = 0) -> str:
+        # 전체 목록 합쳐서 최신순 정렬 후 limit 적용
+        all_items = []
+        for item in items.get("in_progress", []):
+            all_items.append(("progress", item))
+        for item in items.get("completed", []):
+            all_items.append(("done", item))
+
+        total_count = len(all_items)
+        show_items = all_items[:limit] if limit and limit < total_count else all_items
+        hidden = total_count - len(show_items)
+
         text = ""
-        if items["in_progress"]:
-            text += "📋 진행중\n"
-            for item in items["in_progress"]:
-                status = item.get("상태", "")
+        for kind, item in show_items:
+            status = item.get("상태", "")
+            if kind == "progress":
                 emoji = self._status_emoji(status)
                 text += f"\n📦 {item.get('제품명', '')}\n"
                 text += f"   아이디: {item.get('아이디', '')}\n"
@@ -1299,19 +1319,18 @@ class StepMachine:
                     text += f"   구매일: {item.get('구매일')}\n"
                 if item.get("리뷰기한"):
                     text += f"   리뷰기한: {item.get('리뷰기한')}\n"
-                # 반려 표시
                 remark = item.get("비고", "")
                 if remark.startswith("반려"):
                     text += f"   ⚠️ {remark}\n"
-
-        if items["completed"]:
-            text += "\n✅ 완료\n"
-            for item in items["completed"]:
+            else:
                 text += f"\n📦 {item.get('제품명', '')}\n"
                 text += f"   아이디: {item.get('아이디', '')}\n"
-                text += f"   상태: {item.get('상태', '')} ✅\n"
+                text += f"   상태: {status} ✅\n"
                 if item.get("입금금액"):
                     text += f"   입금액: {item.get('입금금액')}원\n"
+
+        if hidden > 0:
+            text += f"\n... 외 {hidden}건 더 있음"
 
         return text or "진행 중인 체험단이 없습니다."
 
