@@ -53,6 +53,7 @@ def init_app(web_url: str = "", socketio=None):
         campaign_manager = CampaignManager(sheets_manager)
         reviewer_manager = ReviewerManager(sheets_manager)
         reviewer_grader = ReviewerGrader(sheets_manager)
+        chat_logger.set_sheets_manager(sheets_manager)
     else:
         campaign_manager = None
         reviewer_manager = None
