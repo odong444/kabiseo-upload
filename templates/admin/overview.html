@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 전체현황</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .company-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+    .company-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 18px 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .company-card-name {
+        font-size: 16px;
+        font-weight: 700;
+        color: #3c1e1e;
+        margin-bottom: 8px;
+    }
+    .company-card-info {
+        font-size: 13px;
+        color: #666;
+        line-height: 1.8;
+    }
+    .company-card-info strong { color: #333; }
+    .company-rate {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .company-rate.high { background: #e8f5e9; color: #2e7d32; }
+    .company-rate.mid { background: #fff8e1; color: #f57f17; }
+    .company-rate.low { background: #fce4ec; color: #c62828; }
+
+    .filter-bar {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .filter-bar label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+    }
+    .filter-bar select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        background: #fff;
+        outline: none;
+    }
+    .filter-bar select:focus { border-color: #fee500; }
+
+    .rate-bar {
+        display: inline-block;
+        width: 60px;
+        height: 8px;
+        background: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+        vertical-align: middle;
+        margin-right: 6px;
+    }
+    .rate-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+    .rate-bar-fill.high { background: #4caf50; }
+    .rate-bar-fill.mid { background: #ffc107; }
+    .rate-bar-fill.low { background: #e74c3c; }
+
+    .overview-count {
+        font-size: 14px;
+        color: #888;
+        margin-bottom: 12px;
+    }
+    .overview-count strong { color: #333; }
+
+    .status-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .status-tag.모집중 { background: #e3f2fd; color: #1565c0; }
+    .status-tag.마감 { background: #fff8e1; color: #f57f17; }
+    .status-tag.종료 { background: #f5f5f5; color: #999; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.overview') }}" class="active">전체현황</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>전체현황</h1>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- 업체별 요약 카드 -->
+        {% if companies %}
+        <h2>업체별 요약</h2>
+        <div class="company-cards">
+            {% for name, info in companies.items() %}
+            <div class="company-card">
+                <div class="company-card-name">{{ name }}</div>
+                <div class="company-card-info">
+                    캠페인: <strong>{{ info.count }}개</strong><br>
+                    총 수량: <strong>{{ info.total }}건</strong> / 완료: <strong>{{ info.done }}건</strong><br>
+                    달성률: <span class="company-rate {% if info.rate >= 70 %}high{% elif info.rate >= 30 %}mid{% else %}low{% endif %}">{{ info.rate }}%</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- 필터 -->
+        <h2>캠페인 목록</h2>
+        <div class="filter-bar">
+            <label>업체:</label>
+            <select id="filterCompany" onchange="applyFilters()">
+                <option value="">전체</option>
+            </select>
+            <label>상태:</label>
+            <select id="filterStatus" onchange="applyFilters()">
+                <option value="">전체</option>
+                <option value="모집중">모집중</option>
+                <option value="마감">마감</option>
+                <option value="종료">종료</option>
+            </select>
+        </div>
+
+        <div class="overview-count" id="overviewCount"></div>
+
+        {% if campaigns %}
+        <div class="admin-table-wrap">
+            <table class="admin-table" id="overviewTable">
+                <thead>
+                    <tr>
+                        <th>업체명</th>
+                        <th>상품명</th>
+                        <th>총수량</th>
+                        <th>완료</th>
+                        <th>달성률(%)</th>
+                        <th>리뷰완료</th>
+                        <th>정산완료</th>
+                        <th>상태</th>
+                    </tr>
+                </thead>
+                <tbody id="overviewBody"></tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="admin-empty">캠페인 데이터가 없습니다.</p>
+        {% endif %}
+    </main>
+
+    <script>
+    var ALL_CAMPAIGNS = {{ campaigns | tojson if campaigns else '[]' }};
+
+    // Populate company filter
+    (function() {
+        var companySet = {};
+        for (var i = 0; i < ALL_CAMPAIGNS.length; i++) {
+            var company = ALL_CAMPAIGNS[i]['업체명'] || '기타';
+            companySet[company] = true;
+        }
+        var sel = document.getElementById('filterCompany');
+        var names = Object.keys(companySet).sort();
+        for (var j = 0; j < names.length; j++) {
+            var opt = document.createElement('option');
+            opt.value = names[j];
+            opt.textContent = names[j];
+            sel.appendChild(opt);
+        }
+    })();
+
+    function getRateClass(rate) {
+        if (rate >= 70) return 'high';
+        if (rate >= 30) return 'mid';
+        return 'low';
+    }
+
+    function applyFilters() {
+        var company = document.getElementById('filterCompany').value;
+        var status = document.getElementById('filterStatus').value;
+
+        var filtered = ALL_CAMPAIGNS.filter(function(c) {
+            if (company && (c['업체명'] || '기타') !== company) return false;
+            if (status && (c['상태'] || '') !== status) return false;
+            return true;
+        });
+
+        renderTable(filtered);
+    }
+
+    function renderTable(items) {
+        var tbody = document.getElementById('overviewBody');
+        if (!tbody) return;
+
+        var html = '';
+        for (var i = 0; i < items.length; i++) {
+            var c = items[i];
+            var total = parseInt(c['총수량'] || 0) || 0;
+            var done = parseInt(c['완료수량'] || 0) || 0;
+            var rate = c['rate'] || 0;
+            var rateClass = getRateClass(rate);
+            var statusVal = c['상태'] || '';
+
+            html += '<tr>'
+                + '<td>' + (c['업체명'] || '') + '</td>'
+                + '<td>' + (c['상품명'] || '') + '</td>'
+                + '<td>' + total + '</td>'
+                + '<td>' + done + '</td>'
+                + '<td>'
+                +   '<span class="rate-bar"><span class="rate-bar-fill ' + rateClass + '" style="width:' + Math.min(rate, 100) + '%"></span></span>'
+                +   '<strong>' + rate + '%</strong>'
+                + '</td>'
+                + '<td>' + (c['review_done'] || 0) + '</td>'
+                + '<td>' + (c['settlement_done'] || 0) + '</td>'
+                + '<td><span class="status-tag ' + statusVal + '">' + statusVal + '</span></td>'
+                + '</tr>';
+        }
+
+        tbody.innerHTML = html;
+
+        var countEl = document.getElementById('overviewCount');
+        if (countEl) {
+            countEl.innerHTML = '표시: <strong>' + items.length + '</strong>건 / 전체: <strong>' + ALL_CAMPAIGNS.length + '</strong>건';
+        }
+    }
+
+    // Initial render
+    applyFilters();
+    </script>
+</body>
+</html>

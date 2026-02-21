@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 활동로그</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .log-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+        align-items: center;
+    }
+    .log-filters label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+        margin-right: 4px;
+    }
+    .log-filter-checkbox {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 20px;
+        font-size: 13px;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.15s;
+    }
+    .log-filter-checkbox:hover { border-color: #fee500; }
+    .log-filter-checkbox.active {
+        background: #fee500;
+        border-color: #e6cf00;
+        font-weight: 600;
+    }
+    .log-filter-checkbox input { display: none; }
+
+    .log-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    .log-toolbar .left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .log-count {
+        font-size: 14px;
+        color: #888;
+    }
+    .log-count strong { color: #333; }
+
+    .auto-refresh-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: #666;
+        cursor: pointer;
+    }
+    .auto-refresh-toggle input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+    }
+
+    .log-icon {
+        font-size: 16px;
+        min-width: 24px;
+        text-align: center;
+    }
+    .log-type-tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #f0f0f0;
+        color: #555;
+    }
+    .log-type-tag.chat { background: #e3f2fd; color: #1565c0; }
+    .log-type-tag.form { background: #e8f5e9; color: #2e7d32; }
+    .log-type-tag.photo { background: #f3e5f5; color: #7b1fa2; }
+    .log-type-tag.timeout { background: #fff3e0; color: #e65100; }
+    .log-type-tag.cancel { background: #fce4ec; color: #c62828; }
+    .log-type-tag.campaign { background: #e8eaf6; color: #283593; }
+    .log-type-tag.settlement { background: #e0f2f1; color: #00695c; }
+    .log-type-tag.status { background: #f1f8e9; color: #558b2f; }
+    .log-type-tag.error { background: #fff3e0; color: #e65100; }
+    .log-type-tag.review { background: #fce4ec; color: #ad1457; }
+
+    .log-content-cell {
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .refresh-indicator {
+        display: none;
+        font-size: 12px;
+        color: #4caf50;
+        margin-left: 8px;
+    }
+    .refresh-indicator.show {
+        display: inline;
+        animation: fadeInOut 2s;
+    }
+    @keyframes fadeInOut {
+        0% { opacity: 0; }
+        20% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.overview') }}">전체현황</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}" class="active">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>활동 로그</h1>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- 유형 필터 -->
+        <div class="log-filters">
+            <label>유형 필터:</label>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'chat')">
+                <input type="checkbox" checked> 💬 chat
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'form')">
+                <input type="checkbox" checked> ✅ form
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'photo')">
+                <input type="checkbox" checked> 📸 photo
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'timeout')">
+                <input type="checkbox" checked> ⏰ timeout
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'cancel')">
+                <input type="checkbox" checked> ❌ cancel
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'campaign')">
+                <input type="checkbox" checked> 📋 campaign
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'settlement')">
+                <input type="checkbox" checked> 💰 settlement
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'status')">
+                <input type="checkbox" checked> 🔄 status
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'error')">
+                <input type="checkbox" checked> ⚠️ error
+            </span>
+            <span class="log-filter-checkbox active" onclick="toggleFilter(this, 'review')">
+                <input type="checkbox" checked> 📝 review
+            </span>
+        </div>
+
+        <div class="log-toolbar">
+            <div class="left">
+                <div class="log-count" id="logCount"></div>
+                <span class="refresh-indicator" id="refreshIndicator">새로고침됨</span>
+            </div>
+            <label class="auto-refresh-toggle">
+                <input type="checkbox" id="autoRefreshToggle" onchange="toggleAutoRefresh()">
+                자동 새로고침 (30초)
+            </label>
+        </div>
+
+        {% if logs %}
+        <div class="admin-table-wrap">
+            <table class="admin-table" id="logTable">
+                <thead>
+                    <tr>
+                        <th>시간</th>
+                        <th>유형</th>
+                        <th>이름</th>
+                        <th>캠페인</th>
+                        <th>아이디</th>
+                        <th>내용</th>
+                    </tr>
+                </thead>
+                <tbody id="logBody"></tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="admin-empty">활동 로그가 없습니다.</p>
+        {% endif %}
+    </main>
+
+    <script>
+    var ALL_LOGS = {{ logs | tojson if logs else '[]' }};
+    var activeFilters = {
+        'chat': true, 'form': true, 'photo': true, 'timeout': true, 'cancel': true,
+        'campaign': true, 'settlement': true, 'status': true, 'error': true, 'review': true
+    };
+    var autoRefreshTimer = null;
+
+    function toggleFilter(el, type) {
+        var cb = el.querySelector('input');
+        cb.checked = !cb.checked;
+        activeFilters[type] = cb.checked;
+        if (cb.checked) {
+            el.classList.add('active');
+        } else {
+            el.classList.remove('active');
+        }
+        renderLogs();
+    }
+
+    function renderLogs() {
+        var tbody = document.getElementById('logBody');
+        if (!tbody) return;
+
+        var filtered = ALL_LOGS.filter(function(log) {
+            return activeFilters[log['type']] !== false;
+        });
+
+        var html = '';
+        for (var i = 0; i < filtered.length; i++) {
+            var log = filtered[i];
+            var logType = log['type'] || '';
+            html += '<tr>'
+                + '<td style="white-space:nowrap;">' + (log['timestamp'] || '') + '</td>'
+                + '<td><span class="log-icon">' + (log['icon'] || '') + '</span> <span class="log-type-tag ' + logType + '">' + logType + '</span></td>'
+                + '<td>' + (log['name'] || '-') + '</td>'
+                + '<td>' + (log['campaign'] || '-') + '</td>'
+                + '<td>' + (log['store_id'] || '-') + '</td>'
+                + '<td class="log-content-cell" title="' + escapeAttr(log['content'] || '') + '">' + (log['content'] || '-') + '</td>'
+                + '</tr>';
+        }
+
+        tbody.innerHTML = html;
+
+        var countEl = document.getElementById('logCount');
+        if (countEl) {
+            countEl.innerHTML = '표시: <strong>' + filtered.length + '</strong>건 / 전체: <strong>' + ALL_LOGS.length + '</strong>건';
+        }
+    }
+
+    function escapeAttr(str) {
+        return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function toggleAutoRefresh() {
+        var checked = document.getElementById('autoRefreshToggle').checked;
+        if (checked) {
+            autoRefreshTimer = setInterval(function() {
+                location.reload();
+            }, 30000);
+        } else {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+        }
+    }
+
+    // Initial render
+    renderLogs();
+    </script>
+</body>
+</html>

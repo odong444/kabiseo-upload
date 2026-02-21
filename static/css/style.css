@@ -548,57 +548,15 @@ body {
     border-radius: 12px;
     padding: 16px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    transition: box-shadow 0.2s, opacity 0.3s;
+}
+.item-card.uploading {
+    box-shadow: 0 0 0 2px #fee500, 0 2px 8px rgba(254,229,0,0.3);
 }
 .item-info { margin-bottom: 12px; }
 .item-product { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
 .item-detail { font-size: 13px; color: #666; margin-bottom: 2px; }
-.upload-form { display: flex; align-items: center; gap: 8px; }
-.file-label { flex: 1; cursor: pointer; }
 .file-input { display: none; }
-.file-btn {
-    display: inline-block;
-    padding: 10px 16px;
-    background: #f0f0f0;
-    border-radius: 8px;
-    font-size: 14px;
-    min-height: 44px;
-    line-height: 24px;
-}
-.file-name {
-    display: block;
-    font-size: 12px;
-    color: #888;
-    margin-top: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 200px;
-}
-.submit-btn { min-height: 44px; min-width: 64px; }
-
-/* ──────── 일괄 제출 ──────── */
-.batch-actions { margin-bottom: 16px; }
-.batch-submit-btn { font-size: 16px; }
-.batch-progress { margin-top: 12px; }
-.progress-bar {
-    height: 8px;
-    background: #e0e0e0;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 8px;
-}
-.progress-fill {
-    height: 100%;
-    background: #4caf50;
-    border-radius: 4px;
-    width: 0;
-    transition: width 0.3s ease;
-}
-.progress-text {
-    text-align: center;
-    font-size: 13px;
-    color: #666;
-}
 .upload-controls { position: relative; }
 .upload-result { margin-top: 8px; }
 .result-success { color: #2e7d32; font-size: 14px; font-weight: 600; }
@@ -606,6 +564,209 @@ body {
 .item-card.uploaded {
     opacity: 0.6;
     border-left: 3px solid #4caf50;
+}
+
+/* File select area */
+.file-select-area { }
+.file-select-label { cursor: pointer; display: inline-block; }
+.file-select-btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #f0f0f0;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 44px;
+    line-height: 24px;
+    transition: background 0.15s;
+}
+.file-select-label:active .file-select-btn { background: #e0e0e0; }
+
+/* File selected indicator */
+.file-selected-area {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #e8f5e9;
+    border-radius: 10px;
+}
+.file-selected-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #2e7d32;
+}
+.file-selected-check { font-size: 16px; }
+.file-selected-actions {
+    display: flex;
+    gap: 6px;
+}
+.file-action-btn {
+    padding: 6px 14px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 36px;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+.file-action-btn:active { background: #f0f0f0; }
+.file-action-change { color: #1976d2; border-color: #90caf9; }
+.file-action-change:active { background: #e3f2fd; }
+.file-action-remove { color: #d32f2f; border-color: #ef9a9a; }
+.file-action-remove:active { background: #ffebee; }
+
+/* ──────── Sticky top bar ──────── */
+.upload-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: #fff;
+    padding: 12px 16px;
+    margin: 0 -16px 16px -16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: 0 0 12px 12px;
+}
+.sticky-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    color: #333;
+}
+.sticky-icon { font-size: 20px; }
+.sticky-label { font-weight: 500; }
+.sticky-label strong { color: #3c1e1e; font-size: 18px; }
+
+.sticky-submit-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    background: #ccc;
+    color: #888;
+    transition: all 0.2s;
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+}
+.sticky-submit-btn:disabled {
+    background: #e0e0e0;
+    color: #aaa;
+    cursor: not-allowed;
+}
+.sticky-submit-btn.active {
+    background: #fee500;
+    color: #3c1e1e;
+}
+.sticky-submit-btn.active:active { opacity: 0.8; }
+
+/* ──────── Batch progress overlay ──────── */
+.batch-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.batch-overlay-content {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px 24px;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+}
+.batch-overlay-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #3c1e1e;
+    margin-bottom: 20px;
+}
+.progress-bar-wrap { margin-bottom: 12px; }
+.progress-bar {
+    height: 10px;
+    background: #e0e0e0;
+    border-radius: 5px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #fee500, #4caf50);
+    border-radius: 5px;
+    width: 0;
+    transition: width 0.3s ease;
+}
+.progress-text {
+    font-size: 14px;
+    color: #666;
+    margin-top: 8px;
+}
+
+/* ──────── Confirmation modal ──────── */
+.confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 310;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.confirm-dialog {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px 24px 20px;
+    width: 100%;
+    max-width: 340px;
+    text-align: center;
+}
+.confirm-message {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+.confirm-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.confirm-btn {
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 48px;
+    transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+}
+.confirm-btn:active { opacity: 0.7; }
+.confirm-btn-submit {
+    background: #fee500;
+    color: #3c1e1e;
+}
+.confirm-btn-cancel {
+    background: #f0f0f0;
+    color: #666;
 }
 
 /* ──────── 성공 페이지 ──────── */
@@ -895,6 +1056,100 @@ body {
 .chat-action-btn:active {
     background: #357abd;
 }
+
+/* ──────── 인라인 버튼 (서버 전송) ──────── */
+.inline-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+.inline-buttons.disabled { opacity: 0.5; pointer-events: none; }
+.inline-btn {
+    padding: 10px 18px;
+    background: #fff;
+    border: 1.5px solid #fee500;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #3c1e1e;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.inline-btn:active { background: #fee500; transform: scale(0.96); }
+.inline-btn:disabled { opacity: 0.5; cursor: default; }
+.inline-btn-danger {
+    border-color: #e74c3c;
+    color: #e74c3c;
+}
+.inline-btn-danger:active { background: #fce4e4; }
+.inline-btn-secondary {
+    border-color: #ccc;
+    color: #888;
+}
+.inline-btn-secondary:active { background: #f0f0f0; }
+
+/* ──────── 캠페인 카드 ──────── */
+.campaign-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 0;
+    margin-left: 38px;
+    max-width: calc(100% - 38px);
+}
+.campaign-cards.disabled { opacity: 0.5; pointer-events: none; }
+.campaign-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border: 1px solid #eee;
+}
+.campaign-card-header {
+    font-size: 16px;
+    font-weight: 700;
+    color: #3c1e1e;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.campaign-urgent {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: #e74c3c;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+.campaign-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+.campaign-card-row {
+    font-size: 13px;
+    color: #555;
+}
+.campaign-card-row.remaining { font-weight: 600; color: #333; }
+.campaign-card-row.remaining.urgent { color: #e74c3c; }
+.campaign-card-icon { margin-right: 4px; }
+.campaign-card-btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    background: #fee500;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #3c1e1e;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.campaign-card-btn:active { background: #f5d800; transform: scale(0.98); }
 
 /* ──────── 관리자 버튼 ──────── */
 .admin-btn {

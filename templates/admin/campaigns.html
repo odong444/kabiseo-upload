@@ -13,9 +13,11 @@
             <nav class="admin-nav">
                 <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
                 <a href="{{ url_for('admin.campaigns') }}" class="active">캠페인</a>
+                <a href="{{ url_for('admin.overview') }}">전체현황</a>
                 <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
                 <a href="{{ url_for('admin.reviews') }}">검수</a>
                 <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
                 <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
             </nav>
@@ -34,6 +36,10 @@
         </div>
         {% endif %}
         {% endwith %}
+
+        <div style="margin-bottom: 16px;">
+            <a href="{{ url_for('admin.campaign_new') }}" class="admin-btn admin-btn-primary">신규 등록</a>
+        </div>
 
         {% if campaigns %}
         <div class="admin-table-wrap">

@@ -13,12 +13,12 @@ RECRUIT_TEMPLATE = """📢 리뷰 체험단 모집 📢
 
 ✨ {product_name} ✨
 🏪 {store_name}
-📦 옵션: {option}
+{method_line}
 
-✅ 모집 인원: {remaining}명
-✅ 유입 방식: {method}
-✅ 리뷰: {review_type}
-
+💰 상품금액: {product_price}원
+👥 남은 {remaining}명
+{review_line}
+{weekend_line}
 👉 아래 링크에서 신청해주세요!
 🔗 {web_url}
 
@@ -37,6 +37,9 @@ class CampaignManager:
         active = []
         for c in all_campaigns:
             status = c.get("상태", "")
+            # 비공개 캠페인 제외
+            if c.get("공개여부", "").strip().upper() in ("N",):
+                continue
             if status in ("모집중", "진행중", ""):
                 total = safe_int(c.get("총수량", 0))
                 done = safe_int(c.get("완료수량", 0))
@@ -59,8 +62,31 @@ class CampaignManager:
     def get_all_campaigns(self) -> list[dict]:
         return self.sheets.get_all_campaigns()
 
+    def build_campaign_cards(self, name: str = "", phone: str = "") -> list[dict]:
+        """채팅용 캠페인 카드 데이터 (chat.js에서 렌더링)"""
+        active = self.get_active_campaigns()
+        if not active:
+            return []
+
+        cards = []
+        for i, c in enumerate(active, 1):
+            total = safe_int(c.get("총수량", 0))
+            done = safe_int(c.get("완료수량", 0))
+            remaining = c.get("_남은수량", total - done)
+            method = c.get("유입방식", "")
+
+            cards.append({
+                "value": f"campaign_{i}",
+                "name": c.get("상품명", ""),
+                "store": c.get("업체명", ""),
+                "method": method or "미정",
+                "remaining": remaining,
+                "urgent": remaining <= 5,
+            })
+        return cards
+
     def build_campaign_list_text(self, name: str = "", phone: str = "") -> str:
-        """채팅용 캠페인 목록 텍스트 (유저의 기존 진행 아이디 표시)"""
+        """채팅용 캠페인 목록 텍스트 (하위호환)"""
         from modules.response_templates import (
             CAMPAIGN_LIST_HEADER, CAMPAIGN_ITEM, CAMPAIGN_ITEM_WITH_IDS,
             CAMPAIGN_LIST_FOOTER, NO_CAMPAIGNS
@@ -78,7 +104,6 @@ class CampaignManager:
             review_fee = c.get("리뷰비", "") or "미정"
             campaign_id = c.get("캠페인ID", "")
 
-            # 유저의 기존 진행 아이디 조회
             my_ids = []
             if name and phone and campaign_id:
                 try:
@@ -109,19 +134,45 @@ class CampaignManager:
         return text
 
     def build_recruit_message(self, campaign: dict, web_url: str) -> str:
-        """모집글 생성"""
+        """모집글 생성 (개선)"""
         total = safe_int(campaign.get("총수량", 0))
         done = safe_int(campaign.get("완료수량", 0))
         remaining = campaign.get("_남은수량", total - done)
+
+        method = campaign.get("유입방식", "")
+        if "키워드" in method:
+            method_line = "🔍 키워드 유입"
+        elif "링크" in method:
+            method_line = "🔗 링크 유입"
+        else:
+            method_line = f"✅ 유입: {method}" if method else ""
+
+        # 리뷰 타입
+        review_type = campaign.get("리뷰타입", "") or campaign.get("리뷰제공", "")
+        if review_type:
+            review_line = f"📝 리뷰: {review_type}"
+        else:
+            review_line = ""
+
+        # 주말작업
+        weekend = campaign.get("주말작업", "").strip().upper()
+        weekend_line = "✅ 주말 작업 가능" if weekend in ("Y", "O", "예") else ""
+
+        # 상품금액
+        product_price = campaign.get("상품금액", "") or campaign.get("결제금액", "")
+        if not product_price:
+            product_price = "확인필요"
+
         return RECRUIT_TEMPLATE.format(
             product_name=campaign.get("상품명", ""),
             store_name=campaign.get("업체명", ""),
-            option=campaign.get("옵션", "없음"),
+            method_line=method_line,
+            product_price=product_price,
             remaining=remaining,
-            method=campaign.get("유입방식", ""),
-            review_type=campaign.get("리뷰제공", ""),
+            review_line=review_line,
+            weekend_line=weekend_line,
             web_url=web_url,
-        )
+        ).strip()
 
     def get_needs_recruit(self, web_url: str) -> list[dict]:
         """홍보가 필요한 캠페인 + 모집글"""

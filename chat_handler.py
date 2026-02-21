@@ -47,8 +47,12 @@ def register_handlers(socketio):
         if models.step_machine:
             welcome = models.step_machine.get_welcome(name, phone)
             if welcome:
-                emit("bot_message", {"message": welcome})
-                models.chat_logger.log(reviewer_id, "bot", welcome)
+                if isinstance(welcome, dict):
+                    emit("bot_message", welcome)
+                    models.chat_logger.log(reviewer_id, "bot", welcome.get("message", ""))
+                else:
+                    emit("bot_message", {"message": welcome})
+                    models.chat_logger.log(reviewer_id, "bot", welcome)
         else:
             emit("bot_message", {
                 "message": "안녕하세요! 카비서입니다. 현재 시스템 점검 중입니다. 잠시 후 다시 시도해주세요."
@@ -79,12 +83,15 @@ def register_handlers(socketio):
         # 입력중 표시
         emit("bot_typing", {"typing": True}, room=reviewer_id)
 
-        # StepMachine 처리
+        # StepMachine 처리 (dict 또는 str 반환)
         response = models.step_machine.process_message(name, phone, message)
 
         # 응답 전송
         emit("bot_typing", {"typing": False}, room=reviewer_id)
-        emit("bot_message", {"message": response}, room=reviewer_id)
+        if isinstance(response, dict):
+            emit("bot_message", response, room=reviewer_id)
+        else:
+            emit("bot_message", {"message": response}, room=reviewer_id)
 
     @socketio.on("request_history")
     def handle_history(data):

@@ -11,10 +11,12 @@ from modules.reviewer_manager import ReviewerManager
 from modules.reviewer_grader import ReviewerGrader
 from modules.timeout_manager import TimeoutManager
 from modules.step_machine import StepMachine
+from modules.activity_logger import ActivityLogger
 
 # ──────── 인메모리 저장소 ────────
 state_store = StateStore()
 chat_logger = ChatLogger()
+activity_logger = ActivityLogger()
 
 # ──────── 매니저 (sheets 의존, init_app에서 초기화) ────────
 sheets_manager = None
@@ -45,15 +47,31 @@ def init_app(web_url: str = "", socketio=None):
     if sheets_manager:
         # 필수 컬럼 보장
         sheets_manager.ensure_main_column("진행자이름")
+        # 기존 컬럼
         sheets_manager.ensure_campaign_column("결제금액")
         sheets_manager.ensure_campaign_column("리뷰가이드")
         sheets_manager.ensure_campaign_column("중복허용")
         sheets_manager.ensure_campaign_column("리뷰비")
 
+        # 확장 컬럼 (캠페인 상세)
+        for col in [
+            "상품번호", "캠페인유형", "플랫폼",
+            "키워드위치", "옵션지정방식", "옵션목록",
+            "체류시간", "상품찜필수", "알림받기필수", "광고클릭금지",
+            "결제방법", "블라인드계정금지", "재구매확인",
+            "구매가능시간", "한달중복허용",
+            "배송메모필수", "배송메모내용", "배송메모안내링크",
+            "리뷰타입", "리뷰가이드내용", "리뷰이미지폴더",
+            "추가안내사항", "신청마감일", "공개여부", "선정여부",
+            "상품이미지", "상품금액", "리워드",
+        ]:
+            sheets_manager.ensure_campaign_column(col)
+
         campaign_manager = CampaignManager(sheets_manager)
         reviewer_manager = ReviewerManager(sheets_manager)
         reviewer_grader = ReviewerGrader(sheets_manager)
         chat_logger.set_sheets_manager(sheets_manager)
+        activity_logger.set_sheets_manager(sheets_manager)
     else:
         campaign_manager = None
         reviewer_manager = None

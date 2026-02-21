@@ -122,6 +122,62 @@ def campaign_edit_post(row):
     return redirect(url_for("admin.campaigns"))
 
 
+# ──────── 캠페인 신규 등록 ────────
+
+@admin_bp.route("/campaigns/new", methods=["GET"])
+@admin_required
+def campaign_new():
+    return render_template("admin/campaign_new.html")
+
+
+@admin_bp.route("/campaigns/new", methods=["POST"])
+@admin_required
+def campaign_new_post():
+    if not models.sheets_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.campaigns"))
+
+    import uuid
+    from modules.utils import today_str
+
+    campaign_id = str(uuid.uuid4())[:8]
+
+    # All form fields
+    fields = [
+        "캠페인유형", "플랫폼", "업체명", "상품명", "상품번호", "상품링크",
+        "상품이미지", "총수량", "상품금액", "리워드", "결제금액", "리뷰비",
+        "유입방식", "키워드", "키워드위치", "체류시간",
+        "상품찜필수", "알림받기필수", "광고클릭금지", "결제방법",
+        "블라인드계정금지", "재구매확인", "구매가능시간", "한달중복허용", "중복허용",
+        "옵션지정방식", "옵션목록", "옵션",
+        "배송메모필수", "배송메모내용", "배송메모안내링크",
+        "당일발송", "발송마감", "택배사",
+        "리뷰타입", "리뷰가이드내용", "리뷰기한일수", "리뷰이미지폴더",
+        "리뷰가이드", "리뷰제공",
+        "추가안내사항",
+        "일수량", "주말작업", "신청마감일", "공개여부", "선정여부", "메모",
+    ]
+
+    data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
+    for field in fields:
+        data[field] = request.form.get(field, "").strip()
+
+    # Add as new row to campaign sheet
+    try:
+        ws = models.sheets_manager.spreadsheet.worksheet("캠페인관리")
+        headers = ws.row_values(1)
+        new_row = []
+        for h in headers:
+            new_row.append(data.get(h, ""))
+        ws.append_row(new_row, value_input_option="USER_ENTERED")
+        flash(f"캠페인 '{data['상품명']}' 등록 완료 (ID: {campaign_id})")
+    except Exception as e:
+        logger.error(f"캠페인 등록 에러: {e}")
+        flash(f"등록 중 오류가 발생했습니다: {e}")
+
+    return redirect(url_for("admin.campaigns"))
+
+
 # ──────── 대화 이력 ────────
 
 @admin_bp.route("/chat/<reviewer_id>")
@@ -346,6 +402,75 @@ def reviewers():
             or ql in i.get("아이디", "").lower()
         ]
     return render_template("admin/dashboard.html", stats={}, recent_messages=[], reviewers=items, q=q, show_reviewers=True)
+
+
+# ──────── 전체현황 ────────
+
+@admin_bp.route("/overview")
+@admin_required
+def overview():
+    campaigns = []
+    if models.campaign_manager:
+        campaigns = models.campaign_manager.get_all_campaigns()
+
+    # Calculate stats per campaign
+    all_reviewers = []
+    if models.sheets_manager:
+        all_reviewers = models.sheets_manager.get_all_reviewers()
+
+    # Group by campaign
+    campaign_stats = []
+    for c in campaigns:
+        cid = c.get("캠페인ID", "")
+        total = int(c.get("총수량", 0) or 0)
+        done = int(c.get("완료수량", 0) or 0)
+
+        # Count review and settlement from reviewer data
+        review_done = 0
+        settlement_done = 0
+        for r in all_reviewers:
+            if r.get("캠페인ID") == cid:
+                status = r.get("상태", "")
+                if status in ("리뷰제출", "입금대기", "입금완료"):
+                    review_done += 1
+                if status == "입금완료":
+                    settlement_done += 1
+
+        rate = round(done / total * 100, 1) if total > 0 else 0
+        campaign_stats.append({
+            **c,
+            "review_done": review_done,
+            "settlement_done": settlement_done,
+            "rate": rate,
+        })
+
+    # Company summary
+    companies = {}
+    for cs in campaign_stats:
+        company = cs.get("업체명", "기타")
+        if company not in companies:
+            companies[company] = {"count": 0, "total": 0, "done": 0}
+        companies[company]["count"] += 1
+        companies[company]["total"] += int(cs.get("총수량", 0) or 0)
+        companies[company]["done"] += int(cs.get("완료수량", 0) or 0)
+
+    for k, v in companies.items():
+        v["rate"] = round(v["done"] / v["total"] * 100, 1) if v["total"] > 0 else 0
+
+    return render_template("admin/overview.html",
+                          campaigns=campaign_stats, companies=companies)
+
+
+# ──────── 활동 로그 ────────
+
+@admin_bp.route("/logs")
+@admin_required
+def activity_logs():
+    logs = []
+    if models.activity_logger:
+        log_type = request.args.get("type", "")
+        logs = models.activity_logger.get_recent_logs(limit=200, log_type=log_type)
+    return render_template("admin/logs.html", logs=logs)
 
 
 # ──────── API (AJAX) ────────

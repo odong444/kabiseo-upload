@@ -8,14 +8,36 @@
     {% if items %}
     <p class="page-subtitle">'{{ query }}' 님의 제출 대상 ({{ items|length }}건)</p>
 
-    <!-- 일괄 제출 버튼 -->
-    <div class="batch-actions">
-        <button type="button" class="btn btn-secondary btn-full batch-submit-btn" disabled onclick="batchUpload()">
-            전체 제출 (0건 선택됨)
+    <!-- Sticky top bar -->
+    <div class="upload-sticky" id="uploadStickyBar">
+        <div class="sticky-left">
+            <span class="sticky-icon">&#128248;</span>
+            <span class="sticky-label">사진 등록: <strong id="stickyCount">0</strong>건</span>
+        </div>
+        <button type="button" class="sticky-submit-btn" id="stickySubmitBtn" disabled onclick="batchUpload()">
+            0건 일괄 제출하기
         </button>
-        <div class="batch-progress" style="display:none;">
-            <div class="progress-bar"><div class="progress-fill"></div></div>
-            <p class="progress-text">업로드 중...</p>
+    </div>
+
+    <!-- Batch progress overlay -->
+    <div class="batch-overlay" id="batchOverlay" style="display:none;">
+        <div class="batch-overlay-content">
+            <div class="batch-overlay-title" id="overlayTitle">업로드 중...</div>
+            <div class="progress-bar-wrap">
+                <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            </div>
+            <div class="progress-text" id="progressText">준비 중...</div>
+        </div>
+    </div>
+
+    <!-- Confirmation modal -->
+    <div class="confirm-overlay" id="confirmOverlay" style="display:none;">
+        <div class="confirm-dialog">
+            <p class="confirm-message" id="confirmMessage"></p>
+            <div class="confirm-actions">
+                <button type="button" class="confirm-btn confirm-btn-submit" id="confirmSubmitBtn" onclick="doUpload()">제출하기</button>
+                <button type="button" class="confirm-btn confirm-btn-cancel" onclick="closeConfirm()">취소</button>
+            </div>
         </div>
     </div>
 
@@ -23,32 +45,39 @@
         {% for item in items %}
         {% set remark = item.get('비고', '') %}
         {% set is_rejected = remark.startswith('반려') %}
-        <div class="item-card{{ ' rejected' if is_rejected else '' }}" data-row="{{ item['_row_idx'] }}">
+        <div class="item-card{{ ' rejected' if is_rejected else '' }}" data-row="{{ item['_row_idx'] }}" id="card-{{ item['_row_idx'] }}">
             <div class="item-info">
                 <div class="item-product">{{ item.get('제품명', '') }}</div>
                 <div class="item-detail">아이디: {{ item.get('아이디', '') }}</div>
+                <div class="item-detail">주문번호: {{ item.get('주문번호', '') or '-' }}</div>
                 <div class="item-detail">수취인: {{ item.get('수취인명', '') }} / {{ item.get('연락처', '') }}</div>
                 <div class="item-detail">구매일: {{ item.get('구매일', '') or item.get('날짜', '') }}</div>
                 {% if is_rejected %}
-                <div class="item-reject-notice">반려: {{ remark[3:].strip() if remark|length > 3 else '리뷰 사진을 다시 확인해주세요.' }}</div>
+                <div class="item-reject-notice">&#9888; 반려: {{ remark[3:].strip() if remark|length > 3 else '리뷰 사진을 다시 확인해주세요.' }}</div>
                 {% endif %}
             </div>
             <div class="upload-controls">
-                <form
-                    action="{{ url_for('upload_' + capture_type + '_submit', row=item['_row_idx']) }}"
-                    method="POST"
-                    enctype="multipart/form-data"
-                    class="upload-form"
-                >
-                    <label class="file-label">
-                        <input type="file" name="capture" accept="image/*" required class="file-input"
-                            onchange="onFileSelect(this)">
-                        <span class="file-btn">&#128248; 사진 선택</span>
-                        <span class="file-name"></span>
+                <!-- File selection area (not yet selected) -->
+                <div class="file-select-area" id="selectArea-{{ item['_row_idx'] }}">
+                    <label class="file-select-label">
+                        <input type="file" name="capture" accept="image/*" class="file-input"
+                            onchange="onFileSelect(this, this.closest('.item-card'))">
+                        <span class="file-select-btn">&#128247; 사진 선택</span>
                     </label>
-                    <button type="submit" class="btn btn-primary submit-btn btn-sm" disabled>제출</button>
-                </form>
-                <div class="upload-result" style="display:none;"></div>
+                </div>
+                <!-- File selected indicator (hidden by default) -->
+                <div class="file-selected-area" id="selectedArea-{{ item['_row_idx'] }}" style="display:none;">
+                    <span class="file-selected-info">
+                        <span class="file-selected-check">&#9989;</span>
+                        <span class="file-selected-text" id="selectedText-{{ item['_row_idx'] }}">1장 등록됨</span>
+                    </span>
+                    <span class="file-selected-actions">
+                        <button type="button" class="file-action-btn file-action-change" onclick="changeFile(this.closest('.item-card'))">변경</button>
+                        <button type="button" class="file-action-btn file-action-remove" onclick="removeFile(this.closest('.item-card'))">삭제</button>
+                    </span>
+                </div>
+                <!-- Upload result (shown after submit) -->
+                <div class="upload-result" id="result-{{ item['_row_idx'] }}" style="display:none;"></div>
             </div>
         </div>
         {% endfor %}
@@ -67,66 +96,165 @@
 <script>
 const CAPTURE_TYPE = "{{ capture_type }}";
 
-function onFileSelect(input) {
-    const form = input.closest('form');
-    const card = input.closest('.item-card');
-    form.querySelector('.file-name').textContent = input.files[0]?.name || '';
-    form.querySelector('.submit-btn').disabled = !input.files.length;
-    updateBatchBtn();
+/**
+ * Handle file selection on an item card.
+ */
+function onFileSelect(input, cardEl) {
+    if (!input.files || !input.files.length) return;
+
+    const row = cardEl.dataset.row;
+    const selectArea = document.getElementById('selectArea-' + row);
+    const selectedArea = document.getElementById('selectedArea-' + row);
+    const selectedText = document.getElementById('selectedText-' + row);
+
+    // Show selected state
+    const fileName = input.files[0].name;
+    const fileCount = input.files.length;
+    selectedText.textContent = fileCount + '장 등록됨';
+    selectedText.title = fileName;
+
+    selectArea.style.display = 'none';
+    selectedArea.style.display = 'flex';
+
+    updateStickyBar();
 }
 
+/**
+ * Trigger a file change (re-select) on a card.
+ */
+function changeFile(cardEl) {
+    const fileInput = cardEl.querySelector('.file-input');
+    fileInput.click();
+}
+
+/**
+ * Remove the selected file from a card.
+ */
+function removeFile(cardEl) {
+    const row = cardEl.dataset.row;
+    const fileInput = cardEl.querySelector('.file-input');
+    const selectArea = document.getElementById('selectArea-' + row);
+    const selectedArea = document.getElementById('selectedArea-' + row);
+
+    // Reset the file input
+    fileInput.value = '';
+
+    // Show select area, hide selected area
+    selectArea.style.display = 'block';
+    selectedArea.style.display = 'none';
+
+    updateStickyBar();
+}
+
+/**
+ * Get all cards that have files selected (and are not already uploaded).
+ */
 function getSelectedCards() {
-    const cards = document.querySelectorAll('.item-card');
+    const cards = document.querySelectorAll('.item-card:not(.uploaded)');
     const selected = [];
     cards.forEach(card => {
         const input = card.querySelector('.file-input');
-        if (input && input.files.length > 0) {
+        if (input && input.files && input.files.length > 0) {
             selected.push(card);
         }
     });
     return selected;
 }
 
-function updateBatchBtn() {
-    const btn = document.querySelector('.batch-submit-btn');
-    if (!btn) return;
+/**
+ * Update the sticky bar count and button state.
+ */
+function updateStickyBar() {
     const selected = getSelectedCards();
-    btn.disabled = selected.length === 0;
-    btn.textContent = `전체 제출 (${selected.length}건 선택됨)`;
+    const count = selected.length;
+    const countEl = document.getElementById('stickyCount');
+    const btn = document.getElementById('stickySubmitBtn');
+
+    if (countEl) countEl.textContent = count;
+
+    if (btn) {
+        if (count === 0) {
+            btn.disabled = true;
+            btn.textContent = '0건 일괄 제출하기';
+            btn.classList.remove('active');
+        } else {
+            btn.disabled = false;
+            btn.textContent = count + '건 일괄 제출하기';
+            btn.classList.add('active');
+        }
+    }
 }
 
-async function batchUpload() {
+/**
+ * Show confirmation dialog before batch upload.
+ */
+function batchUpload() {
     const cards = getSelectedCards();
     if (cards.length === 0) return;
 
-    const btn = document.querySelector('.batch-submit-btn');
-    const progressWrap = document.querySelector('.batch-progress');
-    const progressFill = document.querySelector('.progress-fill');
-    const progressText = document.querySelector('.progress-text');
+    const overlay = document.getElementById('confirmOverlay');
+    const message = document.getElementById('confirmMessage');
+    message.textContent = cards.length + '건의 사진을 제출하시겠어요?';
+    overlay.style.display = 'flex';
+}
 
-    btn.disabled = true;
-    btn.textContent = '업로드 중...';
-    progressWrap.style.display = 'block';
+/**
+ * Close confirmation dialog.
+ */
+function closeConfirm() {
+    document.getElementById('confirmOverlay').style.display = 'none';
+}
 
+/**
+ * Execute the actual batch upload after confirmation.
+ */
+async function doUpload() {
+    // Close confirmation
+    closeConfirm();
+
+    const cards = getSelectedCards();
+    if (cards.length === 0) return;
+
+    const total = cards.length;
     let done = 0;
     let success = 0;
-    const total = cards.length;
+
+    // Show progress overlay
+    const overlay = document.getElementById('batchOverlay');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const overlayTitle = document.getElementById('overlayTitle');
+    const stickyBtn = document.getElementById('stickySubmitBtn');
+
+    overlay.style.display = 'flex';
+    overlayTitle.textContent = '업로드 중...';
+    progressFill.style.width = '0%';
+    progressText.textContent = '0/' + total + ' 업로드중...';
+
+    // Disable sticky button during upload
+    stickyBtn.disabled = true;
+    stickyBtn.textContent = '업로드 중...';
 
     for (const card of cards) {
         const row = card.dataset.row;
         const fileInput = card.querySelector('.file-input');
-        const resultDiv = card.querySelector('.upload-result');
-        const formDiv = card.querySelector('.upload-form');
+        const resultDiv = document.getElementById('result-' + row);
+        const selectArea = document.getElementById('selectArea-' + row);
+        const selectedArea = document.getElementById('selectedArea-' + row);
 
         if (!fileInput.files.length) continue;
+
+        // Update progress
+        progressText.textContent = (done + 1) + '/' + total + ' 업로드중...';
+        progressFill.style.width = ((done / total) * 100) + '%';
+
+        // Highlight current card
+        card.classList.add('uploading');
 
         const formData = new FormData();
         formData.append('capture', fileInput.files[0]);
         formData.append('capture_type', CAPTURE_TYPE);
         formData.append('row', row);
-
-        progressText.textContent = `업로드 중... (${done + 1}/${total})`;
-        progressFill.style.width = `${((done) / total) * 100}%`;
 
         try {
             const resp = await fetch('/api/upload', { method: 'POST', body: formData });
@@ -134,34 +262,41 @@ async function batchUpload() {
 
             if (data.ok) {
                 success++;
-                formDiv.style.display = 'none';
+                // Hide file controls, show success
+                selectArea.style.display = 'none';
+                selectedArea.style.display = 'none';
                 resultDiv.style.display = 'block';
                 resultDiv.innerHTML = '<span class="result-success">&#9989; 제출 완료</span>';
                 card.classList.add('uploaded');
             } else {
                 resultDiv.style.display = 'block';
-                resultDiv.innerHTML = `<span class="result-fail">&#10060; ${data.message}</span>`;
+                resultDiv.innerHTML = '<span class="result-fail">&#10060; ' + (data.message || '제출 실패') + '</span>';
             }
         } catch (e) {
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = '<span class="result-fail">&#10060; 네트워크 오류</span>';
         }
+
+        card.classList.remove('uploading');
         done++;
     }
 
+    // Completed
     progressFill.style.width = '100%';
-    progressText.textContent = `완료! ${success}/${total}건 제출 성공`;
-    btn.textContent = `전체 제출 완료 (${success}/${total})`;
+    overlayTitle.textContent = '완료!';
+    progressText.textContent = '완료! ' + success + '/' + total + '건 제출 성공';
 
-    if (success === total) {
-        setTimeout(() => {
-            btn.textContent = '모두 제출 완료!';
-        }, 500);
-    } else {
-        btn.disabled = false;
-        updateBatchBtn();
-    }
+    // Auto-close after delay
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        updateStickyBar();
+    }, 2000);
 }
+
+// Initial update
+document.addEventListener('DOMContentLoaded', function() {
+    updateStickyBar();
+});
 </script>
 {% endblock %}
 

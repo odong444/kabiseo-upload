@@ -1,5 +1,6 @@
 /**
  * chat.js - 카비서 WebSocket 채팅 클라이언트
+ * 버튼/카드 UI 지원
  */
 
 (function() {
@@ -62,13 +63,22 @@
 
     socket.on('bot_message', function(data) {
         removeTyping();
-        appendMessage('bot', data.message);
+        disableAllButtons();
+
+        if (data.cards) {
+            appendMessage('bot', data.message || '');
+            renderCampaignCards(data.cards);
+        } else {
+            appendMessage('bot', data.message || '', null, data.buttons);
+        }
         scrollToBottom();
 
-        // 메뉴 키워드가 포함되면 퀵버튼 표시
+        // 메뉴 키워드가 포함되면 퀵버튼 표시 (buttons가 없을 때만)
         var msg = data.message || '';
-        if (msg.indexOf('체험단 신청') !== -1 || msg.indexOf('도와드릴까요') !== -1 || msg.indexOf('선택해주세요') !== -1 || msg.indexOf('기타 문의') !== -1) {
-            setTimeout(showQuickButtons, 200);
+        if (!data.buttons && !data.cards) {
+            if (msg.indexOf('도와드릴까요') !== -1 || msg.indexOf('선택해주세요') !== -1) {
+                setTimeout(showQuickButtons, 200);
+            }
         }
     });
 
@@ -85,7 +95,7 @@
         scrollToBottom();
     });
 
-    // ──────── 퀵 버튼 ────────
+    // ──────── 퀵 버튼 (메뉴) ────────
 
     var quickMenuItems = [
         { label: '체험단 신청', value: '1' },
@@ -96,7 +106,7 @@
     ];
 
     function sendQuickMessage(text) {
-        hideQuickButtons();
+        disableAllButtons();
         appendMessage('user', text);
         scrollToBottom();
         socket.emit('user_message', {
@@ -134,13 +144,103 @@
         if (el) el.remove();
     }
 
+    // ──────── 인라인 버튼 (서버에서 전송) ────────
+
+    function disableAllButtons() {
+        // 이전 버튼 그룹 모두 비활성화
+        hideQuickButtons();
+        var groups = chatMessages.querySelectorAll('.inline-buttons:not(.disabled)');
+        groups.forEach(function(g) {
+            g.classList.add('disabled');
+            g.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+        });
+        // 카드 버튼도 비활성화
+        var cards = chatMessages.querySelectorAll('.campaign-cards:not(.disabled)');
+        cards.forEach(function(g) {
+            g.classList.add('disabled');
+            g.querySelectorAll('.campaign-card-btn').forEach(function(b) {
+                b.style.pointerEvents = 'none';
+                b.style.opacity = '0.5';
+            });
+        });
+    }
+
+    function renderInlineButtons(buttons, parentEl) {
+        if (!buttons || !buttons.length) return;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'inline-buttons';
+
+        buttons.forEach(function(item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'inline-btn';
+            if (item.style === 'danger') btn.classList.add('inline-btn-danger');
+            if (item.style === 'secondary') btn.classList.add('inline-btn-secondary');
+            btn.textContent = item.label;
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendQuickMessage(item.value);
+            });
+            wrap.appendChild(btn);
+        });
+
+        parentEl.appendChild(wrap);
+    }
+
+    // ──────── 캠페인 카드 ────────
+
+    function renderCampaignCards(campaigns) {
+        if (!campaigns || !campaigns.length) return;
+
+        var wrap = document.createElement('div');
+        wrap.className = 'campaign-cards';
+
+        campaigns.forEach(function(c) {
+            var card = document.createElement('div');
+            card.className = 'campaign-card';
+
+            var urgentHtml = '';
+            if (c.urgent) {
+                urgentHtml = '<span class="campaign-urgent">마감 임박!</span>';
+            }
+
+            card.innerHTML =
+                '<div class="campaign-card-header">' + escapeText(c.name) + urgentHtml + '</div>' +
+                '<div class="campaign-card-body">' +
+                '<div class="campaign-card-row"><span class="campaign-card-icon">🏪</span> ' + escapeText(c.store) + '</div>' +
+                '<div class="campaign-card-row"><span class="campaign-card-icon">' +
+                    (c.method === '링크유입' ? '🔗' : '🔍') +
+                '</span> ' + escapeText(c.method) + '</div>' +
+                '<div class="campaign-card-row remaining' + (c.urgent ? ' urgent' : '') + '">' +
+                '<span class="campaign-card-icon">👥</span> 남은 ' + c.remaining + '자리</div>' +
+                '</div>';
+
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'campaign-card-btn';
+            btn.textContent = '신청하기';
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                sendQuickMessage(c.value);
+            });
+            card.appendChild(btn);
+
+            wrap.appendChild(card);
+        });
+
+        chatMessages.appendChild(wrap);
+    }
+
     // ──────── 메시지 전송 ────────
 
     function sendMessage() {
         var message = chatInput.value.trim();
         if (!message) return;
 
-        hideQuickButtons();
+        disableAllButtons();
         appendMessage('user', message);
         chatInput.value = '';
         chatInput.style.height = 'auto';
@@ -165,13 +265,12 @@
     });
 
     // textarea 높이 자동 조절 (최대 3줄, 그 이상은 스크롤)
-    var maxTextareaHeight = 84; // 약 3줄
+    var maxTextareaHeight = 84;
     chatInput.addEventListener('input', function() {
         this.style.height = 'auto';
         var newHeight = Math.min(this.scrollHeight, maxTextareaHeight);
         this.style.height = newHeight + 'px';
 
-        // 3줄 초과 시 스크롤바 표시
         if (this.scrollHeight > maxTextareaHeight) {
             this.classList.add('scrollable');
         } else {
@@ -183,7 +282,9 @@
 
     // ──────── UI 헬퍼 ────────
 
-    function appendMessage(sender, message, timestamp) {
+    function appendMessage(sender, message, timestamp, buttons) {
+        if (!message && !buttons) return;
+
         var bubble = document.createElement('div');
         bubble.className = 'chat-bubble ' + sender;
 
@@ -198,9 +299,9 @@
                 '<span class="bubble-time">' + timeStr + '</span>';
 
             // 양식 템플릿 복사 버튼
-            if (message.indexOf('수취인명:') !== -1 && message.indexOf('계좌:') !== -1) {
+            if (message && message.indexOf('수취인명:') !== -1 && message.indexOf('계좌:') !== -1) {
                 var formLines = message.split('\n').filter(function(l) {
-                    return /^(아이디|수취인명|연락처|은행|계좌|예금주|주소|닉네임)\s*[:：]/.test(l.trim());
+                    return /^(아이디|수취인명|연락처|결제금액|은행|계좌|예금주|주소|닉네임)\s*[:：]/.test(l.trim());
                 });
                 if (formLines.length >= 3) {
                     var formText = formLines.join('\n');
@@ -215,7 +316,6 @@
                             copyBtn.textContent = '✅ 복사됨!';
                             setTimeout(function() { copyBtn.textContent = '📋 양식 복사'; }, 2000);
                         }).catch(function() {
-                            // fallback
                             var ta = document.createElement('textarea');
                             ta.value = formText;
                             ta.style.cssText = 'position:fixed;left:-9999px;';
@@ -233,7 +333,7 @@
             }
 
             // 사진 제출 안내 메시지에 액션 버튼 추가
-            if (message.indexOf('사진') !== -1 && message.indexOf('제출') !== -1) {
+            if (message && message.indexOf('사진') !== -1 && message.indexOf('제출') !== -1) {
                 var btnWrap = document.createElement('div');
                 btnWrap.style.cssText = 'margin-top:8px;';
                 var btn = document.createElement('a');
@@ -242,6 +342,11 @@
                 btn.textContent = '📸 사진 제출하기';
                 btnWrap.appendChild(btn);
                 bubble.querySelector('.bubble-content').appendChild(btnWrap);
+            }
+
+            // 서버 인라인 버튼
+            if (buttons && buttons.length) {
+                renderInlineButtons(buttons, bubble.querySelector('.bubble-content'));
             }
         } else {
             bubble.innerHTML =
@@ -275,11 +380,16 @@
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
+    function escapeText(text) {
+        var div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
     function escapeHtml(text) {
         var div = document.createElement('div');
-        div.textContent = text;
+        div.textContent = text || '';
         var escaped = div.innerHTML.replace(/\n/g, '<br>');
-        // URL 자동 하이퍼링크 처리
         escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#4a90d9;text-decoration:underline;">$1</a>');
         return escaped;
     }

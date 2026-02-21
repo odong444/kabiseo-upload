@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 캠페인 신규 등록</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .form-section { margin-bottom: 32px; }
+        .form-section h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #3c1e1e;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #fee500;
+        }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}" class="active">캠페인</a>
+                <a href="{{ url_for('admin.overview') }}">전체현황</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>캠페인 신규 등록</h1>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="admin-flash">
+            {% for msg in messages %}
+            <p>{{ msg }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('admin.campaign_new_post') }}" class="admin-form">
+
+            <!-- 기본 정보 -->
+            <div class="form-section">
+                <h3>기본 정보</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>캠페인유형</label>
+                        <select name="캠페인유형">
+                            <option value="구매형리뷰">구매형리뷰</option>
+                            <option value="배송형체험단">배송형체험단</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>플랫폼</label>
+                        <select name="플랫폼">
+                            <option value="스마트스토어">스마트스토어</option>
+                            <option value="쿠팡">쿠팡</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>업체명</label>
+                        <input type="text" name="업체명" placeholder="업체명 입력">
+                    </div>
+                    <div class="form-group">
+                        <label>상품명</label>
+                        <input type="text" name="상품명" placeholder="상품명 입력">
+                    </div>
+                    <div class="form-group">
+                        <label>상품번호</label>
+                        <input type="text" name="상품번호" placeholder="상품번호 입력">
+                    </div>
+                    <div class="form-group">
+                        <label>상품링크</label>
+                        <input type="text" name="상품링크" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label>상품이미지URL</label>
+                        <input type="text" name="상품이미지" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label>총수량 (모집인원)</label>
+                        <input type="number" name="총수량" placeholder="예: 10">
+                    </div>
+                    <div class="form-group">
+                        <label>상품금액</label>
+                        <input type="text" name="상품금액" placeholder="예: 29000">
+                    </div>
+                    <div class="form-group">
+                        <label>리워드</label>
+                        <input type="text" name="리워드" placeholder="예: 전액환급">
+                    </div>
+                    <div class="form-group">
+                        <label>결제금액 (원)</label>
+                        <input type="text" name="결제금액" placeholder="리뷰어가 결제할 금액">
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰비 (원)</label>
+                        <input type="text" name="리뷰비" placeholder="예: 15000">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 구매 조건 -->
+            <div class="form-section">
+                <h3>구매 조건</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>유입방식</label>
+                        <select name="유입방식">
+                            <option value="키워드구매">키워드구매</option>
+                            <option value="링크구매">링크구매</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>키워드</label>
+                        <input type="text" name="키워드" placeholder="검색 키워드">
+                    </div>
+                    <div class="form-group">
+                        <label>키워드위치</label>
+                        <input type="text" name="키워드위치" placeholder="예: 1페이지 3번째">
+                    </div>
+                    <div class="form-group">
+                        <label>체류시간</label>
+                        <input type="text" name="체류시간" placeholder="예: 3분 이상">
+                    </div>
+                    <div class="form-group">
+                        <label>상품찜필수</label>
+                        <select name="상품찜필수">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>알림받기필수</label>
+                        <select name="알림받기필수">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>광고클릭금지</label>
+                        <select name="광고클릭금지">
+                            <option value="Y" selected>Y</option>
+                            <option value="N">N</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>결제방법</label>
+                        <select name="결제방법">
+                            <option value="자율">자율</option>
+                            <option value="네이버페이">네이버페이</option>
+                            <option value="지정">지정</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>블라인드계정금지</label>
+                        <select name="블라인드계정금지">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>재구매확인</label>
+                        <select name="재구매확인">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>구매가능시간</label>
+                        <input type="text" name="구매가능시간" placeholder="예: 09:00~18:00">
+                    </div>
+                    <div class="form-group">
+                        <label>한달중복허용</label>
+                        <select name="한달중복허용">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>중복허용</label>
+                        <select name="중복허용">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 옵션 설정 -->
+            <div class="form-section">
+                <h3>옵션 설정</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>옵션지정방식</label>
+                        <select name="옵션지정방식">
+                            <option value="자율">자율</option>
+                            <option value="지정예정">지정예정</option>
+                            <option value="세부지정">세부지정</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>옵션</label>
+                        <input type="text" name="옵션" placeholder="단일 옵션 텍스트">
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>옵션목록</label>
+                        <textarea name="옵션목록" rows="3" placeholder="JSON 또는 콤마 구분 형식&#10;예: 옵션A, 옵션B, 옵션C"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 배송 설정 -->
+            <div class="form-section">
+                <h3>배송 설정</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>배송메모필수</label>
+                        <select name="배송메모필수">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>배송메모내용</label>
+                        <input type="text" name="배송메모내용" placeholder="배송 시 메모 내용">
+                    </div>
+                    <div class="form-group">
+                        <label>배송메모안내링크</label>
+                        <input type="text" name="배송메모안내링크" placeholder="https://...">
+                    </div>
+                    <div class="form-group">
+                        <label>당일발송</label>
+                        <select name="당일발송">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>발송마감</label>
+                        <input type="text" name="발송마감" placeholder="예: 14:00">
+                    </div>
+                    <div class="form-group">
+                        <label>택배사</label>
+                        <input type="text" name="택배사" placeholder="예: CJ대한통운">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 리뷰 설정 -->
+            <div class="form-section">
+                <h3>리뷰 설정</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>리뷰타입</label>
+                        <select name="리뷰타입">
+                            <option value="자율">자율</option>
+                            <option value="텍스트제공">텍스트제공</option>
+                            <option value="이미지제공">이미지제공</option>
+                            <option value="포토리뷰필수">포토리뷰필수</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰기한일수</label>
+                        <input type="number" name="리뷰기한일수" value="7" placeholder="예: 7">
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰이미지폴더</label>
+                        <input type="text" name="리뷰이미지폴더" placeholder="이미지 폴더 경로">
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰가이드</label>
+                        <input type="text" name="리뷰가이드" placeholder="자율 / 50자이상 / 100자이상 등">
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰제공</label>
+                        <input type="text" name="리뷰제공" placeholder="리뷰 제공 내용">
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>리뷰가이드내용</label>
+                        <textarea name="리뷰가이드내용" rows="4" placeholder="상세 리뷰 가이드 내용을 입력하세요"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 추가 안내 -->
+            <div class="form-section">
+                <h3>추가 안내</h3>
+                <div class="form-grid">
+                    <div class="form-group form-group-full">
+                        <label>추가안내사항</label>
+                        <textarea name="추가안내사항" rows="4" placeholder="리뷰어에게 전달할 추가 안내사항을 입력하세요"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 운영 설정 -->
+            <div class="form-section">
+                <h3>운영 설정</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>일수량</label>
+                        <input type="number" name="일수량" placeholder="하루 처리 수량">
+                    </div>
+                    <div class="form-group">
+                        <label>주말작업</label>
+                        <select name="주말작업">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>신청마감일</label>
+                        <input type="date" name="신청마감일">
+                    </div>
+                    <div class="form-group">
+                        <label>공개여부</label>
+                        <select name="공개여부">
+                            <option value="Y" selected>Y</option>
+                            <option value="N">N</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>선정여부</label>
+                        <select name="선정여부">
+                            <option value="N">N</option>
+                            <option value="Y">Y</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>메모</label>
+                        <textarea name="메모" rows="3" placeholder="관리자 메모"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="admin-btn admin-btn-primary">등록</button>
+                <a href="{{ url_for('admin.campaigns') }}" class="admin-btn">취소</a>
+            </div>
+        </form>
+    </main>
+</body>
+</html>
