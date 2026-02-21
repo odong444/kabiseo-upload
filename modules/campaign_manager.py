@@ -5,7 +5,7 @@ campaign_manager.py - 캠페인 관리
 """
 
 import logging
-from modules.utils import today_str, safe_int
+from modules.utils import today_str, safe_int, is_within_buy_time
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,9 @@ class CampaignManager:
                 done = safe_int(c.get("완료수량", 0))
                 remaining = total - done
                 if remaining > 0:
+                    # 구매가능시간 외에는 목록에서 숨김
+                    if not is_within_buy_time(c.get("구매가능시간", "")):
+                        continue
                     c["_남은수량"] = remaining
                     active.append(c)
         return active
