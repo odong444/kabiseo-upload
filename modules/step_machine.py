@@ -80,7 +80,17 @@ class StepMachine:
                 tpl.WELCOME_BACK.format(name=name),
                 buttons=self._menu_buttons()
             )
-        return self._build_resume_message(state)
+        # 진행 중인 세션이 있으면 이어하기/새로 시작 선택
+        campaign = state.temp_data.get("campaign", {})
+        product = campaign.get("상품명", "")
+        header = f"📌 진행 중인 신청이 있습니다.\n📦 {product}" if product else "📌 진행 중인 신청이 있습니다."
+        return _resp(
+            f"{header}\n\n이어서 진행하시겠습니까?",
+            buttons=[
+                {"label": "이어하기", "value": "__resume__"},
+                {"label": "새로 시작", "value": "__cancel__", "style": "danger"},
+            ]
+        )
 
     def _menu_buttons(self):
         return [
@@ -203,6 +213,11 @@ class StepMachine:
         # 글로벌 뒤로가기
         if msg == "__back__":
             return self._handle_back(state)
+
+        # 글로벌 이어하기
+        if msg == "__resume__":
+            state.touch()
+            return self._build_resume_message(state)
 
         # 글로벌 취소
         if msg == "__cancel__":
