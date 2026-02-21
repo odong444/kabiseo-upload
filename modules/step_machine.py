@@ -465,28 +465,50 @@ class StepMachine:
     # ─────────── STEP 3: 아이디 수집 ───────────
 
     def _build_multi_select_data(self, state: ReviewerState, campaign_id: str, max_select: int):
-        """다중 선택용 이전 아이디 데이터 (2개 이상 선택 시)"""
+        """다중 선택용 이전 아이디 데이터 (2개 이상 선택 시) - API 호출 최소화"""
         try:
             if not self.reviewers or not self.reviewers.sheets:
                 return None
-            all_items = self.reviewers.sheets.search_by_name_phone(state.name, state.phone)
+            sheets = self.reviewers.sheets
+
+            # 시트 1회 읽기로 모든 데이터 확보
+            ws = sheets._get_ws()
+            headers = sheets._get_headers(ws)
+            all_rows = ws.get_all_values()
+
+            # 이 리뷰어의 사용 아이디 수집
             used_ids = set()
-            for item in all_items:
-                sid = item.get("아이디", "").strip()
-                if sid:
-                    used_ids.add(sid)
+            for row in all_rows[1:]:
+                if sheets._match_reviewer(row, headers, state.name, state.phone):
+                    sid_col = sheets._find_col(headers, "아이디")
+                    if sid_col >= 0 and len(row) > sid_col:
+                        sid = row[sid_col].strip()
+                        if sid:
+                            used_ids.add(sid)
             if not used_ids:
                 return None
 
-            # 이 캠페인에서 이미 진행중인 아이디 확인
+            # 이 캠페인에서 이미 진행중인 아이디 (메모리에서 체크)
             campaign = state.temp_data.get("campaign", {})
             allow_dup = campaign.get("중복허용", "").strip().upper() in ("Y", "O", "예", "허용")
-
             active_ids = set()
+
             if not allow_dup and campaign_id:
-                for sid in used_ids:
-                    if self.reviewers.check_duplicate(campaign_id, sid):
-                        active_ids.add(sid)
+                cid_col = sheets._find_col(headers, "캠페인ID")
+                sid_col = sheets._find_col(headers, "아이디")
+                status_col = sheets._find_col(headers, "상태")
+                if cid_col >= 0 and sid_col >= 0:
+                    for row in all_rows[1:]:
+                        if len(row) <= max(cid_col, sid_col):
+                            continue
+                        if row[cid_col] != campaign_id:
+                            continue
+                        sid = row[sid_col].strip()
+                        if sid not in used_ids:
+                            continue
+                        status = row[status_col] if status_col >= 0 and len(row) > status_col else ""
+                        if status not in sheets._DUP_IGNORE_STATUSES:
+                            active_ids.add(sid)
 
             items = []
             for sid in sorted(used_ids)[:8]:
