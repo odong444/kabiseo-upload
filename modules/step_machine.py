@@ -28,13 +28,15 @@ from modules.utils import today_str
 logger = logging.getLogger(__name__)
 
 
-def _resp(text, buttons=None, cards=None):
+def _resp(text, buttons=None, cards=None, multi_select=None):
     """응답 dict 생성 헬퍼"""
     result = {"message": text}
     if buttons:
         result["buttons"] = buttons
     if cards:
         result["cards"] = cards
+    if multi_select:
+        result["multi_select"] = multi_select
     return result
 
 
@@ -132,6 +134,15 @@ class StepMachine:
             if count == 1:
                 return _resp(f"{header}\n\n스토어 아이디를 입력해주세요.",
                              buttons=self._prev_id_buttons(state) + [self._back_button()])
+            campaign = state.temp_data.get("campaign", {})
+            campaign_id = campaign.get("캠페인ID", "")
+            ms_data = self._build_multi_select_data(state, campaign_id, count)
+            if ms_data and ms_data["items"]:
+                return _resp(
+                    f"{header}\n\n아이디 {count}개를 선택해주세요.",
+                    multi_select=ms_data,
+                    buttons=[self._back_button()]
+                )
             return _resp(f"{header}\n\n스토어 아이디 {count}개를 입력해주세요.\n(콤마로 구분)",
                          buttons=[self._back_button()])
 
@@ -256,6 +267,15 @@ class StepMachine:
                 return _resp(
                     "스토어 아이디를 입력해주세요.",
                     buttons=self._prev_id_buttons(state) + [self._back_button()]
+                )
+            campaign = state.temp_data.get("campaign", {})
+            campaign_id = campaign.get("캠페인ID", "")
+            ms_data = self._build_multi_select_data(state, campaign_id, count)
+            if ms_data and ms_data["items"]:
+                return _resp(
+                    f"아이디 {count}개를 선택해주세요.\n이전에 사용했던 아이디를 선택하거나 신규 아이디를 추가해주세요.",
+                    multi_select=ms_data,
+                    buttons=[self._back_button()]
                 )
             return _resp(
                 f"스토어 아이디 {count}개를 입력해주세요.\n(콤마로 구분)",
@@ -427,12 +447,62 @@ class StepMachine:
                 "스토어 아이디를 입력해주세요.",
                 buttons=self._prev_id_buttons(state) + [self._back_button()]
             )
+
+        campaign = state.temp_data.get("campaign", {})
+        campaign_id = campaign.get("캠페인ID", "")
+        ms_data = self._build_multi_select_data(state, campaign_id, count)
+        if ms_data and ms_data["items"]:
+            return _resp(
+                f"아이디 {count}개를 선택해주세요.\n이전에 사용했던 아이디를 선택하거나 신규 아이디를 추가해주세요.",
+                multi_select=ms_data,
+                buttons=[self._back_button()]
+            )
         return _resp(
             f"스토어 아이디 {count}개를 입력해주세요.\n(콤마로 구분. 예: abc123, def456)",
             buttons=[self._back_button()]
         )
 
     # ─────────── STEP 3: 아이디 수집 ───────────
+
+    def _build_multi_select_data(self, state: ReviewerState, campaign_id: str, max_select: int):
+        """다중 선택용 이전 아이디 데이터 (2개 이상 선택 시)"""
+        try:
+            if not self.reviewers or not self.reviewers.sheets:
+                return None
+            all_items = self.reviewers.sheets.search_by_name_phone(state.name, state.phone)
+            used_ids = set()
+            for item in all_items:
+                sid = item.get("아이디", "").strip()
+                if sid:
+                    used_ids.add(sid)
+            if not used_ids:
+                return None
+
+            # 이 캠페인에서 이미 진행중인 아이디 확인
+            campaign = state.temp_data.get("campaign", {})
+            allow_dup = campaign.get("중복허용", "").strip().upper() in ("Y", "O", "예", "허용")
+
+            active_ids = set()
+            if not allow_dup and campaign_id:
+                for sid in used_ids:
+                    if self.reviewers.check_duplicate(campaign_id, sid):
+                        active_ids.add(sid)
+
+            items = []
+            for sid in sorted(used_ids)[:8]:
+                disabled = sid in active_ids
+                items.append({
+                    "id": sid,
+                    "disabled": disabled,
+                    "reason": "진행중" if disabled else "",
+                })
+
+            return {
+                "max_select": max_select,
+                "items": items,
+            }
+        except Exception:
+            return None
 
     def _prev_id_buttons(self, state: ReviewerState):
         """이전에 사용한 아이디 버튼 목록"""
@@ -457,6 +527,10 @@ class StepMachine:
 
     def _step3_collect_ids(self, state: ReviewerState, message: str):
         raw = message.strip()
+
+        # 다중 선택 UI에서 전달된 경우
+        if raw.startswith("__ms__"):
+            raw = raw[6:]
 
         if raw == "__new_id__":
             return _resp("신규 아이디를 입력해주세요.", buttons=[self._back_button()])

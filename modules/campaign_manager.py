@@ -68,21 +68,44 @@ class CampaignManager:
         if not active:
             return []
 
+        # 리뷰어 이력 조회
+        reviewer_items = []
+        if name and phone:
+            try:
+                reviewer_items = self.sheets.search_by_name_phone(name, phone)
+            except Exception:
+                pass
+
         cards = []
         for i, c in enumerate(active, 1):
             total = safe_int(c.get("총수량", 0))
             done = safe_int(c.get("완료수량", 0))
             remaining = c.get("_남은수량", total - done)
             method = c.get("유입방식", "")
+            campaign_id = c.get("캠페인ID", "")
 
-            cards.append({
+            card = {
                 "value": f"campaign_{i}",
                 "name": c.get("상품명", ""),
                 "store": c.get("업체명", ""),
                 "method": method or "미정",
                 "remaining": remaining,
                 "urgent": remaining <= 5,
-            })
+            }
+
+            # 이 캠페인에서의 내 진행 이력
+            if campaign_id and reviewer_items:
+                my_history = []
+                for item in reviewer_items:
+                    if item.get("캠페인ID") == campaign_id:
+                        sid = item.get("아이디", "").strip()
+                        status = item.get("상태", "")
+                        if sid:
+                            my_history.append({"id": sid, "status": status})
+                if my_history:
+                    card["my_history"] = my_history
+
+            cards.append(card)
         return cards
 
     def build_campaign_list_text(self, name: str = "", phone: str = "") -> str:

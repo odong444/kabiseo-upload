@@ -68,6 +68,9 @@
         if (data.cards) {
             appendMessage('bot', data.message || '');
             renderCampaignCards(data.cards);
+        } else if (data.multi_select) {
+            appendMessage('bot', data.message || '');
+            renderMultiSelect(data.multi_select, data.buttons);
         } else {
             appendMessage('bot', data.message || '', null, data.buttons);
         }
@@ -163,6 +166,13 @@
                 b.style.opacity = '0.5';
             });
         });
+        // 다중선택 비활성화
+        var msList = chatMessages.querySelectorAll('.ms-wrap:not(.disabled)');
+        msList.forEach(function(g) {
+            g.classList.add('disabled');
+            g.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+            g.querySelectorAll('input').forEach(function(inp) { inp.disabled = true; });
+        });
     }
 
     function renderInlineButtons(buttons, parentEl) {
@@ -206,6 +216,18 @@
                 urgentHtml = '<span class="campaign-urgent">마감 임박!</span>';
             }
 
+            var historyHtml = '';
+            if (c.my_history && c.my_history.length) {
+                var statusEmojis = {'입금완료':'✅','리뷰제출':'🟢','입금대기':'💰','구매내역제출':'🔵','가이드전달':'🟡','신청':'⚪','타임아웃취소':'⏰','취소':'⛔'};
+                historyHtml = '<div style="border-top:1px solid #eee;padding-top:8px;margin-top:8px;font-size:13px;">' +
+                    '<div style="font-weight:600;color:#555;margin-bottom:4px;">📌 내 진행 이력:</div>';
+                c.my_history.forEach(function(h) {
+                    var emoji = statusEmojis[h.status] || '';
+                    historyHtml += '<div style="color:#666;padding-left:8px;">' + escapeText(h.id) + ' - ' + escapeText(h.status) + ' ' + emoji + '</div>';
+                });
+                historyHtml += '</div>';
+            }
+
             card.innerHTML =
                 '<div class="campaign-card-header">' + escapeText(c.name) + urgentHtml + '</div>' +
                 '<div class="campaign-card-body">' +
@@ -215,6 +237,7 @@
                 '</span> ' + escapeText(c.method) + '</div>' +
                 '<div class="campaign-card-row remaining' + (c.urgent ? ' urgent' : '') + '">' +
                 '<span class="campaign-card-icon">👥</span> 남은 ' + c.remaining + '자리</div>' +
+                historyHtml +
                 '</div>';
 
             var btn = document.createElement('button');
@@ -232,6 +255,170 @@
         });
 
         chatMessages.appendChild(wrap);
+    }
+
+    // ──────── 다중 선택 UI ────────
+
+    function renderMultiSelect(msData, extraButtons) {
+        var maxSelect = msData.max_select;
+        var items = msData.items || [];
+
+        var wrap = document.createElement('div');
+        wrap.className = 'ms-wrap';
+        wrap.style.cssText = 'background:#fff;border-radius:12px;padding:16px;margin:8px 0;box-shadow:0 1px 4px rgba(0,0,0,0.08);';
+
+        var selected = {};
+        var newIds = [];
+
+        // 토글 버튼들
+        items.forEach(function(item) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.style.cssText = 'display:block;width:100%;padding:10px 14px;margin-bottom:6px;border:1px solid #ddd;border-radius:8px;background:#fff;font-size:14px;text-align:left;cursor:pointer;';
+
+            if (item.disabled) {
+                btn.textContent = item.id + ' - ' + (item.reason || '진행중') + ' 🔒';
+                btn.disabled = true;
+                btn.style.background = '#f3f4f6';
+                btn.style.color = '#9ca3af';
+                btn.style.cursor = 'not-allowed';
+            } else {
+                btn.textContent = item.id + ' 선택';
+                btn.addEventListener('click', function() {
+                    if (selected[item.id]) {
+                        delete selected[item.id];
+                        btn.style.background = '#fff';
+                        btn.style.borderColor = '#ddd';
+                        btn.textContent = item.id + ' 선택';
+                    } else {
+                        var total = Object.keys(selected).length + newIds.length;
+                        if (total >= maxSelect) return;
+                        selected[item.id] = true;
+                        btn.style.background = '#eef2ff';
+                        btn.style.borderColor = '#6366f1';
+                        btn.textContent = '✅ ' + item.id;
+                    }
+                    updateCounter();
+                });
+            }
+            wrap.appendChild(btn);
+        });
+
+        // 신규 아이디 입력 영역
+        var newIdSection = document.createElement('div');
+        newIdSection.style.cssText = 'display:none;margin-top:8px;padding:10px;border:1px dashed #d1d5db;border-radius:8px;';
+
+        var newIdTags = document.createElement('div');
+        newIdTags.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;';
+        newIdSection.appendChild(newIdTags);
+
+        var newIdRow = document.createElement('div');
+        newIdRow.style.cssText = 'display:flex;gap:6px;';
+
+        var newIdInput = document.createElement('input');
+        newIdInput.type = 'text';
+        newIdInput.placeholder = '신규 아이디 입력';
+        newIdInput.style.cssText = 'flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;';
+
+        var newIdAddBtn = document.createElement('button');
+        newIdAddBtn.type = 'button';
+        newIdAddBtn.textContent = '추가';
+        newIdAddBtn.style.cssText = 'padding:8px 16px;border:none;border-radius:8px;background:#6366f1;color:#fff;font-size:14px;cursor:pointer;';
+        newIdAddBtn.addEventListener('click', function() {
+            var val = newIdInput.value.trim();
+            if (!val) return;
+            if (newIds.indexOf(val) !== -1 || selected[val]) return;
+            var total = Object.keys(selected).length + newIds.length;
+            if (total >= maxSelect) return;
+            newIds.push(val);
+            var tag = document.createElement('span');
+            tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#e0e7ff;border-radius:16px;font-size:13px;cursor:pointer;';
+            tag.textContent = val + ' ✕';
+            tag.addEventListener('click', function() {
+                var idx = newIds.indexOf(val);
+                if (idx > -1) newIds.splice(idx, 1);
+                tag.remove();
+                updateCounter();
+            });
+            newIdTags.appendChild(tag);
+            newIdInput.value = '';
+            updateCounter();
+        });
+
+        newIdInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); newIdAddBtn.click(); }
+        });
+
+        newIdRow.appendChild(newIdInput);
+        newIdRow.appendChild(newIdAddBtn);
+        newIdSection.appendChild(newIdRow);
+
+        // + 신규 아이디 입력 버튼
+        var newIdToggle = document.createElement('button');
+        newIdToggle.type = 'button';
+        newIdToggle.textContent = '+ 신규 아이디 입력';
+        newIdToggle.style.cssText = 'display:block;width:100%;padding:10px 14px;margin-bottom:6px;border:1px dashed #9ca3af;border-radius:8px;background:#fff;font-size:14px;text-align:center;cursor:pointer;color:#6366f1;';
+        newIdToggle.addEventListener('click', function() {
+            newIdSection.style.display = newIdSection.style.display === 'none' ? 'block' : 'none';
+        });
+        wrap.appendChild(newIdToggle);
+        wrap.appendChild(newIdSection);
+
+        // 카운터
+        var counter = document.createElement('div');
+        counter.style.cssText = 'text-align:center;font-size:14px;color:#6b7280;margin:10px 0 6px;font-weight:600;';
+        counter.textContent = '선택: 0/' + maxSelect + '개';
+        wrap.appendChild(counter);
+
+        // 다음으로 버튼
+        var submitBtn = document.createElement('button');
+        submitBtn.type = 'button';
+        submitBtn.textContent = '다음으로';
+        submitBtn.disabled = true;
+        submitBtn.style.cssText = 'display:block;width:100%;padding:12px;border:none;border-radius:8px;background:#d1d5db;color:#fff;font-size:15px;font-weight:600;cursor:not-allowed;';
+        submitBtn.addEventListener('click', function() {
+            var allIds = Object.keys(selected).concat(newIds);
+            sendQuickMessage('__ms__' + allIds.join(','));
+        });
+        wrap.appendChild(submitBtn);
+
+        // 추가 버튼 (뒤로가기 등)
+        if (extraButtons && extraButtons.length) {
+            var btnWrap = document.createElement('div');
+            btnWrap.className = 'inline-buttons';
+            btnWrap.style.cssText = 'margin-top:8px;';
+            extraButtons.forEach(function(item) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'inline-btn';
+                if (item.style === 'secondary') btn.classList.add('inline-btn-secondary');
+                if (item.style === 'danger') btn.classList.add('inline-btn-danger');
+                btn.textContent = item.label;
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    sendQuickMessage(item.value);
+                });
+                btnWrap.appendChild(btn);
+            });
+            wrap.appendChild(btnWrap);
+        }
+
+        function updateCounter() {
+            var total = Object.keys(selected).length + newIds.length;
+            counter.textContent = '선택: ' + total + '/' + maxSelect + '개';
+            if (total === maxSelect) {
+                submitBtn.disabled = false;
+                submitBtn.style.background = '#6366f1';
+                submitBtn.style.cursor = 'pointer';
+            } else {
+                submitBtn.disabled = true;
+                submitBtn.style.background = '#d1d5db';
+                submitBtn.style.cursor = 'not-allowed';
+            }
+        }
+
+        chatMessages.appendChild(wrap);
+        scrollToBottom();
     }
 
     // ──────── 메시지 전송 ────────
