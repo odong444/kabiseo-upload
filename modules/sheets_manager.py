@@ -515,6 +515,28 @@ class SheetsManager:
         except Exception as e:
             logger.error(f"컬럼 추가 에러: {e}")
 
+    def ensure_campaign_columns(self, col_names: list[str]):
+        """캠페인관리 시트에 여러 컬럼을 한 번에 확인/추가 (API 호출 최소화)"""
+        try:
+            ws = self.spreadsheet.worksheet("캠페인관리")
+            headers = self._get_headers(ws)
+            missing = [c for c in col_names if c not in headers]
+            if not missing:
+                return
+            # 열 부족 시 한 번에 확장
+            needed = len(headers) + len(missing)
+            if needed > ws.col_count:
+                ws.add_cols(needed - ws.col_count)
+            # 한 번의 update로 모든 컬럼 헤더 추가
+            start_col = len(headers) + 1
+            end_col = start_col + len(missing) - 1
+            from gspread.utils import rowcol_to_a1
+            range_str = f"{rowcol_to_a1(1, start_col)}:{rowcol_to_a1(1, end_col)}"
+            ws.update(range_str, [missing])
+            logger.info(f"캠페인관리 시트에 {len(missing)}개 컬럼 일괄 추가됨: {missing}")
+        except Exception as e:
+            logger.error(f"컬럼 일괄 추가 에러: {e}")
+
     def ensure_main_column(self, col_name: str):
         """카비서_정리 시트에 컬럼이 없으면 끝에 추가"""
         try:
