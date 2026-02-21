@@ -161,6 +161,23 @@ def _make_upload_filename(capture_type: str, row_idx: int, original_name: str) -
     return f"{purchase_date}_{company}_{recipient}_{label}{ext}"
 
 
+def _touch_reviewer_by_row(row_idx: int):
+    """업로드 완료 시 해당 리뷰어의 타임아웃 타이머 리셋"""
+    try:
+        if not models.sheets_manager or not models.state_store:
+            return
+        row_data = models.sheets_manager.get_row_dict(row_idx)
+        name = row_data.get("진행자이름", "") or row_data.get("수취인명", "")
+        phone = row_data.get("진행자연락처", "") or row_data.get("연락처", "")
+        if name and phone:
+            state = models.state_store.get_by_id(f"{name}_{phone}")
+            if state:
+                state.touch()
+                logger.info(f"업로드로 타임아웃 리셋: {name}_{phone}")
+    except Exception as e:
+        logger.debug(f"타임아웃 리셋 실패 (무시): {e}")
+
+
 def _handle_upload(capture_type: str, row: int):
     """공통 업로드 처리"""
     file = request.files.get("capture")
@@ -179,6 +196,7 @@ def _handle_upload(capture_type: str, row: int):
             file.read(), filename, file.content_type or "image/jpeg", capture_type, desc
         )
         models.sheets_manager.update_after_upload(capture_type, row, drive_link)
+        _touch_reviewer_by_row(row)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
         return render_template(
@@ -219,6 +237,7 @@ def api_upload():
             file.read(), filename, file.content_type or "image/jpeg", capture_type, desc
         )
         models.sheets_manager.update_after_upload(capture_type, row_idx, drive_link)
+        _touch_reviewer_by_row(row_idx)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
         return jsonify({"ok": True, "message": f"{label} 캡쳐 제출 완료!"})
