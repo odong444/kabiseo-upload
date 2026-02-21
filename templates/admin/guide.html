@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 가이드</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .guide-section { margin-bottom: 2.5rem; }
+        .guide-section h2 {
+            font-size: 1.25rem;
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .guide-section h3 {
+            font-size: 1.05rem;
+            margin: 1rem 0 0.5rem;
+            color: #374151;
+        }
+        .guide-section p, .guide-section li {
+            line-height: 1.7;
+            color: #4b5563;
+        }
+        .guide-section ul { padding-left: 1.2rem; }
+        .guide-section li { margin-bottom: 0.3rem; }
+
+        /* 상태 흐름도 */
+        .flow-chart {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.4rem;
+            margin: 1rem 0;
+        }
+        .flow-node {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .flow-arrow {
+            font-size: 1.2rem;
+            color: #9ca3af;
+        }
+        .flow-node.normal { background: #e0e7ff; color: #3730a3; }
+        .flow-node.success { background: #d1fae5; color: #065f46; }
+        .flow-node.cancel { background: #fee2e2; color: #991b1b; }
+        .flow-branch {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+            padding-left: 2rem;
+        }
+        .flow-branch-label {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-right: 0.3rem;
+        }
+
+        .menu-card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 0.8rem;
+        }
+        .menu-card strong {
+            color: #1f2937;
+        }
+
+        .rule-box {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 0.8rem;
+        }
+        .rule-box strong { color: #92400e; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.overview') }}">전체현황</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.guide') }}" class="active">가이드</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>관리자 가이드</h1>
+
+        <!-- 상태 흐름도 -->
+        <div class="guide-section">
+            <h2>상태 흐름도</h2>
+            <div class="flow-chart">
+                <span class="flow-node normal">신청</span>
+                <span class="flow-arrow">&rarr;</span>
+                <span class="flow-node normal">가이드전달</span>
+                <span class="flow-arrow">&rarr;</span>
+                <span class="flow-node normal">구매내역제출</span>
+                <span class="flow-arrow">&rarr;</span>
+                <span class="flow-node normal">리뷰제출</span>
+                <span class="flow-arrow">&rarr;</span>
+                <span class="flow-node normal">입금대기</span>
+                <span class="flow-arrow">&rarr;</span>
+                <span class="flow-node success">입금완료</span>
+            </div>
+            <div class="flow-branch">
+                <span class="flow-branch-label">분기:</span>
+                <span class="flow-node normal">신청 / 가이드전달</span>
+                <span class="flow-arrow">&rarr;</span>
+                <span class="flow-node cancel">타임아웃취소</span>
+            </div>
+            <div class="flow-branch">
+                <span class="flow-branch-label">수동:</span>
+                <span class="flow-node normal">진행중 상태</span>
+                <span class="flow-arrow">&rarr;</span>
+                <span class="flow-node cancel">취소</span>
+            </div>
+            <div class="flow-branch">
+                <span class="flow-branch-label">복원:</span>
+                <span class="flow-node cancel">타임아웃취소</span>
+                <span class="flow-arrow">&rarr;</span>
+                <span class="flow-node normal">가이드전달</span>
+                <span class="flow-branch-label">(리뷰어 메뉴에서 복원)</span>
+            </div>
+        </div>
+
+        <!-- 각 메뉴 설명 -->
+        <div class="guide-section">
+            <h2>메뉴별 기능 안내</h2>
+
+            <div class="menu-card">
+                <strong>대시보드</strong>
+                <p>오늘의 신규 신청, 구매 완료, 리뷰 완료 통계를 확인하고 최근 챗봇 대화 내역을 볼 수 있습니다.</p>
+            </div>
+
+            <div class="menu-card">
+                <strong>캠페인</strong>
+                <p>캠페인을 신규 등록하거나 수정합니다. 상태(모집중/진행중/마감/종료), 공개여부, 중복허용 여부, 일수량 등을 설정합니다.</p>
+            </div>
+
+            <div class="menu-card">
+                <strong>전체현황</strong>
+                <p>업체별 캠페인 요약 현황을 확인합니다. 총수량 대비 완료수량 달성률을 한눈에 볼 수 있습니다.</p>
+            </div>
+
+            <div class="menu-card">
+                <strong>대화이력</strong>
+                <p>리뷰어와 챗봇 간의 전체 대화 내역을 열람합니다. 리뷰어 ID로 검색하여 개별 대화를 확인할 수 있습니다.</p>
+            </div>
+
+            <div class="menu-card">
+                <strong>검수</strong>
+                <p>리뷰제출 상태인 건의 리뷰 캡쳐를 확인하고, 승인(입금대기로 전환) 또는 반려(구매내역제출로 롤백, 사유 기록) 처리합니다.</p>
+            </div>
+
+            <div class="menu-card">
+                <strong>정산</strong>
+                <p>입금대기 상태인 건을 입금완료로 처리합니다. CSV 다운로드로 정산 내역을 엑셀에서 관리할 수 있습니다.</p>
+            </div>
+
+            <div class="menu-card">
+                <strong>활동로그</strong>
+                <p>시스템 이벤트 로그를 확인합니다. 10가지 유형별로 필터링하여 조회할 수 있습니다.</p>
+                <ul>
+                    <li>신청, 가이드전달, 구매내역제출, 리뷰제출</li>
+                    <li>검수승인, 검수반려, 정산처리</li>
+                    <li>타임아웃취소, 취소, 기타</li>
+                </ul>
+            </div>
+
+            <div class="menu-card">
+                <strong>리뷰어</strong>
+                <p>전체 리뷰어 목록을 조회하고 이름/연락처/아이디로 검색합니다. 상태별 필터링과 타임아웃취소 건의 가이드전달 복원 기능을 제공합니다.</p>
+            </div>
+        </div>
+
+        <!-- 자동화 규칙 -->
+        <div class="guide-section">
+            <h2>자동화 규칙</h2>
+
+            <div class="rule-box">
+                <strong>타임아웃 자동 취소 (챗봇)</strong>
+                <p>신청 또는 가이드전달 상태에서 20분이 경과하면 챗봇이 자동으로 타임아웃취소 처리합니다.</p>
+            </div>
+
+            <div class="rule-box">
+                <strong>시트 기반 자동 취소</strong>
+                <p>1시간 이상 신청/가이드전달 상태로 남아있는 건을 자동으로 타임아웃취소 처리합니다.</p>
+            </div>
+
+            <div class="rule-box">
+                <strong>취소 행 자동 삭제</strong>
+                <p>취소 또는 타임아웃취소 상태에서 신청일+1일이 경과한 행은 시트에서 자동 삭제됩니다.</p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

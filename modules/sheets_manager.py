@@ -254,6 +254,10 @@ class SheetsManager:
         self.update_cell_by_col(row_idx, "리뷰제출일", "")
         self.update_cell_by_col(row_idx, "비고", f"반려: {reason}" if reason else "반려")
 
+    def restore_from_timeout(self, row_idx: int):
+        """타임아웃취소 → 가이드전달로 복원"""
+        self.update_cell_by_col(row_idx, "상태", STATUS_GUIDE_SENT)
+
     def process_settlement(self, row_idx: int, amount: str):
         """정산 처리"""
         self.update_cell_by_col(row_idx, "상태", STATUS_SETTLED)

@@ -404,6 +404,37 @@ def reviewers():
     return render_template("admin/dashboard.html", stats={}, recent_messages=[], reviewers=items, q=q, show_reviewers=True)
 
 
+# ──────── 가이드 ────────
+
+@admin_bp.route("/guide")
+@admin_required
+def guide():
+    return render_template("admin/guide.html")
+
+
+# ──────── 타임아웃 복원 ────────
+
+@admin_bp.route("/reviewers/restore", methods=["POST"])
+@admin_required
+def reviewers_restore():
+    if not models.sheets_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.reviewers"))
+
+    row_indices = request.form.getlist("row_idx")
+    processed = 0
+    for row_str in row_indices:
+        try:
+            row_idx = int(row_str)
+            models.sheets_manager.restore_from_timeout(row_idx)
+            processed += 1
+        except Exception as e:
+            logger.error(f"타임아웃 복원 에러 (row {row_str}): {e}")
+
+    flash(f"{processed}건 가이드전달 상태로 복원 완료")
+    return redirect(url_for("admin.reviewers"))
+
+
 # ──────── 전체현황 ────────
 
 @admin_bp.route("/overview")

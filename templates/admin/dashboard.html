@@ -19,6 +19,7 @@
                 <a href="{{ url_for('admin.settlement') }}">정산</a>
                 <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
                 <a href="{{ url_for('admin.reviewers') }}" class="{% if show_reviewers|default(false) %}active{% endif %}">리뷰어</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
             </nav>
         </div>
@@ -28,15 +29,32 @@
         {% if show_reviewers|default(false) %}
         <!-- 리뷰어 목록 -->
         <h1>리뷰어 목록</h1>
-        <form class="admin-search" method="GET" action="{{ url_for('admin.reviewers') }}">
+        <form class="admin-search" method="GET" action="{{ url_for('admin.reviewers') }}" style="margin-bottom:1rem;">
             <input type="text" name="q" placeholder="이름/연락처/아이디 검색" value="{{ q|default('') }}">
             <button type="submit" class="btn btn-primary">검색</button>
         </form>
 
+        <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+            <label for="statusFilter" style="font-weight:600;">상태 필터:</label>
+            <select id="statusFilter" style="padding:0.4rem 0.8rem; border:1px solid #d1d5db; border-radius:6px;">
+                <option value="">전체</option>
+                <option value="타임아웃취소">타임아웃취소</option>
+                <option value="신청">신청</option>
+                <option value="가이드전달">가이드전달</option>
+                <option value="구매내역제출">구매내역제출</option>
+                <option value="리뷰제출">리뷰제출</option>
+                <option value="입금대기">입금대기</option>
+                <option value="입금완료">입금완료</option>
+                <option value="취소">취소</option>
+            </select>
+        </div>
+
+        <form id="restoreForm" method="POST" action="{{ url_for('admin.reviewers_restore') }}">
         <div class="admin-table-wrap">
-            <table class="admin-table">
+            <table class="admin-table" id="reviewerTable">
                 <thead>
                     <tr>
+                        <th style="width:40px;"><input type="checkbox" id="checkAll"></th>
                         <th>수취인명</th>
                         <th>연락처</th>
                         <th>아이디</th>
@@ -47,7 +65,8 @@
                 </thead>
                 <tbody>
                     {% for item in reviewers|default([]) %}
-                    <tr>
+                    <tr data-status="{{ item.get('상태', '') }}">
+                        <td><input type="checkbox" name="row_idx" value="{{ item.get('_row_idx', '') }}" class="row-check"></td>
                         <td>{{ item.get('수취인명', '') }}</td>
                         <td>{{ item.get('연락처', '') }}</td>
                         <td>{{ item.get('아이디', '') }}</td>
@@ -59,6 +78,70 @@
                 </tbody>
             </table>
         </div>
+        <div style="margin-top:1rem;">
+            <button type="submit" class="btn btn-primary" id="restoreBtn">타임아웃 복원 (가이드전달로 변경)</button>
+        </div>
+        </form>
+
+        <script>
+        (function() {
+            var filter = document.getElementById('statusFilter');
+            var table = document.getElementById('reviewerTable');
+            var checkAll = document.getElementById('checkAll');
+            var restoreBtn = document.getElementById('restoreBtn');
+
+            // 상태 필터
+            filter.addEventListener('change', function() {
+                var val = this.value;
+                var rows = table.querySelectorAll('tbody tr');
+                rows.forEach(function(row) {
+                    if (!val || row.getAttribute('data-status') === val) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+                checkAll.checked = false;
+            });
+
+            // 전체 선택
+            checkAll.addEventListener('change', function() {
+                var checked = this.checked;
+                var rows = table.querySelectorAll('tbody tr');
+                rows.forEach(function(row) {
+                    if (row.style.display !== 'none') {
+                        row.querySelector('.row-check').checked = checked;
+                    }
+                });
+            });
+
+            // 복원 확인
+            document.getElementById('restoreForm').addEventListener('submit', function(e) {
+                var checked = document.querySelectorAll('.row-check:checked');
+                if (checked.length === 0) {
+                    e.preventDefault();
+                    alert('복원할 항목을 선택해주세요.');
+                    return;
+                }
+                // 타임아웃취소가 아닌 건이 포함되었는지 확인
+                var nonTimeout = [];
+                checked.forEach(function(cb) {
+                    var row = cb.closest('tr');
+                    if (row.getAttribute('data-status') !== '타임아웃취소') {
+                        nonTimeout.push(row.getAttribute('data-status'));
+                    }
+                });
+                if (nonTimeout.length > 0) {
+                    e.preventDefault();
+                    alert('타임아웃취소 상태인 건만 복원할 수 있습니다.\n선택 항목 중 다른 상태(' + nonTimeout.join(', ') + ')가 포함되어 있습니다.');
+                    return;
+                }
+                if (!confirm(checked.length + '건을 가이드전달 상태로 복원하시겠습니까?')) {
+                    e.preventDefault();
+                }
+            });
+        })();
+        </script>
 
         {% else %}
         <!-- 대시보드 -->
