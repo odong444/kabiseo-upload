@@ -574,6 +574,7 @@ def api_campaign_preview():
     product_price = data.get("상품금액", "") or "확인필요"
     review_fee = data.get("리뷰비", "") or "미정"
     buy_time = data.get("구매가능시간", "")
+    custom_guide = data.get("캠페인가이드", "").strip()
 
     # 카드 데이터 (chat.js에서 렌더링하는 형식과 동일)
     card = {
@@ -584,6 +585,23 @@ def api_campaign_preview():
         "urgent": total <= 5,
         "price": product_price,
     }
+
+    # 구매 가이드 텍스트 (리뷰어에게 전달되는 형태)
+    guide_parts = [
+        "━━━━━━━━━━━━━━━━━━",
+        f"📌 {product_name} 구매 가이드",
+        "━━━━━━━━━━━━━━━━━━",
+        "",
+    ]
+    if custom_guide:
+        guide_parts.append(custom_guide)
+    else:
+        guide_parts.append("(가이드 미입력)")
+    guide_parts.append("")
+    if buy_time:
+        guide_parts.append(f"⏰ 구매 가능 시간: {buy_time}")
+        guide_parts.append("")
+    guide_parts.append("✏️ 구매 완료 후 양식을 입력해주세요.")
 
     # 모집글 텍스트
     recruit_lines = [
@@ -605,5 +623,6 @@ def api_campaign_preview():
 
     return jsonify({
         "card": card,
+        "guide_text": "\n".join(guide_parts),
         "recruit_text": "\n".join(recruit_lines),
     })

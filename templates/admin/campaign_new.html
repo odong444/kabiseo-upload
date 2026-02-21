@@ -217,6 +217,13 @@
             </div>
 
             <div class="preview-section">
+                <h4>구매 가이드 (리뷰어에게 전달)</h4>
+                <div class="preview-recruit" id="previewGuide">
+                    캠페인 가이드를 입력해주세요.
+                </div>
+            </div>
+
+            <div class="preview-section">
                 <h4>모집글</h4>
                 <div class="preview-recruit" id="previewRecruit">
                     데이터를 입력해주세요.
@@ -397,6 +404,11 @@
                     html += '<div>👥 남은 ' + (c.remaining || 0) + '자리</div>';
                     if (c.price) html += '<div>💰 ' + c.price + '원</div>';
                     previewCard.innerHTML = html;
+                }
+                if (data.guide_text) {
+                    document.getElementById('previewGuide').textContent = data.guide_text;
+                } else {
+                    document.getElementById('previewGuide').textContent = '(캠페인 가이드 미입력)';
                 }
                 if (data.recruit_text) {
                     previewRecruit.textContent = data.recruit_text;
