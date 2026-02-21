@@ -158,19 +158,8 @@ def parse_menu_choice(text: str) -> int | None:
         if 1 <= num <= 5:
             return num
 
-    # 키워드 매칭
-    keywords = {
-        1: ["신청", "체험단", "모집"],
-        2: ["진행", "현황", "상황"],
-        3: ["사진", "캡쳐", "제출", "업로드"],
-        4: ["입금", "정산", "돈"],
-        5: ["문의", "기타", "질문"],
-    }
-    for num, kws in keywords.items():
-        for kw in kws:
-            if kw in text:
-                return num
-
+    # 텍스트 대화는 모두 AI로 → 키워드 매칭 제거
+    # 버튼 클릭만 숫자로 전달되므로 위의 번호 매칭만 사용
     return None
 
 
