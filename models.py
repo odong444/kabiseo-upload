@@ -4,6 +4,8 @@ models.py - 데이터 모델 / 앱 전역 인스턴스
 Flask 앱에서 공유하는 매니저 인스턴스들.
 """
 
+import logging
+
 from modules.state_store import StateStore
 from modules.chat_logger import ChatLogger
 from modules.campaign_manager import CampaignManager
@@ -32,7 +34,7 @@ ai_handler = None
 def init_app(web_url: str = "", socketio=None):
     """앱 시작 시 매니저 초기화"""
     global sheets_manager, drive_uploader, campaign_manager
-    global reviewer_manager, reviewer_grader, timeout_manager, step_machine
+    global reviewer_manager, reviewer_grader, timeout_manager, step_machine, ai_handler
 
     from google_client import get_sheets_manager, get_drive_uploader
 
@@ -40,7 +42,6 @@ def init_app(web_url: str = "", socketio=None):
         sheets_manager = get_sheets_manager()
         drive_uploader = get_drive_uploader()
     except Exception as e:
-        import logging
         logging.warning(f"Google API 초기화 실패 (환경변수 확인 필요): {e}")
         sheets_manager = None
         drive_uploader = None
