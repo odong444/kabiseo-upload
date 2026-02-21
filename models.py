@@ -26,6 +26,7 @@ reviewer_manager = None
 reviewer_grader = None
 timeout_manager = None
 step_machine = None
+ai_handler = None
 
 
 def init_app(web_url: str = "", socketio=None):
@@ -71,12 +72,24 @@ def init_app(web_url: str = "", socketio=None):
         reviewer_manager = None
         reviewer_grader = None
 
+    # AI 핸들러 (서버PC 릴레이)
+    import os as _os
+    relay_url = _os.environ.get("AI_RELAY_URL", "")
+    if relay_url:
+        from modules.ai_handler import AIHandler
+        ai_handler = AIHandler(relay_url, api_key=_os.environ.get("API_KEY", ""))
+        logging.info(f"AI 핸들러 초기화 완료 (릴레이: {relay_url})")
+    else:
+        ai_handler = None
+        logging.info("AI_RELAY_URL 미설정 - AI 응답 비활성화")
+
     step_machine = StepMachine(
         state_store=state_store,
         campaign_mgr=campaign_manager,
         reviewer_mgr=reviewer_manager,
         chat_logger=chat_logger,
         web_url=web_url,
+        ai_handler=ai_handler,
     ) if campaign_manager and reviewer_manager else None
 
     # 타임아웃 매니저 (20분 취소)

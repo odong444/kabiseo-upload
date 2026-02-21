@@ -45,12 +45,13 @@ class StepMachine:
 
     def __init__(self, state_store: StateStore, campaign_mgr: CampaignManager,
                  reviewer_mgr: ReviewerManager, chat_logger: ChatLogger,
-                 web_url: str = ""):
+                 web_url: str = "", ai_handler=None):
         self.states = state_store
         self.campaigns = campaign_mgr
         self.reviewers = reviewer_mgr
         self.chat_logger = chat_logger
         self.web_url = web_url
+        self.ai_handler = ai_handler
 
     def process_message(self, name: str, phone: str, message: str):
         """메시지 처리 → 응답 반환 (str 또는 dict)"""
@@ -401,7 +402,7 @@ class StepMachine:
             return _resp("궁금한 점을 말씀해주세요! 담당자가 확인 후 답변드리겠습니다.",
                          buttons=self._menu_buttons())
 
-        return _resp(tpl.UNKNOWN_INPUT, buttons=self._menu_buttons())
+        return self._ask_ai(state, message)
 
     # ─────────── STEP 1: 캠페인 선택 (카드) ───────────
 
@@ -1033,9 +1034,7 @@ class StepMachine:
             state.step = 0
             return self._step0_menu(state, message)
 
-        upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
-        return _resp(tpl.PURCHASE_CAPTURE_REMIND.format(upload_url=upload_url),
-                     buttons=self._menu_buttons())
+        return self._ask_ai(state, message)
 
     # ─────────── STEP 7: 리뷰캡쳐 대기 ───────────
 
@@ -1045,14 +1044,7 @@ class StepMachine:
             state.step = 0
             return self._step0_menu(state, message)
 
-        upload_url = f"{self.web_url}/upload" if self.web_url else "/upload"
-        return _resp(
-            tpl.REVIEW_CAPTURE_REMIND.format(
-                upload_url=upload_url,
-                deadline=state.temp_data.get("deadline", "확인 필요"),
-            ),
-            buttons=self._menu_buttons()
-        )
+        return self._ask_ai(state, message)
 
     # ─────────── STEP 8: 완료 ───────────
 
@@ -1366,3 +1358,37 @@ class StepMachine:
             "타임아웃취소": "⏰",
             "취소": "⛔",
         }.get(status, "")
+
+    # ─────────── AI 폴백 ───────────
+
+    def _build_ai_context(self, state: ReviewerState) -> dict:
+        """AI 응답에 전달할 리뷰어 컨텍스트"""
+        campaign = state.temp_data.get("campaign", {})
+        items = {}
+        try:
+            if self.reviewers:
+                items = self.reviewers.get_items(state.name, state.phone)
+        except Exception:
+            pass
+
+        return {
+            "reviewer_name": state.name,
+            "current_step": state.step,
+            "campaign_name": campaign.get("상품명", ""),
+            "in_progress_count": len(items.get("in_progress", [])),
+        }
+
+    def _ask_ai(self, state: ReviewerState, user_message: str):
+        """AI 응답 폴백 (매칭 안 되는 자유 텍스트)"""
+        if not self.ai_handler:
+            return _resp(tpl.UNKNOWN_INPUT, buttons=self._menu_buttons())
+
+        try:
+            context = self._build_ai_context(state)
+            ai_reply = self.ai_handler.get_response(user_message, context)
+            if ai_reply:
+                return _resp(ai_reply, buttons=self._menu_buttons())
+        except Exception as e:
+            logger.error(f"AI 응답 실패: {e}")
+
+        return _resp(tpl.UNKNOWN_INPUT, buttons=self._menu_buttons())
