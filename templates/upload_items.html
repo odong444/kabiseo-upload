@@ -206,10 +206,9 @@ function closeConfirm() {
 }
 
 /**
- * Execute the actual batch upload after confirmation.
+ * Execute the actual batch upload after confirmation (병렬 처리, 최대 3개 동시).
  */
 async function doUpload() {
-    // Close confirmation
     closeConfirm();
 
     const cards = getSelectedCards();
@@ -218,8 +217,8 @@ async function doUpload() {
     const total = cards.length;
     let done = 0;
     let success = 0;
+    const CONCURRENCY = 3;
 
-    // Show progress overlay
     const overlay = document.getElementById('batchOverlay');
     const progressFill = document.getElementById('progressFill');
     const progressText = document.getElementById('progressText');
@@ -230,25 +229,23 @@ async function doUpload() {
     overlayTitle.textContent = '업로드 중...';
     progressFill.style.width = '0%';
     progressText.textContent = '0/' + total + ' 업로드중...';
-
-    // Disable sticky button during upload
     stickyBtn.disabled = true;
     stickyBtn.textContent = '업로드 중...';
 
-    for (const card of cards) {
+    function updateProgress() {
+        progressFill.style.width = ((done / total) * 100) + '%';
+        progressText.textContent = done + '/' + total + ' 업로드중...';
+    }
+
+    async function uploadOne(card) {
         const row = card.dataset.row;
         const fileInput = card.querySelector('.file-input');
         const resultDiv = document.getElementById('result-' + row);
         const selectArea = document.getElementById('selectArea-' + row);
         const selectedArea = document.getElementById('selectedArea-' + row);
 
-        if (!fileInput.files.length) continue;
+        if (!fileInput.files.length) { done++; updateProgress(); return; }
 
-        // Update progress
-        progressText.textContent = (done + 1) + '/' + total + ' 업로드중...';
-        progressFill.style.width = ((done / total) * 100) + '%';
-
-        // Highlight current card
         card.classList.add('uploading');
 
         const formData = new FormData();
@@ -262,7 +259,6 @@ async function doUpload() {
 
             if (data.ok) {
                 success++;
-                // Hide file controls, show success
                 selectArea.style.display = 'none';
                 selectedArea.style.display = 'none';
                 resultDiv.style.display = 'block';
@@ -279,14 +275,27 @@ async function doUpload() {
 
         card.classList.remove('uploading');
         done++;
+        updateProgress();
     }
 
-    // Completed
+    // 병렬 업로드 (최대 CONCURRENCY개 동시)
+    const queue = [...cards];
+    async function worker() {
+        while (queue.length > 0) {
+            const card = queue.shift();
+            await uploadOne(card);
+        }
+    }
+    const workers = [];
+    for (let i = 0; i < Math.min(CONCURRENCY, total); i++) {
+        workers.push(worker());
+    }
+    await Promise.all(workers);
+
     progressFill.style.width = '100%';
     overlayTitle.textContent = '완료!';
     progressText.textContent = '완료! ' + success + '/' + total + '건 제출 성공';
 
-    // Auto-close after delay
     setTimeout(() => {
         overlay.style.display = 'none';
         updateStickyBar();
