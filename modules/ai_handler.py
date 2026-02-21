@@ -80,16 +80,11 @@ class AIHandler:
 
             context_text = "\n".join(context_lines)
 
-            # 프롬프트 구성 (코딩 도구가 아닌 챗봇으로 동작하도록 명시)
-            prompt = (
-                f"지금부터 너는 코딩 어시스턴트가 아닙니다. 도구(tool)를 사용하지 마세요. "
-                f"파일을 읽거나 코드를 분석하지 마세요.\n"
-                f"너는 '카비서' 챗봇 캐릭터입니다. 아래 규칙에 따라 리뷰어의 메시지에 답변만 하세요.\n\n"
-                f"{SYSTEM_PROMPT}\n\n"
-                f"---\n\n"
+            # 시스템 프롬프트와 사용자 메시지 분리 전달
+            system = SYSTEM_PROMPT
+            user_prompt = (
                 f"[리뷰어 상황]\n{context_text}\n\n"
-                f"[리뷰어 메시지]\n{user_message}\n\n"
-                f"위 메시지에 대해 카비서 챗봇으로서 짧게 답변하세요. 코드나 마크다운 표 없이 일반 텍스트로만 답변하세요."
+                f"[리뷰어 메시지]\n{user_message}"
             )
 
             # 서버PC 릴레이 호출
@@ -99,7 +94,7 @@ class AIHandler:
 
             resp = requests.post(
                 f"{self.relay_url}/ai",
-                json={"prompt": prompt},
+                json={"prompt": user_prompt, "system": system},
                 headers=headers,
                 timeout=60,
             )
