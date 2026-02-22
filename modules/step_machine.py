@@ -425,6 +425,15 @@ class StepMachine:
             cards = self.campaigns.build_campaign_cards(state.name, state.phone)
             return _resp("해당 번호의 캠페인이 없습니다. 다시 선택해주세요.", cards=cards)
 
+        # 구매가능시간 체크
+        if not campaign.get("_buy_time_active", True):
+            buy_time = campaign.get("구매가능시간", "")
+            cards = self.campaigns.build_campaign_cards(state.name, state.phone)
+            return _resp(
+                f"'{campaign.get('상품명', '')}' 캠페인은 구매 가능 시간이 아닙니다.\n⏰ 진행시간: {buy_time}",
+                cards=cards
+            )
+
         # 금일 모집목표 도달 체크
         if self.campaigns.is_daily_full(campaign):
             cards = self.campaigns.build_campaign_cards(state.name, state.phone)

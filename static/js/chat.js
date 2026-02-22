@@ -212,7 +212,9 @@
             card.className = 'campaign-card';
 
             var urgentHtml = '';
-            if (c.urgent) {
+            if (c.buy_time_closed) {
+                urgentHtml = '<span class="campaign-closed">구매시간 외</span>';
+            } else if (c.urgent) {
                 urgentHtml = '<span class="campaign-urgent">마감 임박!</span>';
             }
 
@@ -234,23 +236,36 @@
                 recruitHtml += '<div class="campaign-card-row"><span class="campaign-card-icon">📊</span> 금일 모집 : ' + todayDone + ' / ' + c.daily_target + '</div>';
             }
 
+            var buyTimeHtml = '';
+            if (c.buy_time) {
+                buyTimeHtml = '<div class="campaign-card-row"><span class="campaign-card-icon">⏰</span> ' + escapeText(c.buy_time) + '</div>';
+            }
+
             card.innerHTML =
                 '<div class="campaign-card-header">' + escapeText(c.name) + urgentHtml + '</div>' +
                 '<div class="campaign-card-body">' +
                 '<div class="campaign-card-row"><span class="campaign-card-icon">🏪</span> ' + escapeText(c.store) + '</div>' +
                 recruitHtml +
+                buyTimeHtml +
                 historyHtml +
                 '</div>';
 
             var btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'campaign-card-btn';
-            btn.textContent = '신청하기';
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                sendQuickMessage(c.value, c.name);
-            });
+            if (c.buy_time_closed) {
+                btn.className = 'campaign-card-btn campaign-card-btn-disabled';
+                btn.textContent = '구매시간 외';
+                btn.disabled = true;
+                card.style.opacity = '0.6';
+            } else {
+                btn.className = 'campaign-card-btn';
+                btn.textContent = '신청하기';
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    sendQuickMessage(c.value, c.name);
+                });
+            }
             card.appendChild(btn);
 
             wrap.appendChild(card);

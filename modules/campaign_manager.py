@@ -45,10 +45,8 @@ class CampaignManager:
                 done = safe_int(c.get("완료수량", 0))
                 remaining = total - done
                 if remaining > 0:
-                    # 구매가능시간 외에는 목록에서 숨김
-                    if not is_within_buy_time(c.get("구매가능시간", "")):
-                        continue
                     c["_남은수량"] = remaining
+                    c["_buy_time_active"] = is_within_buy_time(c.get("구매가능시간", ""))
                     active.append(c)
         return active
 
@@ -111,6 +109,9 @@ class CampaignManager:
             if daily_full:
                 continue
 
+            buy_time_str = c.get("구매가능시간", "").strip()
+            buy_time_active = c.get("_buy_time_active", True)
+
             card = {
                 "value": f"campaign_{i}",
                 "name": c.get("상품명", ""),
@@ -121,6 +122,8 @@ class CampaignManager:
                 "today_done": today_done,
                 "daily_full": daily_full,
                 "urgent": remaining <= 5,
+                "buy_time": buy_time_str or "",
+                "buy_time_closed": not buy_time_active,
             }
 
             # 이 캠페인에서의 내 진행 이력
@@ -228,10 +231,13 @@ class CampaignManager:
         ).strip()
 
     def get_needs_recruit(self, web_url: str) -> list[dict]:
-        """홍보가 필요한 캠페인 + 모집글"""
+        """홍보가 필요한 캠페인 + 모집글 (구매가능시간 내만)"""
         active = self.get_active_campaigns()
         result = []
         for c in active:
+            # 구매가능시간 외에는 홍보 대상에서 제외
+            if not c.get("_buy_time_active", True):
+                continue
             c["모집글"] = self.build_recruit_message(c, web_url)
             result.append(c)
         return result
