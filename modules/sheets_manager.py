@@ -557,21 +557,23 @@ class SheetsManager:
         except Exception as e:
             logger.error(f"메인 시트 컬럼 추가 에러: {e}")
 
+    # 구매 완료 이후 상태 (이 상태부터 모집 수량 차감)
+    _DONE_STATUSES = {"구매내역제출", "리뷰제출", "입금대기", "입금완료"}
+
     def count_all_campaigns(self) -> dict:
-        """캠페인별 전체 신청 건수 ({캠페인ID: count}) - 취소 제외"""
+        """캠페인별 구매완료 건수 ({캠페인ID: count}) - 구매내역제출 이후만"""
         ws = self._get_ws()
         headers = self._get_headers(ws)
         cid_col = self._find_col(headers, "캠페인ID")
         status_col = self._find_col(headers, "상태")
-        if cid_col < 0:
+        if cid_col < 0 or status_col < 0:
             return {}
         counts = {}
         for row in ws.get_all_values()[1:]:
-            if len(row) <= cid_col:
+            if len(row) <= max(cid_col, status_col):
                 continue
-            if status_col >= 0 and len(row) > status_col:
-                if row[status_col] in ("타임아웃취소", "취소"):
-                    continue
+            if row[status_col] not in self._DONE_STATUSES:
+                continue
             cid = row[cid_col]
             if cid:
                 counts[cid] = counts.get(cid, 0) + 1
