@@ -27,7 +27,7 @@
 
     <main class="admin-main">
         <h1>캠페인 수정</h1>
-        <p class="admin-subtitle">캠페인ID: {{ campaign.get('캠페인ID', '') }}</p>
+        <p class="admin-subtitle">캠페인ID: {{ campaign.get('캠페인ID', '') }} | 등록일: {{ campaign.get('등록일', '') }}</p>
 
         {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -51,23 +51,76 @@
                 </div>
 
                 <div class="form-group">
-                    <label>업체명</label>
-                    <input type="text" name="업체명" value="{{ campaign.get('업체명', '') }}">
-                </div>
-
-                <div class="form-group">
                     <label>상품명</label>
                     <input type="text" name="상품명" value="{{ campaign.get('상품명', '') }}">
                 </div>
 
                 <div class="form-group">
-                    <label>상품링크</label>
-                    <input type="text" name="상품링크" value="{{ campaign.get('상품링크', '') }}">
+                    <label>업체명</label>
+                    <input type="text" name="업체명" value="{{ campaign.get('업체명', '') }}">
                 </div>
 
                 <div class="form-group">
-                    <label>옵션</label>
-                    <input type="text" name="옵션" value="{{ campaign.get('옵션', '') }}">
+                    <label>플랫폼</label>
+                    <input type="text" name="플랫폼" value="{{ campaign.get('플랫폼', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>캠페인유형</label>
+                    <select name="캠페인유형">
+                        {% for t in ['실배송', '빈박스'] %}
+                        <option value="{{ t }}" {{ 'selected' if campaign.get('캠페인유형', '') == t }}>{{ t }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>상품금액</label>
+                    <input type="text" name="상품금액" value="{{ campaign.get('상품금액', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>리뷰비 (원)</label>
+                    <input type="text" name="리뷰비" value="{{ campaign.get('리뷰비', '') }}" placeholder="예: 15000">
+                </div>
+
+                <div class="form-group">
+                    <label>결제금액 (원)</label>
+                    <input type="text" name="결제금액" value="{{ campaign.get('결제금액', '') }}" placeholder="리뷰어가 결제할 금액">
+                </div>
+
+                <div class="form-group">
+                    <label>총수량</label>
+                    <input type="number" name="총수량" value="{{ campaign.get('총수량', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>일수량</label>
+                    <input type="text" name="일수량" value="{{ campaign.get('일수량', '') }}" placeholder="숫자 또는 범위(3-5)">
+                </div>
+
+                <div class="form-group">
+                    <label>완료수량</label>
+                    <input type="number" name="완료수량" value="{{ campaign.get('완료수량', '') }}">
+                </div>
+
+                <div class="form-group">
+                    <label>구매가능시간</label>
+                    <input type="text" name="구매가능시간" value="{{ campaign.get('구매가능시간', '') }}" placeholder="예: 09:00~22:00 또는 18:00~익일07:00">
+                    <small style="color:#888; font-size:12px;">비우면 24시간. 이 시간에만 캠페인 노출</small>
+                </div>
+
+                <div class="form-group">
+                    <label>중복허용</label>
+                    <select name="중복허용">
+                        <option value="" {{ 'selected' if not campaign.get('중복허용', '') }}>N (기본: 불허)</option>
+                        <option value="Y" {{ 'selected' if campaign.get('중복허용', '') == 'Y' }}>Y (허용)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>상품링크</label>
+                    <input type="text" name="상품링크" value="{{ campaign.get('상품링크', '') }}">
                 </div>
 
                 <div class="form-group">
@@ -81,56 +134,21 @@
                 </div>
 
                 <div class="form-group">
-                    <label>총수량</label>
-                    <input type="number" name="총수량" value="{{ campaign.get('총수량', '') }}">
-                </div>
-
-                <div class="form-group">
-                    <label>일수량</label>
-                    <input type="number" name="일수량" value="{{ campaign.get('일수량', '') }}">
-                </div>
-
-                <div class="form-group">
-                    <label>완료수량</label>
-                    <input type="number" name="완료수량" value="{{ campaign.get('완료수량', '') }}">
-                </div>
-
-                <div class="form-group">
-                    <label>택배사</label>
-                    <input type="text" name="택배사" value="{{ campaign.get('택배사', '') }}">
-                </div>
-
-                <div class="form-group">
-                    <label>리뷰제공</label>
-                    <input type="text" name="리뷰제공" value="{{ campaign.get('리뷰제공', '') }}">
-                </div>
-
-                <div class="form-group">
                     <label>리뷰기한일수</label>
                     <input type="number" name="리뷰기한일수" value="{{ campaign.get('리뷰기한일수', '') }}">
                 </div>
 
                 <div class="form-group">
-                    <label>리뷰가이드</label>
-                    <input type="text" name="리뷰가이드" value="{{ campaign.get('리뷰가이드', '') }}" placeholder="자율 / 50자이상 / 100자이상 등">
-                </div>
-
-                <div class="form-group">
-                    <label>결제금액 (원)</label>
-                    <input type="text" name="결제금액" value="{{ campaign.get('결제금액', '') }}" placeholder="리뷰어가 결제할 금액">
-                </div>
-
-                <div class="form-group">
-                    <label>리뷰비 (원)</label>
-                    <input type="text" name="리뷰비" value="{{ campaign.get('리뷰비', '') }}" placeholder="예: 15000">
-                </div>
-
-                <div class="form-group">
-                    <label>중복허용</label>
-                    <select name="중복허용">
-                        <option value="" {{ 'selected' if not campaign.get('중복허용', '') }}>N (기본: 불허)</option>
-                        <option value="Y" {{ 'selected' if campaign.get('중복허용', '') == 'Y' }}>Y (허용)</option>
+                    <label>공개여부</label>
+                    <select name="공개여부">
+                        <option value="" {{ 'selected' if campaign.get('공개여부', '') not in ['N'] }}>Y (공개)</option>
+                        <option value="N" {{ 'selected' if campaign.get('공개여부', '') == 'N' }}>N (비공개)</option>
                     </select>
+                </div>
+
+                <div class="form-group form-group-full">
+                    <label>캠페인 가이드</label>
+                    <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드">{{ campaign.get('캠페인가이드', '') }}</textarea>
                 </div>
 
                 <div class="form-group form-group-full">

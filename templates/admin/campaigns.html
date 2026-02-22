@@ -47,14 +47,14 @@
             <table class="admin-table">
                 <thead>
                     <tr>
-                        <th>캠페인ID</th>
                         <th>상품명</th>
                         <th>업체명</th>
-                        <th>옵션</th>
+                        <th>플랫폼</th>
                         <th>총수량</th>
-                        <th>완료수량</th>
+                        <th>완료</th>
+                        <th>일수량</th>
+                        <th>구매시간</th>
                         <th>리뷰비</th>
-                        <th>중복허용</th>
                         <th>상태</th>
                         <th>관리</th>
                     </tr>
@@ -62,14 +62,14 @@
                 <tbody>
                     {% for c in campaigns %}
                     <tr>
-                        <td>{{ c.get('캠페인ID', '') }}</td>
                         <td>{{ c.get('상품명', '') }}</td>
                         <td>{{ c.get('업체명', '') }}</td>
-                        <td>{{ c.get('옵션', '') }}</td>
+                        <td>{{ c.get('플랫폼', '') }}</td>
                         <td>{{ c.get('총수량', '') }}</td>
                         <td>{{ c.get('완료수량', '') }}</td>
+                        <td>{{ c.get('일수량', '') }}</td>
+                        <td>{{ c.get('구매가능시간', '') or '24시간' }}</td>
                         <td>{{ c.get('리뷰비', '') }}</td>
-                        <td>{{ c.get('중복허용', '') }}</td>
                         <td><span class="admin-status-badge">{{ c.get('상태', '모집중') }}</span></td>
                         <td>
                             <a href="{{ url_for('admin.campaign_edit', row=c.get('_row_idx', 0)) }}"
