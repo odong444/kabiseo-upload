@@ -557,6 +557,26 @@ class SheetsManager:
         except Exception as e:
             logger.error(f"메인 시트 컬럼 추가 에러: {e}")
 
+    def count_all_campaigns(self) -> dict:
+        """캠페인별 전체 신청 건수 ({캠페인ID: count}) - 취소 제외"""
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        cid_col = self._find_col(headers, "캠페인ID")
+        status_col = self._find_col(headers, "상태")
+        if cid_col < 0:
+            return {}
+        counts = {}
+        for row in ws.get_all_values()[1:]:
+            if len(row) <= cid_col:
+                continue
+            if status_col >= 0 and len(row) > status_col:
+                if row[status_col] in ("타임아웃취소", "취소"):
+                    continue
+            cid = row[cid_col]
+            if cid:
+                counts[cid] = counts.get(cid, 0) + 1
+        return counts
+
     def count_today_all_campaigns(self) -> dict:
         """오늘 캠페인별 신청 건수 (시트 1회 읽기, {캠페인ID: count})"""
         today = today_str()

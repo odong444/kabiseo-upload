@@ -29,6 +29,14 @@ class CampaignManager:
     def get_active_campaigns(self) -> list[dict]:
         """모집 중인 캠페인 목록"""
         all_campaigns = self.sheets.get_all_campaigns()
+
+        # 실제 신청 건수 (카비서_정리 시트에서 취소 제외 카운트)
+        actual_counts = {}
+        try:
+            actual_counts = self.sheets.count_all_campaigns()
+        except Exception:
+            pass
+
         active = []
         for c in all_campaigns:
             status = c.get("상태", "")
@@ -37,10 +45,13 @@ class CampaignManager:
                 continue
             if status in ("모집중", "진행중", ""):
                 total = safe_int(c.get("총수량", 0))
-                done = safe_int(c.get("완료수량", 0))
+                campaign_id = c.get("캠페인ID", "")
+                # 실제 신청 건수 우선, 없으면 시트의 완료수량
+                done = actual_counts.get(campaign_id, 0) or safe_int(c.get("완료수량", 0))
                 remaining = total - done
                 if remaining > 0:
                     c["_남은수량"] = remaining
+                    c["_완료수량"] = done
                     c["_buy_time_active"] = is_within_buy_time(c.get("구매가능시간", ""))
                     active.append(c)
         return active
