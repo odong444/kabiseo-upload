@@ -730,6 +730,22 @@ class StepMachine:
         campaign_id = campaign.get("캠페인ID", "")
         ids = state.temp_data.get("store_ids", [])
 
+        # 정원 초과 체크 (취소 제외 전체 슬롯)
+        available = self.campaigns.check_capacity(campaign_id)
+        if available < len(ids):
+            state.step = 0
+            state.temp_data = {}
+            if available == 0:
+                return _resp(
+                    "😥 죄송합니다, 이 캠페인은 모집이 마감되었습니다.\n다른 캠페인을 확인해보세요!",
+                    buttons=self._menu_buttons()
+                )
+            return _resp(
+                f"😥 죄송합니다, 남은 자리가 {available}자리뿐입니다.\n"
+                f"{len(ids)}개 아이디로 신청하실 수 없습니다. 다시 시도해주세요.",
+                buttons=self._menu_buttons()
+            )
+
         # 시트에 등록
         for sid in ids:
             self.reviewers.register(state.name, state.phone, campaign, sid)

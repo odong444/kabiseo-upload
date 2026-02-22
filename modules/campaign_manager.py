@@ -253,6 +253,15 @@ class CampaignManager:
         except Exception:
             return False
 
+    def check_capacity(self, campaign_id: str, add_count: int = 1) -> int:
+        """정원 여유 확인. 남은 슬롯 수 반환 (0이면 꽉 참)"""
+        campaign = self.get_campaign_by_id(campaign_id)
+        if not campaign:
+            return 0
+        total = safe_int(campaign.get("총수량", 0))
+        reserved = self.sheets.count_reserved_campaign(campaign_id)
+        return max(0, total - reserved)
+
     def get_campaign_stats(self, campaign_id: str) -> dict:
         """캠페인 달성률"""
         campaign = self.get_campaign_by_id(campaign_id)

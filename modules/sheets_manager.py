@@ -579,6 +579,26 @@ class SheetsManager:
                 counts[cid] = counts.get(cid, 0) + 1
         return counts
 
+    def count_reserved_campaign(self, campaign_id: str) -> int:
+        """특정 캠페인의 진행중 슬롯 수 (취소 제외 전체 = 예약된 자리)"""
+        ws = self._get_ws()
+        headers = self._get_headers(ws)
+        cid_col = self._find_col(headers, "캠페인ID")
+        status_col = self._find_col(headers, "상태")
+        if cid_col < 0:
+            return 0
+        count = 0
+        for row in ws.get_all_values()[1:]:
+            if len(row) <= cid_col:
+                continue
+            if row[cid_col] != campaign_id:
+                continue
+            if status_col >= 0 and len(row) > status_col:
+                if row[status_col] in ("타임아웃취소", "취소"):
+                    continue
+            count += 1
+        return count
+
     def count_today_all_campaigns(self) -> dict:
         """오늘 캠페인별 신청 건수 (시트 1회 읽기, {캠페인ID: count})"""
         today = today_str()
