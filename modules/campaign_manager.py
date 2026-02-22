@@ -9,20 +9,15 @@ from modules.utils import today_str, safe_int, is_within_buy_time
 
 logger = logging.getLogger(__name__)
 
-RECRUIT_TEMPLATE = """📢 리뷰 체험단 모집 📢
+RECRUIT_TEMPLATE = """📢 체험단 모집
 
-✨ {product_name} ✨
-🏪 {store_name}
-{method_line}
+{product_name}
+💰 결제금액: {product_price}원
+📦 {campaign_type}
+👥 {total}명 모집 (남은 {remaining}자리)
 
-💰 상품금액: {product_price}원
-👥 남은 {remaining}명
-{review_line}
-{weekend_line}
-👉 아래 링크에서 신청해주세요!
-🔗 {web_url}
-
-#리뷰체험단 #블로그체험단"""
+👉 신청하기
+{web_url}"""
 
 
 class CampaignManager:
@@ -190,43 +185,29 @@ class CampaignManager:
         return text
 
     def build_recruit_message(self, campaign: dict, web_url: str) -> str:
-        """모집글 생성 (개선)"""
+        """모집글 생성"""
         total = safe_int(campaign.get("총수량", 0))
         done = safe_int(campaign.get("완료수량", 0))
         remaining = campaign.get("_남은수량", total - done)
 
-        method = campaign.get("유입방식", "")
-        if "키워드" in method:
-            method_line = "🔍 키워드 유입"
-        elif "링크" in method:
-            method_line = "🔗 링크 유입"
-        else:
-            method_line = f"✅ 유입: {method}" if method else ""
-
-        # 리뷰 타입
-        review_type = campaign.get("리뷰타입", "") or campaign.get("리뷰제공", "")
-        if review_type:
-            review_line = f"📝 리뷰: {review_type}"
-        else:
-            review_line = ""
-
-        # 주말작업
-        weekend = campaign.get("주말작업", "").strip().upper()
-        weekend_line = "✅ 주말 작업 가능" if weekend in ("Y", "O", "예") else ""
-
-        # 상품금액
         product_price = campaign.get("상품금액", "") or campaign.get("결제금액", "")
         if not product_price:
             product_price = "확인필요"
 
+        campaign_type = campaign.get("캠페인유형", "").strip()
+        if campaign_type == "빈박스":
+            campaign_type = "빈박스"
+        elif campaign_type == "실배송":
+            campaign_type = "실배송"
+        else:
+            campaign_type = "실배송"
+
         return RECRUIT_TEMPLATE.format(
             product_name=campaign.get("상품명", ""),
-            store_name=campaign.get("업체명", ""),
-            method_line=method_line,
             product_price=product_price,
+            campaign_type=campaign_type,
+            total=total,
             remaining=remaining,
-            review_line=review_line,
-            weekend_line=weekend_line,
             web_url=web_url,
         ).strip()
 

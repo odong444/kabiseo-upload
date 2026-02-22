@@ -609,21 +609,16 @@ def api_campaign_preview():
     guide_parts.append("✏️ 구매 완료 후 양식을 입력해주세요.")
 
     # 모집글 텍스트
+    campaign_type = data.get("캠페인유형", "실배송") or "실배송"
     recruit_lines = [
-        "📢 리뷰 체험단 모집 📢",
+        "📢 체험단 모집",
         "",
-        f"✨ {product_name} ✨",
-        f"🏪 {store_name}",
+        product_name,
+        f"💰 결제금액: {product_price}원",
+        f"📦 {campaign_type}",
+        f"👥 {total}명 모집 (남은 {total}자리)",
         "",
-        f"💰 상품금액: {product_price}원",
-        f"👥 남은 {total}명",
-    ]
-    if buy_time:
-        recruit_lines.append(f"⏰ 진행시간: {buy_time}")
-    recruit_lines += [
-        "👉 아래 링크에서 신청해주세요!",
-        "",
-        "#리뷰체험단 #블로그체험단",
+        "👉 신청하기",
     ]
 
     return jsonify({
