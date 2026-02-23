@@ -224,6 +224,12 @@ class StepMachine:
         if msg == "__cancel__":
             return self._handle_cancel(state)
 
+        # 글로벌 담당자 문의
+        if msg == "__inquiry__":
+            state.step = 10
+            return _resp("담당자에게 전달할 문의 내용을 입력해주세요.",
+                         buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
+
         if step == 0:
             return self._step0_menu(state, msg)
         elif step == 1:
@@ -242,6 +248,10 @@ class StepMachine:
             return self._step7_review(state, msg)
         elif step == 8:
             return self._step8_done(state, msg)
+        elif step == 9:
+            return self._step9_inquiry_ai(state, msg)
+        elif step == 10:
+            return self._step10_inquiry_submit(state, msg)
         else:
             state.step = 0
             return _resp(tpl.WELCOME_BACK.format(name=state.name), buttons=self._menu_buttons())
@@ -399,8 +409,9 @@ class StepMachine:
             return _resp(self._format_payments(payments), buttons=self._menu_buttons())
 
         elif choice == 5:
-            return _resp("궁금한 점을 말씀해주세요! 담당자가 확인 후 답변드리겠습니다.",
-                         buttons=self._menu_buttons())
+            state.step = 9
+            return _resp("궁금한 점을 자유롭게 입력해주세요! 😊\nAI가 답변드리고, 필요하면 담당자에게 연결해드릴게요.",
+                         buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
 
         return self._ask_ai(state, message)
 
@@ -1380,10 +1391,102 @@ class StepMachine:
 
         try:
             context = self._build_ai_context(state)
-            ai_reply = self.ai_handler.get_response(user_message, context)
-            if ai_reply:
-                return _resp(ai_reply, buttons=self._menu_buttons())
+            result = self.ai_handler.get_response(user_message, context)
+            if result and result.get("message"):
+                buttons = list(self._menu_buttons())
+                if not result.get("confident"):
+                    buttons.insert(0, {"label": "📞 담당자에게 문의남기기", "value": "__inquiry__"})
+                # urgent 정보를 임시 저장
+                if result.get("urgent"):
+                    state.temp_data["_inquiry_urgent"] = True
+                return _resp(result["message"], buttons=buttons)
         except Exception as e:
             logger.error(f"AI 응답 실패: {e}")
 
         return _resp(tpl.UNKNOWN_INPUT, buttons=self._menu_buttons())
+
+    # ─────────── STEP 9: 문의 모드 (AI 응답) ───────────
+
+    def _step9_inquiry_ai(self, state: ReviewerState, message: str):
+        """기타 문의: AI 응답 후 담당자 연결 버튼"""
+        # 담당자 문의 버튼 클릭
+        if message == "__inquiry__":
+            state.step = 10
+            return _resp("담당자에게 전달할 문의 내용을 입력해주세요.",
+                         buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
+
+        # AI 응답 시도
+        if self.ai_handler:
+            try:
+                context = self._build_ai_context(state)
+                result = self.ai_handler.get_response(message, context)
+                if result and result.get("message"):
+                    buttons = [{"label": "📞 담당자에게 문의남기기", "value": "__inquiry__"},
+                               {"label": "↩ 메뉴로", "value": "메뉴"}]
+                    if result.get("urgent"):
+                        state.temp_data["_inquiry_urgent"] = True
+                    return _resp(result["message"], buttons=buttons)
+            except Exception as e:
+                logger.error(f"AI 문의 응답 실패: {e}")
+
+        # AI 실패 시
+        return _resp(
+            "죄송합니다. 자동 답변이 어렵습니다.\n담당자에게 문의를 남기시겠어요?",
+            buttons=[
+                {"label": "📞 담당자에게 문의남기기", "value": "__inquiry__"},
+                {"label": "↩ 메뉴로", "value": "메뉴"},
+            ]
+        )
+
+    # ─────────── STEP 10: 문의 메시지 입력 ───────────
+
+    def _step10_inquiry_submit(self, state: ReviewerState, message: str):
+        """담당자 문의 접수"""
+        import models
+
+        is_urgent = state.temp_data.pop("_inquiry_urgent", False)
+
+        # 최근 대화 맥락
+        context_lines = ""
+        try:
+            history = self.chat_logger.get_history(state.reviewer_id)
+            context_lines = "\n".join(
+                f"[{h['sender']}] {h['message'][:100]}" for h in history[-10:]
+            )
+        except Exception:
+            pass
+
+        # DB 저장
+        inquiry_id = 0
+        if models.db_manager:
+            try:
+                reviewer = models.db_manager.get_reviewer(state.name, state.phone)
+                reviewer_id = reviewer["id"] if reviewer else 0
+                inquiry_id = models.db_manager.create_inquiry(
+                    reviewer_id=reviewer_id,
+                    name=state.name,
+                    phone=state.phone,
+                    message=message,
+                    context=context_lines,
+                    is_urgent=is_urgent,
+                )
+            except Exception as e:
+                logger.error(f"문의 저장 실패: {e}")
+
+        # 긴급 건 → 관리자에게 카톡 알림
+        if is_urgent and models.kakao_notifier:
+            try:
+                models.kakao_notifier.notify_admin_urgent_inquiry(
+                    admin_name="오동열", admin_phone="010-7210-0210",
+                    reviewer_name=state.name, reviewer_phone=state.phone,
+                    message=message,
+                )
+            except Exception as e:
+                logger.warning(f"긴급 문의 알림 실패: {e}")
+
+        state.step = 0
+        state.temp_data = {}
+        return _resp(
+            "✅ 문의가 접수되었습니다!\n담당자 확인 후 빠른 시일 내 답변드리겠습니다.",
+            buttons=self._menu_buttons()
+        )

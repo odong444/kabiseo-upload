@@ -134,6 +134,28 @@ class KakaoNotifier:
         )
         return request_reminder(info["name"], info["phone"], self._add_footer(msg))
 
+    # ──────── 문의 답변 카톡 ────────
+
+    def notify_inquiry_reply(self, name: str, phone: str, reply: str) -> bool:
+        """문의 답변을 리뷰어에게 카톡 발송"""
+        msg = ktpl.INQUIRY_REPLY.format(
+            reply=reply,
+            web_url=self.web_url,
+        )
+        return request_notification(name, phone, self._add_footer(msg))
+
+    def notify_admin_urgent_inquiry(self, admin_name: str, admin_phone: str,
+                                     reviewer_name: str, reviewer_phone: str,
+                                     message: str) -> bool:
+        """긴급 문의 → 관리자에게 카톡 알림"""
+        preview = message[:100] + ("..." if len(message) > 100 else "")
+        msg = ktpl.ADMIN_URGENT_INQUIRY.format(
+            name=reviewer_name,
+            phone=reviewer_phone,
+            message=preview,
+        )
+        return request_reminder(admin_name, admin_phone, msg)
+
     # ──────── 리뷰 기한 리마인더 (스케줄러) ────────
 
     def send_review_deadline_reminders(self) -> int:

@@ -634,3 +634,59 @@ def api_kakao_bulk():
             pass
 
     return jsonify({"ok": True, "sent": sent, "total": len(progress_ids)})
+
+
+# ──────── 문의 관리 ────────
+
+@admin_bp.route("/inquiries")
+@admin_required
+def inquiries():
+    status_filter = request.args.get("status", "")
+    items = []
+    pending_count = 0
+    if models.db_manager:
+        items = models.db_manager.get_inquiries(status_filter or None)
+        pending_count = models.db_manager.get_pending_inquiry_count()
+    return render_template("admin/inquiries.html",
+                           inquiries=items, status_filter=status_filter,
+                           pending_count=pending_count)
+
+
+@admin_bp.route("/api/inquiry/reply", methods=["POST"])
+@admin_required
+def api_inquiry_reply():
+    """문의 답변 → DB 업데이트 + 카톡 발송"""
+    data = request.get_json(silent=True) or {}
+    inquiry_id = data.get("inquiry_id")
+    reply_text = data.get("reply", "").strip()
+
+    if not inquiry_id or not reply_text:
+        return jsonify({"ok": False, "message": "inquiry_id, reply 필수"})
+
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+
+    # 문의 정보 조회
+    inquiry = models.db_manager.get_inquiry(int(inquiry_id))
+    if not inquiry:
+        return jsonify({"ok": False, "message": "문의를 찾을 수 없습니다"})
+
+    # DB 업데이트
+    ok = models.db_manager.reply_inquiry(int(inquiry_id), reply_text)
+    if not ok:
+        return jsonify({"ok": False, "message": "답변 저장 실패"})
+
+    # 카톡으로 답변 발송
+    kakao_ok = False
+    if models.kakao_notifier and inquiry.get("reviewer_name") and inquiry.get("reviewer_phone"):
+        try:
+            kakao_ok = models.kakao_notifier.notify_inquiry_reply(
+                inquiry["reviewer_name"], inquiry["reviewer_phone"], reply_text
+            )
+        except Exception as e:
+            logger.error(f"문의 답변 카톡 발송 실패: {e}")
+
+    return jsonify({
+        "ok": True,
+        "message": "답변 완료" + (" (카톡 발송됨)" if kakao_ok else ""),
+    })

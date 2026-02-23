@@ -130,6 +130,24 @@ DEFAULT_REMINDERS = {
 
 # ──────── 상태 → 템플릿 매핑 ────────
 
+# ──────── 문의 답변 ────────
+
+INQUIRY_REPLY = """[카비서] 문의 답변이 도착했습니다.
+
+{reply}
+
+👉 {web_url}/chat"""
+
+# ──────── 긴급 문의 → 관리자 알림 ────────
+
+ADMIN_URGENT_INQUIRY = """[카비서 긴급] 새 문의 접수
+
+이름: {name}
+연락처: {phone}
+내용: {message}"""
+
+# ──────── 상태 → 템플릿 매핑 ────────
+
 STATUS_TEMPLATES = {
     "가이드전달": GUIDE_SENT,
     "구매캡쳐대기": PURCHASE_WAIT,

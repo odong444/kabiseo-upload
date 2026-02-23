@@ -151,6 +151,22 @@ CREATE INDEX IF NOT EXISTS idx_progress_reviewer ON progress(reviewer_id);
 CREATE INDEX IF NOT EXISTS idx_progress_status ON progress(status);
 CREATE INDEX IF NOT EXISTS idx_progress_created ON progress(created_at);
 CREATE INDEX IF NOT EXISTS idx_progress_store ON progress(campaign_id, store_id);
+
+CREATE TABLE IF NOT EXISTS inquiries (
+    id              SERIAL PRIMARY KEY,
+    reviewer_id     INTEGER REFERENCES reviewers(id),
+    reviewer_name   TEXT DEFAULT '',
+    reviewer_phone  TEXT DEFAULT '',
+    message         TEXT NOT NULL,
+    context         TEXT DEFAULT '',
+    status          TEXT DEFAULT '대기',
+    admin_reply     TEXT DEFAULT '',
+    is_urgent       BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    replied_at      TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status);
+CREATE INDEX IF NOT EXISTS idx_inquiries_created ON inquiries(created_at);
 """
 
 
@@ -828,6 +844,54 @@ class DBManager:
                WHERE campaign_id = %s AND status NOT IN (%s, %s)""",
             (campaign_id, STATUS_TIMEOUT, STATUS_CANCELLED)
         )
+        return row["cnt"] if row else 0
+
+    # ──────── 문의 (inquiries) ────────
+
+    def create_inquiry(self, reviewer_id: int, name: str, phone: str,
+                       message: str, context: str = "", is_urgent: bool = False) -> int:
+        """문의 접수. 생성된 inquiry id 반환."""
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """INSERT INTO inquiries
+                       (reviewer_id, reviewer_name, reviewer_phone, message, context, is_urgent)
+                       VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (reviewer_id, name, phone, message, context, is_urgent)
+                )
+                row = cur.fetchone()
+            conn.commit()
+        return row["id"] if row else 0
+
+    def get_inquiries(self, status: str = None) -> list[dict]:
+        """문의 목록 (최신순). status 지정 시 필터."""
+        if status:
+            return self._fetchall(
+                "SELECT * FROM inquiries WHERE status = %s ORDER BY created_at DESC",
+                (status,)
+            )
+        return self._fetchall("SELECT * FROM inquiries ORDER BY created_at DESC")
+
+    def get_inquiry(self, inquiry_id: int) -> dict:
+        """문의 단건 조회."""
+        return self._fetchone("SELECT * FROM inquiries WHERE id = %s", (inquiry_id,)) or {}
+
+    def reply_inquiry(self, inquiry_id: int, reply_text: str) -> bool:
+        """문의 답변 + 상태 완료."""
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE inquiries SET admin_reply = %s, status = '완료',
+                       replied_at = NOW() WHERE id = %s""",
+                    (reply_text, inquiry_id)
+                )
+                ok = cur.rowcount > 0
+            conn.commit()
+        return ok
+
+    def get_pending_inquiry_count(self) -> int:
+        """대기 중 문의 건수."""
+        row = self._fetchone("SELECT COUNT(*) as cnt FROM inquiries WHERE status = '대기'")
         return row["cnt"] if row else 0
 
     def count_today_all_campaigns(self) -> dict:
