@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     product_link    TEXT DEFAULT '',
     product_image   TEXT DEFAULT '',
     product_price   INTEGER DEFAULT 0,
+    payment_amount  INTEGER DEFAULT 0,
     campaign_type   TEXT DEFAULT '실배송',
     platform        TEXT DEFAULT '',
     options         TEXT DEFAULT '',
@@ -188,6 +189,10 @@ class DBManager:
                     cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS last_reminder_date DATE")
                 except Exception:
                     pass
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS payment_amount INTEGER DEFAULT 0")
+                except Exception:
+                    pass
             conn.commit()
         logger.info("DB 스키마 확인/생성 완료")
 
@@ -310,7 +315,7 @@ class DBManager:
         sql = """
             INSERT INTO campaigns (
                 id, status, company, product_name, product_link, product_image,
-                product_price, campaign_type, platform, options, option_list,
+                product_price, payment_amount, campaign_type, platform, options, option_list,
                 keyword, keyword_position, current_rank, entry_method,
                 total_qty, daily_qty, done_qty, max_daily, duration_days,
                 same_day_ship, ship_deadline, courier, use_3pl, cost_3pl,
@@ -323,7 +328,7 @@ class DBManager:
                 deadline_date, is_public, is_selected, reward, memo
             ) VALUES (
                 %(id)s, %(status)s, %(company)s, %(product_name)s, %(product_link)s,
-                %(product_image)s, %(product_price)s, %(campaign_type)s, %(platform)s,
+                %(product_image)s, %(product_price)s, %(payment_amount)s, %(campaign_type)s, %(platform)s,
                 %(options)s, %(option_list)s, %(keyword)s, %(keyword_position)s,
                 %(current_rank)s, %(entry_method)s, %(total_qty)s, %(daily_qty)s,
                 %(done_qty)s, %(max_daily)s, %(duration_days)s, %(same_day_ship)s,
@@ -388,13 +393,14 @@ class DBManager:
         "배송메모안내링크": "ship_memo_link", "신청마감일": "deadline_date",
         "공개여부": "is_public", "선정여부": "is_selected",
         "리워드": "reward", "메모": "memo",
-        "등록일": "created_at", "결제금액": "product_price",
+        "등록일": "created_at", "결제금액": "payment_amount",
         "리뷰가이드": "review_guide",
     }
 
     _CAMPAIGN_COLUMNS = {
         "id", "status", "company", "product_name", "product_link",
-        "product_image", "product_price", "campaign_type", "platform",
+        "product_image", "product_price", "payment_amount",
+        "campaign_type", "platform",
         "options", "option_list", "keyword", "keyword_position",
         "current_rank", "entry_method", "total_qty", "daily_qty",
         "done_qty", "max_daily", "duration_days", "same_day_ship",
@@ -418,8 +424,8 @@ class DBManager:
     }
 
     _INT_COLUMNS = {
-        "product_price", "total_qty", "daily_qty", "done_qty",
-        "max_daily", "duration_days", "cost_3pl",
+        "product_price", "payment_amount", "total_qty", "daily_qty",
+        "done_qty", "max_daily", "duration_days", "cost_3pl",
         "review_deadline_days", "review_fee",
     }
 
