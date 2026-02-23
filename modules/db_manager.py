@@ -264,6 +264,13 @@ class DBManager:
     def get_reviewer_by_id(self, reviewer_id: int) -> dict | None:
         return self._fetchone("SELECT * FROM reviewers WHERE id = %s", (reviewer_id,))
 
+    def update_kakao_friend(self, name: str, phone: str, status: bool):
+        """카카오 친구추가 상태 업데이트"""
+        self._execute(
+            "UPDATE reviewers SET kakao_friend = %s, updated_at = NOW() WHERE name = %s AND phone = %s",
+            (status, name, phone)
+        )
+
     def update_reviewer_store_ids(self, name: str, phone: str, store_id: str):
         """캠페인 등록 시 아이디목록 + 참여횟수 업데이트"""
         reviewer = self.get_reviewer(name, phone)

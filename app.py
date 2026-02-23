@@ -316,6 +316,31 @@ def api_payment():
     return payments
 
 
+# ──────── 서버PC 콜백 API ────────
+
+TASK_API_KEY = os.environ.get("TASK_API_KEY", "_fNmY5SeHyigMgkR5LIngpxBB1gDoZLF")
+
+@app.route("/api/callback/friend-add", methods=["POST"])
+def api_callback_friend_add():
+    """서버PC에서 친구추가 결과 콜백"""
+    api_key = request.headers.get("X-API-Key", "")
+    if api_key != TASK_API_KEY:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+    success = data.get("success", False)
+
+    if not name or not phone:
+        return jsonify({"ok": False, "error": "name, phone 필수"})
+
+    if models.db_manager:
+        models.db_manager.update_kakao_friend(name, phone, success)
+
+    return jsonify({"ok": True})
+
+
 # ──────── Google OAuth 인증 (Drive 업로드용) ────────
 
 @app.route("/auth")
