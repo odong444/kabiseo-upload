@@ -423,6 +423,8 @@ class DBManager:
                 result[col] = 0
         for col in self._CAMPAIGN_COLUMNS:
             if result.get(col) is None:
+                if col == "deadline_date":
+                    continue  # DATE 컬럼은 빈 문자열 대신 NULL 유지
                 result[col] = ""
 
         return result

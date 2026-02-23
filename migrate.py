@@ -40,7 +40,7 @@ def get_sheets_client():
     from oauth2client.service_account import ServiceAccountCredentials
     import base64
 
-    creds_b64 = os.environ.get("GOOGLE_CREDENTIALS", "")
+    creds_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64", "") or os.environ.get("GOOGLE_CREDENTIALS", "")
     spreadsheet_id = os.environ.get("SPREADSHEET_ID", "")
 
     if not creds_b64 or not spreadsheet_id:
