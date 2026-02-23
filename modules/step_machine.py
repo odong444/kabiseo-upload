@@ -337,7 +337,7 @@ class StepMachine:
 
         if campaign_id and store_ids:
             try:
-                self.reviewers.sheets.cancel_by_timeout(
+                self.reviewers.db.cancel_by_timeout(
                     state.name, state.phone, campaign_id, store_ids
                 )
             except Exception as e:
@@ -508,50 +508,25 @@ class StepMachine:
     # ─────────── STEP 3: 아이디 수집 ───────────
 
     def _build_multi_select_data(self, state: ReviewerState, campaign_id: str, max_select: int):
-        """다중 선택용 이전 아이디 데이터 (2개 이상 선택 시) - API 호출 최소화"""
+        """다중 선택용 이전 아이디 데이터 (2개 이상 선택 시)"""
         try:
-            if not self.reviewers or not self.reviewers.sheets:
+            if not self.reviewers or not self.reviewers.db:
                 return None
-            sheets = self.reviewers.sheets
-
-            # 시트 1회 읽기로 모든 데이터 확보
-            ws = sheets._get_ws()
-            headers = sheets._get_headers(ws)
-            all_rows = ws.get_all_values()
 
             # 이 리뷰어의 사용 아이디 수집
-            used_ids = set()
-            for row in all_rows[1:]:
-                if sheets._match_reviewer(row, headers, state.name, state.phone):
-                    sid_col = sheets._find_col(headers, "아이디")
-                    if sid_col >= 0 and len(row) > sid_col:
-                        sid = row[sid_col].strip()
-                        if sid:
-                            used_ids.add(sid)
+            used_ids = self.reviewers.db.get_used_store_ids(state.name, state.phone)
             if not used_ids:
                 return None
 
-            # 이 캠페인에서 이미 진행중인 아이디 (메모리에서 체크)
+            # 이 캠페인에서 이미 진행중인 아이디
             campaign = state.temp_data.get("campaign", {})
             allow_dup = campaign.get("중복허용", "").strip().upper() in ("Y", "O", "예", "허용")
             active_ids = set()
 
             if not allow_dup and campaign_id:
-                cid_col = sheets._find_col(headers, "캠페인ID")
-                sid_col = sheets._find_col(headers, "아이디")
-                status_col = sheets._find_col(headers, "상태")
-                if cid_col >= 0 and sid_col >= 0:
-                    for row in all_rows[1:]:
-                        if len(row) <= max(cid_col, sid_col):
-                            continue
-                        if row[cid_col] != campaign_id:
-                            continue
-                        sid = row[sid_col].strip()
-                        if sid not in used_ids:
-                            continue
-                        status = row[status_col] if status_col >= 0 and len(row) > status_col else ""
-                        if status not in sheets._DUP_IGNORE_STATUSES:
-                            active_ids.add(sid)
+                active_ids = self.reviewers.db.get_active_ids_for_campaign(
+                    state.name, state.phone, campaign_id
+                )
 
             items = []
             for sid in sorted(used_ids)[:8]:
@@ -572,14 +547,9 @@ class StepMachine:
     def _prev_id_buttons(self, state: ReviewerState):
         """이전에 사용한 아이디 버튼 목록"""
         try:
-            if not self.reviewers or not self.reviewers.sheets:
+            if not self.reviewers or not self.reviewers.db:
                 return []
-            all_items = self.reviewers.sheets.search_by_name_phone(state.name, state.phone)
-            used_ids = set()
-            for item in all_items:
-                sid = item.get("아이디", "").strip()
-                if sid:
-                    used_ids.add(sid)
+            used_ids = self.reviewers.db.get_used_store_ids(state.name, state.phone)
             if not used_ids:
                 return []
             buttons = []
@@ -755,7 +725,7 @@ class StepMachine:
         # 리뷰어DB 아이디목록 업데이트
         try:
             for sid in ids:
-                self.reviewers.sheets.update_reviewer_store_ids(state.name, state.phone, sid)
+                self.reviewers.db.update_reviewer_store_ids(state.name, state.phone, sid)
         except Exception:
             pass
 
@@ -1098,26 +1068,9 @@ class StepMachine:
 
     def _update_status_by_id(self, name, phone, campaign_id, store_id, new_status):
         try:
-            if not self.reviewers or not self.reviewers.sheets:
+            if not self.reviewers or not self.reviewers.db:
                 return
-            sheets = self.reviewers.sheets
-            ws = sheets._get_ws()
-            headers = sheets._get_headers(ws)
-            all_rows = ws.get_all_values()
-
-            cid_col = sheets._find_col(headers, "캠페인ID")
-            sid_col = sheets._find_col(headers, "아이디")
-            status_col = sheets._find_col(headers, "상태")
-
-            for i, row in enumerate(all_rows[1:], start=2):
-                if cid_col < 0 or sid_col < 0 or len(row) <= max(cid_col, sid_col):
-                    continue
-                if row[cid_col] != campaign_id or row[sid_col] != store_id:
-                    continue
-                if not sheets._match_reviewer(row, headers, name, phone):
-                    continue
-                ws.update_cell(i, status_col + 1, new_status)
-                break
+            self.reviewers.db.update_status_by_id(name, phone, campaign_id, store_id, new_status)
         except Exception as e:
             logger.error(f"상태 업데이트 에러: {e}")
 
@@ -1127,8 +1080,8 @@ class StepMachine:
                               store_ids: list = None) -> str:
         prev_info = {}
         try:
-            if self.reviewers and self.reviewers.sheets:
-                prev_info = self.reviewers.sheets.get_user_prev_info(name, phone)
+            if self.reviewers and self.reviewers.db:
+                prev_info = self.reviewers.db.get_user_prev_info(name, phone)
         except Exception as e:
             logger.error(f"기존 정보 조회 에러: {e}")
 

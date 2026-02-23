@@ -1,0 +1,961 @@
+"""
+db_manager.py - PostgreSQL CRUD 매니저
+
+Google Sheets를 대체하는 메인 데이터 저장소.
+테이블: campaigns, reviewers, progress
+"""
+
+import logging
+from datetime import datetime, timedelta
+from contextlib import contextmanager
+
+import psycopg2
+import psycopg2.extras
+from psycopg2.pool import ThreadedConnectionPool
+
+from modules.utils import today_str, now_kst
+
+logger = logging.getLogger(__name__)
+
+# 상태 상수
+STATUS_APPLIED = "신청"
+STATUS_GUIDE_SENT = "가이드전달"
+STATUS_PURCHASE_WAIT = "구매캡쳐대기"
+STATUS_REVIEW_WAIT = "리뷰대기"
+STATUS_REVIEW_DONE = "리뷰제출"
+STATUS_PAYMENT_WAIT = "입금대기"
+STATUS_SETTLED = "입금완료"
+STATUS_TIMEOUT = "타임아웃취소"
+STATUS_CANCELLED = "취소"
+
+# 하위 호환
+STATUS_PURCHASE_DONE = STATUS_PURCHASE_WAIT
+STATUS_FORM_RECEIVED = STATUS_PURCHASE_WAIT
+
+# 완료 상태 (구매캡쳐대기 이상 = 모집수량 차감)
+_DONE_STATUSES = (STATUS_PURCHASE_WAIT, STATUS_REVIEW_WAIT, STATUS_REVIEW_DONE,
+                  STATUS_PAYMENT_WAIT, STATUS_SETTLED)
+
+# 중복 체크 무시 상태
+_DUP_IGNORE_STATUSES = (STATUS_APPLIED, STATUS_GUIDE_SENT,
+                        STATUS_TIMEOUT, STATUS_CANCELLED, "")
+
+_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS campaigns (
+    id              TEXT PRIMARY KEY,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    status          TEXT NOT NULL DEFAULT '모집중',
+    company         TEXT NOT NULL DEFAULT '',
+    product_name    TEXT NOT NULL DEFAULT '',
+    product_link    TEXT DEFAULT '',
+    product_image   TEXT DEFAULT '',
+    product_price   INTEGER DEFAULT 0,
+    campaign_type   TEXT DEFAULT '실배송',
+    platform        TEXT DEFAULT '',
+    options         TEXT DEFAULT '',
+    option_list     JSONB DEFAULT '[]',
+    keyword         TEXT DEFAULT '',
+    keyword_position TEXT DEFAULT '',
+    current_rank    TEXT DEFAULT '',
+    entry_method    TEXT DEFAULT '',
+    total_qty       INTEGER NOT NULL DEFAULT 0,
+    daily_qty       INTEGER DEFAULT 0,
+    done_qty        INTEGER DEFAULT 0,
+    max_daily       INTEGER DEFAULT 0,
+    duration_days   INTEGER DEFAULT 0,
+    same_day_ship   TEXT DEFAULT '',
+    ship_deadline   TEXT DEFAULT '',
+    courier         TEXT DEFAULT '',
+    use_3pl         BOOLEAN DEFAULT FALSE,
+    cost_3pl        INTEGER DEFAULT 0,
+    weekend_work    BOOLEAN DEFAULT FALSE,
+    review_provided BOOLEAN DEFAULT TRUE,
+    review_deadline_days INTEGER DEFAULT 7,
+    review_fee      INTEGER DEFAULT 0,
+    review_type     TEXT DEFAULT '',
+    review_guide    TEXT DEFAULT '',
+    review_image_folder TEXT DEFAULT '',
+    campaign_guide  TEXT DEFAULT '',
+    extra_info      TEXT DEFAULT '',
+    allow_duplicate BOOLEAN DEFAULT FALSE,
+    monthly_dup_ok  BOOLEAN DEFAULT FALSE,
+    buy_time        TEXT DEFAULT '',
+    payment_method  TEXT DEFAULT '',
+    dwell_time      TEXT DEFAULT '',
+    bookmark_required BOOLEAN DEFAULT FALSE,
+    alert_required  BOOLEAN DEFAULT FALSE,
+    no_ad_click     BOOLEAN DEFAULT FALSE,
+    no_blind_account BOOLEAN DEFAULT FALSE,
+    reorder_check   BOOLEAN DEFAULT FALSE,
+    ship_memo_required BOOLEAN DEFAULT FALSE,
+    ship_memo_content  TEXT DEFAULT '',
+    ship_memo_link  TEXT DEFAULT '',
+    deadline_date   DATE,
+    is_public       BOOLEAN DEFAULT TRUE,
+    is_selected     BOOLEAN DEFAULT FALSE,
+    reward          TEXT DEFAULT '',
+    memo            TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS reviewers (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT NOT NULL,
+    phone           TEXT NOT NULL,
+    store_ids       TEXT DEFAULT '',
+    kakao_friend    BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    participation   INTEGER DEFAULT 0,
+    memo            TEXT DEFAULT '',
+    UNIQUE(name, phone)
+);
+
+CREATE TABLE IF NOT EXISTS progress (
+    id              SERIAL PRIMARY KEY,
+    campaign_id     TEXT NOT NULL REFERENCES campaigns(id),
+    reviewer_id     INTEGER NOT NULL REFERENCES reviewers(id),
+    store_id        TEXT NOT NULL DEFAULT '',
+    status          TEXT NOT NULL DEFAULT '신청',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    recipient_name  TEXT DEFAULT '',
+    phone           TEXT DEFAULT '',
+    bank            TEXT DEFAULT '',
+    account         TEXT DEFAULT '',
+    depositor       TEXT DEFAULT '',
+    address         TEXT DEFAULT '',
+    nickname        TEXT DEFAULT '',
+    payment_amount  INTEGER DEFAULT 0,
+    order_number    TEXT DEFAULT '',
+    purchase_date   DATE,
+    purchase_capture_url TEXT DEFAULT '',
+    review_deadline DATE,
+    review_submit_date DATE,
+    review_capture_url TEXT DEFAULT '',
+    review_fee      INTEGER DEFAULT 0,
+    payment_total   INTEGER DEFAULT 0,
+    settlement_date DATE,
+    settled_date    DATE,
+    is_collected    BOOLEAN DEFAULT FALSE,
+    remark          TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
+CREATE INDEX IF NOT EXISTS idx_campaigns_company ON campaigns(company);
+CREATE INDEX IF NOT EXISTS idx_reviewers_phone ON reviewers(phone);
+CREATE INDEX IF NOT EXISTS idx_reviewers_name_phone ON reviewers(name, phone);
+CREATE INDEX IF NOT EXISTS idx_progress_campaign ON progress(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_progress_reviewer ON progress(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_progress_status ON progress(status);
+CREATE INDEX IF NOT EXISTS idx_progress_created ON progress(created_at);
+CREATE INDEX IF NOT EXISTS idx_progress_store ON progress(campaign_id, store_id);
+"""
+
+
+class DBManager:
+    """PostgreSQL CRUD 매니저 (SheetsManager 대체)"""
+
+    def __init__(self, database_url: str, min_conn: int = 1, max_conn: int = 10):
+        self.database_url = database_url
+        self.pool = ThreadedConnectionPool(min_conn, max_conn, database_url)
+        self._init_schema()
+        logger.info("DBManager 초기화 완료")
+
+    def _init_schema(self):
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(_SCHEMA_SQL)
+            conn.commit()
+        logger.info("DB 스키마 확인/생성 완료")
+
+    @contextmanager
+    def _conn(self):
+        conn = self.pool.getconn()
+        try:
+            yield conn
+        finally:
+            self.pool.putconn(conn)
+
+    def _fetchall(self, sql, params=None):
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(sql, params)
+                return [dict(r) for r in cur.fetchall()]
+
+    def _fetchone(self, sql, params=None):
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(sql, params)
+                row = cur.fetchone()
+                return dict(row) if row else None
+
+    def _execute(self, sql, params=None):
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+            conn.commit()
+
+    def _execute_returning(self, sql, params=None):
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+                result = cur.fetchone()
+            conn.commit()
+            return result[0] if result else None
+
+    # ─────────── reviewers ───────────
+
+    def upsert_reviewer(self, name: str, phone: str) -> int:
+        """로그인 시 리뷰어 upsert. 없으면 추가, 있으면 id 반환."""
+        sql = """
+            INSERT INTO reviewers (name, phone, created_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (name, phone) DO UPDATE SET updated_at = NOW()
+            RETURNING id
+        """
+        return self._execute_returning(sql, (name, phone))
+
+    def get_reviewer(self, name: str, phone: str) -> dict | None:
+        return self._fetchone(
+            "SELECT * FROM reviewers WHERE name = %s AND phone = %s",
+            (name, phone)
+        )
+
+    def get_reviewer_by_id(self, reviewer_id: int) -> dict | None:
+        return self._fetchone("SELECT * FROM reviewers WHERE id = %s", (reviewer_id,))
+
+    def update_reviewer_store_ids(self, name: str, phone: str, store_id: str):
+        """캠페인 등록 시 아이디목록 + 참여횟수 업데이트"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return
+        existing = reviewer.get("store_ids", "") or ""
+        id_list = [x.strip() for x in existing.split(",") if x.strip()]
+        if store_id not in id_list:
+            id_list.append(store_id)
+        self._execute(
+            """UPDATE reviewers
+               SET store_ids = %s, participation = participation + 1, updated_at = NOW()
+               WHERE name = %s AND phone = %s""",
+            (", ".join(id_list), name, phone)
+        )
+
+    def get_all_reviewers_db(self) -> list[dict]:
+        return self._fetchall("SELECT * FROM reviewers ORDER BY created_at DESC")
+
+    # ─────────── campaigns ───────────
+
+    def get_all_campaigns(self) -> list[dict]:
+        rows = self._fetchall("SELECT * FROM campaigns ORDER BY created_at DESC")
+        # 하위 호환: 시트 컬럼명 매핑
+        return [self._campaign_to_sheet_dict(r) for r in rows]
+
+    def get_campaign_by_id(self, campaign_id: str) -> dict | None:
+        row = self._fetchone("SELECT * FROM campaigns WHERE id = %s", (campaign_id,))
+        return self._campaign_to_sheet_dict(row) if row else None
+
+    def create_campaign(self, data: dict) -> str:
+        """캠페인 생성. data는 시트 컬럼명 형태도 허용."""
+        d = self._campaign_from_sheet_dict(data)
+        sql = """
+            INSERT INTO campaigns (
+                id, status, company, product_name, product_link, product_image,
+                product_price, campaign_type, platform, options, option_list,
+                keyword, keyword_position, current_rank, entry_method,
+                total_qty, daily_qty, done_qty, max_daily, duration_days,
+                same_day_ship, ship_deadline, courier, use_3pl, cost_3pl,
+                weekend_work, review_provided, review_deadline_days, review_fee,
+                review_type, review_guide, review_image_folder, campaign_guide,
+                extra_info, allow_duplicate, monthly_dup_ok, buy_time,
+                payment_method, dwell_time, bookmark_required, alert_required,
+                no_ad_click, no_blind_account, reorder_check,
+                ship_memo_required, ship_memo_content, ship_memo_link,
+                deadline_date, is_public, is_selected, reward, memo
+            ) VALUES (
+                %(id)s, %(status)s, %(company)s, %(product_name)s, %(product_link)s,
+                %(product_image)s, %(product_price)s, %(campaign_type)s, %(platform)s,
+                %(options)s, %(option_list)s, %(keyword)s, %(keyword_position)s,
+                %(current_rank)s, %(entry_method)s, %(total_qty)s, %(daily_qty)s,
+                %(done_qty)s, %(max_daily)s, %(duration_days)s, %(same_day_ship)s,
+                %(ship_deadline)s, %(courier)s, %(use_3pl)s, %(cost_3pl)s,
+                %(weekend_work)s, %(review_provided)s, %(review_deadline_days)s,
+                %(review_fee)s, %(review_type)s, %(review_guide)s,
+                %(review_image_folder)s, %(campaign_guide)s, %(extra_info)s,
+                %(allow_duplicate)s, %(monthly_dup_ok)s, %(buy_time)s,
+                %(payment_method)s, %(dwell_time)s, %(bookmark_required)s,
+                %(alert_required)s, %(no_ad_click)s, %(no_blind_account)s,
+                %(reorder_check)s, %(ship_memo_required)s, %(ship_memo_content)s,
+                %(ship_memo_link)s, %(deadline_date)s, %(is_public)s,
+                %(is_selected)s, %(reward)s, %(memo)s
+            )
+        """
+        self._execute(sql, d)
+        return d["id"]
+
+    def update_campaign(self, campaign_id: str, data: dict):
+        """캠페인 필드 업데이트. data는 시트 컬럼명 키."""
+        field_map = self._CAMPAIGN_FIELD_MAP
+        sets = []
+        params = []
+        for k, v in data.items():
+            db_col = field_map.get(k, k)
+            # DB 컬럼에 해당하는 것만
+            if db_col in self._CAMPAIGN_COLUMNS:
+                sets.append(f"{db_col} = %s")
+                params.append(self._convert_campaign_value(db_col, v))
+        if not sets:
+            return
+        sets.append("updated_at = NOW()")
+        params.append(campaign_id)
+        sql = f"UPDATE campaigns SET {', '.join(sets)} WHERE id = %s"
+        self._execute(sql, params)
+
+    # 캠페인 시트↔DB 컬럼 매핑
+    _CAMPAIGN_FIELD_MAP = {
+        "캠페인ID": "id", "상태": "status", "업체명": "company",
+        "상품명": "product_name", "상품링크": "product_link",
+        "상품이미지": "product_image", "상품금액": "product_price",
+        "캠페인유형": "campaign_type", "플랫폼": "platform",
+        "옵션": "options", "옵션목록": "option_list",
+        "키워드": "keyword", "키워드위치": "keyword_position",
+        "현재순위": "current_rank", "유입방식": "entry_method",
+        "총수량": "total_qty", "일수량": "daily_qty",
+        "완료수량": "done_qty", "일최대건": "max_daily",
+        "진행일수": "duration_days",
+        "당일발송": "same_day_ship", "발송마감": "ship_deadline",
+        "택배사": "courier", "3PL사용": "use_3pl", "3PL비용": "cost_3pl",
+        "주말작업": "weekend_work", "리뷰제공": "review_provided",
+        "리뷰기한일수": "review_deadline_days", "리뷰비": "review_fee",
+        "리뷰타입": "review_type", "리뷰가이드내용": "review_guide",
+        "리뷰이미지폴더": "review_image_folder",
+        "캠페인가이드": "campaign_guide", "추가안내사항": "extra_info",
+        "중복허용": "allow_duplicate", "한달중복허용": "monthly_dup_ok",
+        "구매가능시간": "buy_time", "결제방법": "payment_method",
+        "체류시간": "dwell_time", "상품찜필수": "bookmark_required",
+        "알림받기필수": "alert_required", "광고클릭금지": "no_ad_click",
+        "블라인드계정금지": "no_blind_account", "재구매확인": "reorder_check",
+        "배송메모필수": "ship_memo_required", "배송메모내용": "ship_memo_content",
+        "배송메모안내링크": "ship_memo_link", "신청마감일": "deadline_date",
+        "공개여부": "is_public", "선정여부": "is_selected",
+        "리워드": "reward", "메모": "memo",
+        "등록일": "created_at", "결제금액": "product_price",
+        "리뷰가이드": "review_guide",
+    }
+
+    _CAMPAIGN_COLUMNS = {
+        "id", "status", "company", "product_name", "product_link",
+        "product_image", "product_price", "campaign_type", "platform",
+        "options", "option_list", "keyword", "keyword_position",
+        "current_rank", "entry_method", "total_qty", "daily_qty",
+        "done_qty", "max_daily", "duration_days", "same_day_ship",
+        "ship_deadline", "courier", "use_3pl", "cost_3pl",
+        "weekend_work", "review_provided", "review_deadline_days",
+        "review_fee", "review_type", "review_guide",
+        "review_image_folder", "campaign_guide", "extra_info",
+        "allow_duplicate", "monthly_dup_ok", "buy_time",
+        "payment_method", "dwell_time", "bookmark_required",
+        "alert_required", "no_ad_click", "no_blind_account",
+        "reorder_check", "ship_memo_required", "ship_memo_content",
+        "ship_memo_link", "deadline_date", "is_public",
+        "is_selected", "reward", "memo",
+    }
+
+    _BOOL_COLUMNS = {
+        "use_3pl", "weekend_work", "review_provided", "allow_duplicate",
+        "monthly_dup_ok", "bookmark_required", "alert_required",
+        "no_ad_click", "no_blind_account", "reorder_check",
+        "ship_memo_required", "is_public", "is_selected",
+    }
+
+    _INT_COLUMNS = {
+        "product_price", "total_qty", "daily_qty", "done_qty",
+        "max_daily", "duration_days", "cost_3pl",
+        "review_deadline_days", "review_fee",
+    }
+
+    def _convert_campaign_value(self, col: str, value):
+        if col in self._BOOL_COLUMNS:
+            if isinstance(value, bool):
+                return value
+            return str(value).strip().upper() in ("Y", "O", "예", "TRUE", "1", "허용")
+        if col in self._INT_COLUMNS:
+            try:
+                return int(str(value).replace(",", "").strip() or "0")
+            except (ValueError, TypeError):
+                return 0
+        if col == "option_list":
+            import json
+            if isinstance(value, str):
+                try:
+                    return json.dumps(json.loads(value))
+                except Exception:
+                    return "[]"
+            return json.dumps(value) if value else "[]"
+        if col == "deadline_date":
+            if not value or not str(value).strip():
+                return None
+            return str(value).strip()
+        return str(value) if value is not None else ""
+
+    def _campaign_from_sheet_dict(self, data: dict) -> dict:
+        """시트 컬럼명 dict → DB 컬럼명 dict (INSERT용)"""
+        import uuid
+        result = {col: None for col in self._CAMPAIGN_COLUMNS}
+        result["id"] = data.get("캠페인ID", data.get("id", str(uuid.uuid4())[:8]))
+        result["status"] = data.get("상태", data.get("status", "모집중"))
+
+        for sheet_key, db_col in self._CAMPAIGN_FIELD_MAP.items():
+            if sheet_key in data and db_col in self._CAMPAIGN_COLUMNS:
+                result[db_col] = self._convert_campaign_value(db_col, data[sheet_key])
+
+        # DB 컬럼명 직접 전달도 허용
+        for db_col in self._CAMPAIGN_COLUMNS:
+            if db_col in data and result.get(db_col) is None:
+                result[db_col] = self._convert_campaign_value(db_col, data[db_col])
+
+        # 기본값
+        for col in self._BOOL_COLUMNS:
+            if result.get(col) is None:
+                result[col] = col in ("review_provided", "is_public")
+        for col in self._INT_COLUMNS:
+            if result.get(col) is None:
+                result[col] = 0
+        for col in self._CAMPAIGN_COLUMNS:
+            if result.get(col) is None:
+                result[col] = ""
+
+        return result
+
+    def _campaign_to_sheet_dict(self, row: dict) -> dict:
+        """DB row → 시트 컬럼명 dict (하위 호환)"""
+        if not row:
+            return {}
+        reverse_map = {v: k for k, v in self._CAMPAIGN_FIELD_MAP.items()}
+        result = {"id": row["id"]}
+        for db_col, value in row.items():
+            sheet_key = reverse_map.get(db_col, db_col)
+            if db_col in self._BOOL_COLUMNS:
+                result[sheet_key] = "Y" if value else "N"
+            elif db_col in self._INT_COLUMNS:
+                result[sheet_key] = str(value) if value else "0"
+            elif db_col == "created_at":
+                result["등록일"] = value.strftime("%Y-%m-%d") if value else ""
+            elif db_col == "deadline_date":
+                result["신청마감일"] = str(value) if value else ""
+            elif db_col == "option_list":
+                import json
+                result["옵션목록"] = json.dumps(value) if value else "[]"
+            else:
+                result[sheet_key] = str(value) if value is not None else ""
+        # _row_idx 호환 (PK id를 사용)
+        result["_row_idx"] = row["id"]
+        result["캠페인ID"] = row["id"]
+        return result
+
+    # ─────────── progress (카비서_정리) ───────────
+
+    def add_progress(self, data: dict) -> int:
+        """진행건 추가 (캠페인 신청). data는 시트 컬럼명 형태."""
+        campaign_id = data.get("캠페인ID", "")
+        name = data.get("진행자이름", "")
+        phone = data.get("진행자연락처", "")
+
+        # reviewer 확보
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            reviewer_id = self.upsert_reviewer(name, phone)
+        else:
+            reviewer_id = reviewer["id"]
+
+        sql = """
+            INSERT INTO progress (
+                campaign_id, reviewer_id, store_id, status, created_at,
+                recipient_name, phone, bank, account, depositor,
+                address, nickname, payment_amount, review_fee, remark
+            ) VALUES (
+                %s, %s, %s, %s, NOW(),
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s
+            ) RETURNING id
+        """
+        progress_id = self._execute_returning(sql, (
+            campaign_id,
+            reviewer_id,
+            data.get("아이디", ""),
+            data.get("상태", STATUS_APPLIED),
+            data.get("수취인명", ""),
+            data.get("연락처", ""),
+            data.get("은행", ""),
+            data.get("계좌", ""),
+            data.get("예금주", ""),
+            data.get("주소", ""),
+            data.get("닉네임", ""),
+            self._safe_int(data.get("결제금액", 0)),
+            self._safe_int(data.get("리뷰비", 0)),
+            data.get("비고", ""),
+        ))
+        return progress_id
+
+    def _safe_int(self, v) -> int:
+        try:
+            return int(str(v).replace(",", "").strip() or "0")
+        except (ValueError, TypeError):
+            return 0
+
+    def _progress_to_sheet_dict(self, row: dict) -> dict:
+        """progress DB row → 시트 컬럼명 dict (하위 호환)"""
+        if not row:
+            return {}
+        # reviewer 정보 조회
+        reviewer = self.get_reviewer_by_id(row["reviewer_id"]) if row.get("reviewer_id") else {}
+        campaign = self.get_campaign_by_id(row["campaign_id"]) if row.get("campaign_id") else {}
+
+        result = {
+            "_row_idx": row["id"],
+            "id": row["id"],
+            "캠페인ID": row.get("campaign_id", ""),
+            "업체명": campaign.get("업체명", "") if campaign else "",
+            "날짜": row["created_at"].strftime("%Y-%m-%d") if row.get("created_at") else "",
+            "제품명": campaign.get("상품명", "") if campaign else "",
+            "수취인명": row.get("recipient_name", ""),
+            "연락처": row.get("phone", ""),
+            "은행": row.get("bank", ""),
+            "계좌": row.get("account", ""),
+            "예금주": row.get("depositor", ""),
+            "결제금액": str(row.get("payment_amount", 0) or ""),
+            "아이디": row.get("store_id", ""),
+            "주문번호": row.get("order_number", ""),
+            "주소": row.get("address", ""),
+            "닉네임": row.get("nickname", ""),
+            "진행자이름": reviewer.get("name", "") if reviewer else "",
+            "진행자연락처": reviewer.get("phone", "") if reviewer else "",
+            "상태": row.get("status", ""),
+            "구매일": str(row["purchase_date"]) if row.get("purchase_date") else "",
+            "구매캡쳐링크": row.get("purchase_capture_url", ""),
+            "리뷰기한": str(row["review_deadline"]) if row.get("review_deadline") else "",
+            "리뷰제출일": str(row["review_submit_date"]) if row.get("review_submit_date") else "",
+            "리뷰캡쳐링크": row.get("review_capture_url", ""),
+            "리뷰비": str(row.get("review_fee", 0) or ""),
+            "입금금액": str(row.get("payment_total", 0) or ""),
+            "입금정리": str(row["settlement_date"]) if row.get("settlement_date") else "",
+            "입금완료": str(row["settled_date"]) if row.get("settled_date") else "",
+            "회수여부": "Y" if row.get("is_collected") else "",
+            "비고": row.get("remark", ""),
+        }
+        return result
+
+    def search_by_name_phone(self, name: str, phone: str) -> list[dict]:
+        """진행자 이름+연락처로 전체 건 검색"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return []
+        rows = self._fetchall(
+            "SELECT * FROM progress WHERE reviewer_id = %s ORDER BY created_at DESC",
+            (reviewer["id"],)
+        )
+        return [self._progress_to_sheet_dict(r) for r in rows]
+
+    def search_by_depositor(self, capture_type: str, name: str) -> list[dict]:
+        """예금주명으로 검색"""
+        target_status = STATUS_PURCHASE_WAIT if capture_type == "purchase" else STATUS_REVIEW_WAIT
+        rows = self._fetchall(
+            "SELECT * FROM progress WHERE depositor = %s AND status = %s",
+            (name, target_status)
+        )
+        return [self._progress_to_sheet_dict(r) for r in rows]
+
+    def search_by_name_phone_or_depositor(self, capture_type: str, query: str,
+                                           phone: str = "") -> list[dict]:
+        """진행자/수취인/예금주로 검색 (사진 제출 대상)"""
+        target_statuses = (STATUS_PURCHASE_WAIT,) if capture_type == "purchase" else (STATUS_REVIEW_WAIT,)
+
+        results = []
+        # 1. reviewer로 검색
+        if phone:
+            reviewer = self.get_reviewer(query, phone)
+            if reviewer:
+                rows = self._fetchall(
+                    "SELECT * FROM progress WHERE reviewer_id = %s AND status = ANY(%s)",
+                    (reviewer["id"], list(target_statuses))
+                )
+                results.extend(rows)
+
+        # 2. 예금주로 검색
+        rows = self._fetchall(
+            "SELECT * FROM progress WHERE depositor = %s AND status = ANY(%s)",
+            (query, list(target_statuses))
+        )
+        # 중복 제거
+        existing_ids = {r["id"] for r in results}
+        for r in rows:
+            if r["id"] not in existing_ids:
+                results.append(r)
+
+        return [self._progress_to_sheet_dict(r) for r in results]
+
+    def get_reviewer_items(self, name: str, phone: str) -> dict:
+        """리뷰어의 진행현황: 진행중/완료 분류"""
+        all_items = self.search_by_name_phone(name, phone)
+        in_progress = []
+        completed = []
+        for item in all_items:
+            status = item.get("상태", "")
+            if status in (STATUS_SETTLED, STATUS_REVIEW_DONE, STATUS_PAYMENT_WAIT):
+                completed.append(item)
+            elif status in (STATUS_CANCELLED, STATUS_TIMEOUT):
+                continue
+            else:
+                in_progress.append(item)
+        return {"in_progress": in_progress, "completed": completed}
+
+    def get_payment_info(self, name: str, phone: str) -> dict:
+        """입금현황 조회"""
+        all_items = self.search_by_name_phone(name, phone)
+        paid = []
+        pending = []
+        no_review = []
+        for item in all_items:
+            status = item.get("상태", "")
+            if status == STATUS_SETTLED:
+                paid.append(item)
+            elif status == STATUS_REVIEW_DONE:
+                pending.append(item)
+            elif status == STATUS_REVIEW_WAIT:
+                no_review.append(item)
+        return {"paid": paid, "pending": pending, "no_review": no_review}
+
+    def get_user_prev_info(self, name: str, phone: str) -> dict:
+        """유저의 가장 최근 등록 정보에서 은행/계좌/예금주/주소 가져오기"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return {}
+        row = self._fetchone(
+            """SELECT bank, account, depositor, address FROM progress
+               WHERE reviewer_id = %s AND bank != '' ORDER BY created_at DESC LIMIT 1""",
+            (reviewer["id"],)
+        )
+        if not row:
+            return {}
+        result = {}
+        for k, v in {"은행": "bank", "계좌": "account", "예금주": "depositor", "주소": "address"}.items():
+            val = row.get(v, "")
+            if val:
+                result[k] = val
+        return result
+
+    def get_user_campaign_ids(self, name: str, phone: str, campaign_id: str) -> list[str]:
+        """특정 캠페인에 해당 유저가 실제 진행 중인 아이디 목록"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return []
+        rows = self._fetchall(
+            """SELECT store_id FROM progress
+               WHERE reviewer_id = %s AND campaign_id = %s
+               AND status NOT IN %s AND store_id != ''""",
+            (reviewer["id"], campaign_id, _DUP_IGNORE_STATUSES)
+        )
+        return [r["store_id"] for r in rows]
+
+    def update_after_upload(self, capture_type: str, progress_id: int, drive_link: str):
+        """업로드 완료 후 상태+링크 업데이트"""
+        if capture_type == "purchase":
+            self._execute(
+                """UPDATE progress SET purchase_capture_url = %s, status = %s, updated_at = NOW()
+                   WHERE id = %s""",
+                (drive_link, STATUS_REVIEW_WAIT, progress_id)
+            )
+        elif capture_type == "review":
+            # 반려 사유 클리어
+            row = self._fetchone("SELECT remark FROM progress WHERE id = %s", (progress_id,))
+            remark_update = ""
+            if row and row.get("remark", "").startswith("반려"):
+                remark_update = ", remark = ''"
+
+            self._execute(
+                f"""UPDATE progress SET review_capture_url = %s, status = %s,
+                    review_submit_date = CURRENT_DATE, updated_at = NOW(){remark_update}
+                    WHERE id = %s""",
+                (drive_link, STATUS_REVIEW_DONE, progress_id)
+            )
+
+    def update_status(self, progress_id: int, status: str):
+        self._execute(
+            "UPDATE progress SET status = %s, updated_at = NOW() WHERE id = %s",
+            (status, progress_id)
+        )
+
+    def update_progress_field(self, progress_id: int, field: str, value):
+        """progress 테이블의 단일 필드 업데이트"""
+        # 시트 컬럼명 → DB 컬럼명 매핑
+        field_map = {
+            "수취인명": "recipient_name", "연락처": "phone",
+            "은행": "bank", "계좌": "account", "예금주": "depositor",
+            "주소": "address", "닉네임": "nickname",
+            "결제금액": "payment_amount", "주문번호": "order_number",
+            "구매일": "purchase_date", "리뷰기한": "review_deadline",
+            "리뷰비": "review_fee", "입금금액": "payment_total",
+            "비고": "remark", "상태": "status",
+            "구매캡쳐링크": "purchase_capture_url",
+            "리뷰캡쳐링크": "review_capture_url",
+            "리뷰제출일": "review_submit_date",
+        }
+        db_col = field_map.get(field, field)
+        self._execute(
+            f"UPDATE progress SET {db_col} = %s, updated_at = NOW() WHERE id = %s",
+            (value, progress_id)
+        )
+
+    def approve_review(self, progress_id: int):
+        """검수 승인 → 입금대기"""
+        self.update_status(progress_id, STATUS_PAYMENT_WAIT)
+
+    def reject_review(self, progress_id: int, reason: str = ""):
+        """검수 반려 → 리뷰대기 + 링크 삭제"""
+        remark = f"반려: {reason}" if reason else "반려"
+        self._execute(
+            """UPDATE progress SET status = %s, review_capture_url = '',
+               review_submit_date = NULL, remark = %s, updated_at = NOW()
+               WHERE id = %s""",
+            (STATUS_REVIEW_WAIT, remark, progress_id)
+        )
+
+    def restore_from_timeout(self, progress_id: int):
+        """타임아웃취소 → 가이드전달로 복원"""
+        self.update_status(progress_id, STATUS_GUIDE_SENT)
+
+    def process_settlement(self, progress_id: int, amount: str):
+        """정산 처리"""
+        self._execute(
+            """UPDATE progress SET status = %s, payment_total = %s,
+               settlement_date = CURRENT_DATE, settled_date = CURRENT_DATE,
+               updated_at = NOW()
+               WHERE id = %s""",
+            (STATUS_SETTLED, self._safe_int(amount), progress_id)
+        )
+
+    def get_row_dict(self, progress_id: int) -> dict:
+        """progress ID로 시트 호환 dict 반환"""
+        row = self._fetchone("SELECT * FROM progress WHERE id = %s", (progress_id,))
+        return self._progress_to_sheet_dict(row) if row else {}
+
+    def get_all_reviewers(self) -> list[dict]:
+        """전체 progress 목록 (시트 호환)"""
+        rows = self._fetchall("SELECT * FROM progress ORDER BY created_at DESC")
+        return [self._progress_to_sheet_dict(r) for r in rows]
+
+    def check_duplicate(self, campaign_id: str, store_id: str) -> bool:
+        """같은 캠페인ID + 같은 아이디 중복 여부"""
+        row = self._fetchone(
+            """SELECT 1 FROM progress
+               WHERE campaign_id = %s AND store_id = %s
+               AND status NOT IN %s LIMIT 1""",
+            (campaign_id, store_id, _DUP_IGNORE_STATUSES)
+        )
+        return row is not None
+
+    def cancel_stale_rows(self, hours: int = 1) -> int:
+        """N시간 이상 신청/가이드전달 상태 → 타임아웃취소"""
+        cutoff = now_kst() - timedelta(hours=hours)
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE progress SET status = %s, updated_at = NOW()
+                       WHERE status IN (%s, %s) AND created_at < %s""",
+                    (STATUS_TIMEOUT, STATUS_APPLIED, STATUS_GUIDE_SENT, cutoff)
+                )
+                count = cur.rowcount
+            conn.commit()
+        if count:
+            logger.info("DB 기반 타임아웃 취소: %d건 (%d시간 초과)", count, hours)
+        return count
+
+    def cancel_by_timeout(self, name: str, phone: str, campaign_id: str, store_ids: list[str]):
+        """타임아웃 취소: 해당 유저의 해당 캠페인 신청/가이드전달 → 타임아웃취소"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return 0
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE progress SET status = %s, updated_at = NOW()
+                       WHERE reviewer_id = %s AND campaign_id = %s
+                       AND store_id = ANY(%s) AND status IN (%s, %s)""",
+                    (STATUS_TIMEOUT, reviewer["id"], campaign_id,
+                     store_ids, STATUS_APPLIED, STATUS_GUIDE_SENT)
+                )
+                count = cur.rowcount
+            conn.commit()
+        return count
+
+    def delete_old_cancelled_rows(self, days: int = 1) -> int:
+        """신청일+N일 지난 취소/타임아웃취소 행 삭제"""
+        cutoff = now_kst() - timedelta(days=days)
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """DELETE FROM progress
+                       WHERE status IN (%s, %s) AND created_at < %s""",
+                    (STATUS_TIMEOUT, STATUS_CANCELLED, cutoff)
+                )
+                count = cur.rowcount
+            conn.commit()
+        if count:
+            logger.info("취소 행 삭제: %d건 (신청일+%d일 초과)", count, days)
+        return count
+
+    def count_all_campaigns(self) -> dict:
+        """캠페인별 구매완료 건수 ({캠페인ID: count})"""
+        rows = self._fetchall(
+            """SELECT campaign_id, COUNT(*) as cnt FROM progress
+               WHERE status = ANY(%s) GROUP BY campaign_id""",
+            (list(_DONE_STATUSES),)
+        )
+        return {r["campaign_id"]: r["cnt"] for r in rows}
+
+    def count_reserved_campaign(self, campaign_id: str) -> int:
+        """특정 캠페인의 진행중 슬롯 수 (취소 제외 전체)"""
+        row = self._fetchone(
+            """SELECT COUNT(*) as cnt FROM progress
+               WHERE campaign_id = %s AND status NOT IN (%s, %s)""",
+            (campaign_id, STATUS_TIMEOUT, STATUS_CANCELLED)
+        )
+        return row["cnt"] if row else 0
+
+    def count_today_all_campaigns(self) -> dict:
+        """오늘 캠페인별 신청 건수 ({캠페인ID: count})"""
+        today = today_str()
+        rows = self._fetchall(
+            """SELECT campaign_id, COUNT(*) as cnt FROM progress
+               WHERE created_at::date = %s::date AND status NOT IN (%s, %s)
+               GROUP BY campaign_id""",
+            (today, STATUS_TIMEOUT, STATUS_CANCELLED)
+        )
+        return {r["campaign_id"]: r["cnt"] for r in rows}
+
+    def get_today_stats(self) -> dict:
+        """오늘 현황 통계"""
+        today = today_str()
+        total = self._fetchone("SELECT COUNT(*) as cnt FROM progress")
+        purchase = self._fetchone(
+            "SELECT COUNT(*) as cnt FROM progress WHERE purchase_date = %s::date", (today,))
+        review = self._fetchone(
+            "SELECT COUNT(*) as cnt FROM progress WHERE review_submit_date = %s::date", (today,))
+        new = self._fetchone(
+            """SELECT COUNT(*) as cnt FROM progress
+               WHERE status IN (%s, %s)""",
+            (STATUS_GUIDE_SENT, STATUS_PURCHASE_WAIT)
+        )
+        return {
+            "new_today": new["cnt"] if new else 0,
+            "purchase_today": purchase["cnt"] if purchase else 0,
+            "review_today": review["cnt"] if review else 0,
+            "total": total["cnt"] if total else 0,
+        }
+
+    # ─────────── step_machine 호환 헬퍼 ───────────
+
+    def update_status_by_id(self, name: str, phone: str, campaign_id: str,
+                             store_id: str, new_status: str):
+        """진행자+캠페인+아이디로 상태 업데이트 (step_machine용)"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return
+        self._execute(
+            """UPDATE progress SET status = %s, updated_at = NOW()
+               WHERE reviewer_id = %s AND campaign_id = %s AND store_id = %s
+               AND status NOT IN (%s, %s)""",
+            (new_status, reviewer["id"], campaign_id, store_id,
+             STATUS_TIMEOUT, STATUS_CANCELLED)
+        )
+
+    def update_form_data(self, name: str, phone: str, campaign_id: str,
+                         store_id: str, form_data: dict, campaign: dict = None):
+        """양식 데이터 업데이트 (reviewer_manager.update_form_data 대체)"""
+        from modules.utils import safe_int
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return
+
+        camp = campaign or {}
+        review_fee = safe_int(camp.get("리뷰비", 0))
+        raw_payment = form_data.get("결제금액", "")
+        if raw_payment:
+            raw_payment = str(raw_payment).replace(",", "")
+        purchase_amount = safe_int(raw_payment or camp.get("결제금액", 0))
+        deposit_amount = review_fee + purchase_amount if (review_fee or purchase_amount) else 0
+
+        # 리뷰기한 계산
+        review_deadline = None
+        deadline_days = safe_int(camp.get("리뷰기한일수", 0))
+        if deadline_days > 0:
+            review_deadline = (now_kst() + timedelta(days=deadline_days)).strftime("%Y-%m-%d")
+
+        self._execute(
+            """UPDATE progress SET
+                recipient_name = %s, phone = %s, bank = %s, account = %s,
+                depositor = %s, address = %s, nickname = %s,
+                payment_amount = %s, review_fee = %s, payment_total = %s,
+                review_deadline = %s, updated_at = NOW()
+               WHERE reviewer_id = %s AND campaign_id = %s AND store_id = %s""",
+            (
+                form_data.get("수취인명", ""),
+                form_data.get("연락처", ""),
+                form_data.get("은행", ""),
+                form_data.get("계좌", ""),
+                form_data.get("예금주", ""),
+                form_data.get("주소", ""),
+                form_data.get("닉네임", ""),
+                purchase_amount,
+                review_fee,
+                deposit_amount,
+                review_deadline,
+                reviewer["id"], campaign_id, store_id,
+            )
+        )
+        logger.info("양식 업데이트: %s - %s", name, store_id)
+
+    def get_used_store_ids(self, name: str, phone: str) -> set:
+        """리뷰어가 사용한 모든 아이디 목록"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return set()
+        rows = self._fetchall(
+            "SELECT DISTINCT store_id FROM progress WHERE reviewer_id = %s AND store_id != ''",
+            (reviewer["id"],)
+        )
+        return {r["store_id"] for r in rows}
+
+    def get_active_ids_for_campaign(self, name: str, phone: str, campaign_id: str) -> set:
+        """특정 캠페인에서 진행중인 아이디"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return set()
+        rows = self._fetchall(
+            """SELECT store_id FROM progress
+               WHERE reviewer_id = %s AND campaign_id = %s
+               AND status NOT IN %s AND store_id != ''""",
+            (reviewer["id"], campaign_id, _DUP_IGNORE_STATUSES)
+        )
+        return {r["store_id"] for r in rows}
+
+    # ─────────── ensure 메서드 (시트 호환 no-op) ───────────
+
+    def ensure_reviewer_db(self):
+        """DB에선 스키마 생성에서 이미 처리됨"""
+        pass
+
+    def ensure_main_column(self, col_name: str):
+        pass
+
+    def ensure_campaign_columns(self, col_names: list):
+        pass
+
+    def ensure_campaign_column(self, col_name: str):
+        pass
+
+    # ─────────── add_reviewer_row 호환 ───────────
+
+    def add_reviewer_row(self, data: dict):
+        """시트의 add_reviewer_row 호환 → add_progress로 위임"""
+        self.add_progress(data)

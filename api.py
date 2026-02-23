@@ -85,7 +85,7 @@ def campaigns_all():
 @require_api_key
 def campaign_create():
     """캠페인 등록"""
-    if not models.sheets_manager:
+    if not models.db_manager:
         return jsonify({"error": "시스템 초기화 중"}), 503
 
     data = request.get_json(silent=True) or {}

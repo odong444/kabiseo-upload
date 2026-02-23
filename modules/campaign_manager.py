@@ -23,17 +23,17 @@ RECRUIT_TEMPLATE = """📢 체험단 모집
 class CampaignManager:
     """캠페인 관리 매니저"""
 
-    def __init__(self, sheets_manager):
-        self.sheets = sheets_manager
+    def __init__(self, db):
+        self.db = db
 
     def get_active_campaigns(self) -> list[dict]:
         """모집 중인 캠페인 목록"""
-        all_campaigns = self.sheets.get_all_campaigns()
+        all_campaigns = self.db.get_all_campaigns()
 
-        # 실제 신청 건수 (카비서_정리 시트에서 취소 제외 카운트)
+        # 실제 신청 건수
         actual_counts = {}
         try:
-            actual_counts = self.sheets.count_all_campaigns()
+            actual_counts = self.db.count_all_campaigns()
         except Exception:
             pass
 
@@ -46,7 +46,7 @@ class CampaignManager:
             if status in ("모집중", "진행중", ""):
                 total = safe_int(c.get("총수량", 0))
                 campaign_id = c.get("캠페인ID", "")
-                # 실제 신청 건수 우선, 없으면 시트의 완료수량
+                # 실제 신청 건수 우선, 없으면 완료수량
                 done = actual_counts.get(campaign_id, 0) or safe_int(c.get("완료수량", 0))
                 remaining = total - done
                 if remaining > 0:
@@ -64,10 +64,10 @@ class CampaignManager:
         return None
 
     def get_campaign_by_id(self, campaign_id: str) -> dict | None:
-        return self.sheets.get_campaign_by_id(campaign_id)
+        return self.db.get_campaign_by_id(campaign_id)
 
     def get_all_campaigns(self) -> list[dict]:
-        return self.sheets.get_all_campaigns()
+        return self.db.get_all_campaigns()
 
     def build_campaign_cards(self, name: str = "", phone: str = "") -> list[dict]:
         """채팅용 캠페인 카드 데이터 (chat.js에서 렌더링)"""
@@ -80,14 +80,14 @@ class CampaignManager:
         reviewer_items = []
         if name and phone:
             try:
-                reviewer_items = self.sheets.search_by_name_phone(name, phone)
+                reviewer_items = self.db.search_by_name_phone(name, phone)
             except Exception:
                 pass
 
-        # 오늘 캠페인별 진행 건수 (시트 1회 읽기)
+        # 오늘 캠페인별 진행 건수
         today_counts = {}
         try:
-            today_counts = self.sheets.count_today_all_campaigns()
+            today_counts = self.db.count_today_all_campaigns()
         except Exception:
             pass
 
@@ -169,7 +169,7 @@ class CampaignManager:
             my_ids = []
             if name and phone and campaign_id:
                 try:
-                    my_ids = self.sheets.get_user_campaign_ids(name, phone, campaign_id)
+                    my_ids = self.db.get_user_campaign_ids(name, phone, campaign_id)
                 except Exception:
                     pass
 
@@ -248,7 +248,7 @@ class CampaignManager:
         if not campaign_id:
             return False
         try:
-            counts = self.sheets.count_today_all_campaigns()
+            counts = self.db.count_today_all_campaigns()
             return counts.get(campaign_id, 0) >= daily_target
         except Exception:
             return False
@@ -259,7 +259,7 @@ class CampaignManager:
         if not campaign:
             return 0
         total = safe_int(campaign.get("총수량", 0))
-        reserved = self.sheets.count_reserved_campaign(campaign_id)
+        reserved = self.db.count_reserved_campaign(campaign_id)
         return max(0, total - reserved)
 
     def get_campaign_stats(self, campaign_id: str) -> dict:

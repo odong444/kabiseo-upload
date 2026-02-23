@@ -16,7 +16,7 @@ WARNING_SECONDS = 900   # 15분 (경고)
 
 
 class TimeoutManager:
-    """세션 타임아웃 매니저 (WebSocket 알림 + 시트 취소)"""
+    """세션 타임아웃 매니저 (WebSocket 알림 + DB 취소)"""
 
     def __init__(self, state_store, timeout_seconds: int = TIMEOUT_SECONDS,
                  warning_seconds: int = WARNING_SECONDS):
@@ -27,15 +27,16 @@ class TimeoutManager:
         self._thread = None
         self._warned = set()  # 이미 경고 보낸 reviewer_id
         self._socketio = None
-        self._sheets_manager = None
+        self._db_manager = None
         self._chat_logger = None
 
     def set_socketio(self, socketio):
         """SocketIO 인스턴스 설정 (앱 시작 후)"""
         self._socketio = socketio
 
-    def set_sheets_manager(self, sheets_manager):
-        self._sheets_manager = sheets_manager
+    def set_sheets_manager(self, db_manager):
+        """하위 호환: sheets_manager → db_manager"""
+        self._db_manager = db_manager
 
     def set_chat_logger(self, chat_logger):
         self._chat_logger = chat_logger
@@ -63,14 +64,14 @@ class TimeoutManager:
             except Exception as e:
                 logger.error(f"타임아웃 체크 에러: {e}")
 
-            # 시트 기반 타임아웃: 10분마다 (15초 * 40 = 600초)
+            # DB 기반 타임아웃: 10분마다 (15초 * 40 = 600초)
             sheet_check_counter += 1
             if sheet_check_counter >= 40:
                 sheet_check_counter = 0
                 try:
-                    self._check_sheet_stale()
+                    self._check_db_stale()
                 except Exception as e:
-                    logger.error(f"시트 타임아웃 체크 에러: {e}")
+                    logger.error(f"DB 타임아웃 체크 에러: {e}")
 
             time.sleep(15)  # 15초마다 체크
 
@@ -114,15 +115,15 @@ class TimeoutManager:
 
         logger.info(f"타임아웃 취소: {rid} (캠페인: {campaign_id}, 아이디: {store_ids})")
 
-        # 시트에서 해당 행 타임아웃취소 처리
-        if self._sheets_manager and campaign_id and store_ids:
+        # DB에서 해당 행 타임아웃취소 처리
+        if self._db_manager and campaign_id and store_ids:
             try:
-                cancelled = self._sheets_manager.cancel_by_timeout(
+                cancelled = self._db_manager.cancel_by_timeout(
                     state.name, state.phone, campaign_id, store_ids
                 )
-                logger.info(f"시트 취소 {cancelled}건: {rid}")
+                logger.info(f"DB 취소 {cancelled}건: {rid}")
             except Exception as e:
-                logger.error(f"시트 취소 에러: {e}")
+                logger.error(f"DB 취소 에러: {e}")
 
         # 알림 메시지
         msg = "⏰ 20분이 경과하여 신청이 자동 취소되었습니다.\n자리가 있으면 다시 신청 가능합니다.\n\n'메뉴'를 입력해주세요."
@@ -137,14 +138,14 @@ class TimeoutManager:
         state.reset()
         self._warned.discard(rid)
 
-    def _check_sheet_stale(self):
-        """시트에서 오래된 건 처리: 타임아웃 취소 + 취소 행 삭제"""
-        if not self._sheets_manager:
+    def _check_db_stale(self):
+        """DB에서 오래된 건 처리: 타임아웃 취소 + 취소 행 삭제"""
+        if not self._db_manager:
             return
-        cancelled = self._sheets_manager.cancel_stale_rows(hours=1)
+        cancelled = self._db_manager.cancel_stale_rows(hours=1)
         if cancelled:
-            logger.info(f"시트 기반 자동 취소: {cancelled}건")
+            logger.info(f"DB 기반 자동 취소: {cancelled}건")
 
-        deleted = self._sheets_manager.delete_old_cancelled_rows()
+        deleted = self._db_manager.delete_old_cancelled_rows()
         if deleted:
             logger.info(f"취소 행 자동 삭제: {deleted}건")

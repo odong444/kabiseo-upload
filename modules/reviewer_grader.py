@@ -20,12 +20,12 @@ GRADES = {
 class ReviewerGrader:
     """리뷰어 등급 평가"""
 
-    def __init__(self, sheets_manager):
-        self.sheets = sheets_manager
+    def __init__(self, db):
+        self.db = db
 
     def get_grade(self, name: str, phone: str) -> str:
         """리뷰어 등급 조회"""
-        items = self.sheets.search_by_name_phone(name, phone)
+        items = self.db.search_by_name_phone(name, phone)
         completed = sum(
             1 for item in items
             if item.get("상태", "") in ("리뷰완료", "정산완료", "완료")
@@ -42,7 +42,7 @@ class ReviewerGrader:
 
     def get_stats(self, name: str, phone: str) -> dict:
         """리뷰어 통계"""
-        items = self.sheets.search_by_name_phone(name, phone)
+        items = self.db.search_by_name_phone(name, phone)
         total = len(items)
         completed = sum(
             1 for item in items

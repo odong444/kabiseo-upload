@@ -39,9 +39,9 @@ def register_handlers(socketio):
         join_room(reviewer_id)
 
         # 리뷰어DB에 등록 (최초 로그인 시 자동 추가)
-        if models.sheets_manager:
+        if models.db_manager:
             try:
-                models.sheets_manager.upsert_reviewer_login(name, phone)
+                models.db_manager.upsert_reviewer(name, phone)
             except Exception:
                 pass
 

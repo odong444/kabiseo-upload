@@ -102,8 +102,8 @@ def upload_purchase_search():
         flash("검색어를 입력해주세요.")
         return redirect(url_for("upload_purchase"))
 
-    if models.sheets_manager:
-        items = models.sheets_manager.search_by_name_phone_or_depositor("purchase", q, phone)
+    if models.db_manager:
+        items = models.db_manager.search_by_name_phone_or_depositor("purchase", q, phone)
     else:
         items = []
 
@@ -121,8 +121,8 @@ def upload_review_search():
         flash("검색어를 입력해주세요.")
         return redirect(url_for("upload_review"))
 
-    if models.sheets_manager:
-        items = models.sheets_manager.search_by_name_phone_or_depositor("review", q, phone)
+    if models.db_manager:
+        items = models.db_manager.search_by_name_phone_or_depositor("review", q, phone)
     else:
         items = []
 
@@ -149,9 +149,9 @@ def _make_upload_filename(capture_type: str, row_idx: int, original_name: str) -
     label = "구매내역" if capture_type == "purchase" else "리뷰"
 
     row_data = {}
-    if models.sheets_manager:
+    if models.db_manager:
         try:
-            row_data = models.sheets_manager.get_row_dict(row_idx)
+            row_data = models.db_manager.get_row_dict(row_idx)
         except Exception:
             pass
 
@@ -164,9 +164,9 @@ def _make_upload_filename(capture_type: str, row_idx: int, original_name: str) -
 def _touch_reviewer_by_row(row_idx: int):
     """업로드 완료 시 해당 리뷰어의 타임아웃 타이머 리셋"""
     try:
-        if not models.sheets_manager or not models.state_store:
+        if not models.db_manager or not models.state_store:
             return
-        row_data = models.sheets_manager.get_row_dict(row_idx)
+        row_data = models.db_manager.get_row_dict(row_idx)
         name = row_data.get("진행자이름", "") or row_data.get("수취인명", "")
         phone = row_data.get("진행자연락처", "") or row_data.get("연락처", "")
         if name and phone:
@@ -185,7 +185,7 @@ def _handle_upload(capture_type: str, row: int):
         flash("파일을 선택해주세요.")
         return redirect(request.referrer or url_for("upload"))
 
-    if not models.drive_uploader or not models.sheets_manager:
+    if not models.drive_uploader or not models.db_manager:
         flash("시스템 초기화 중입니다. 잠시 후 다시 시도해주세요.")
         return redirect(request.referrer or url_for("upload"))
 
@@ -195,7 +195,7 @@ def _handle_upload(capture_type: str, row: int):
         drive_link = models.drive_uploader.upload(
             file.read(), filename, file.content_type or "image/jpeg", capture_type, desc
         )
-        models.sheets_manager.update_after_upload(capture_type, row, drive_link)
+        models.db_manager.update_after_upload(capture_type, row, drive_link)
         _touch_reviewer_by_row(row)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
@@ -226,7 +226,7 @@ def api_upload():
     if capture_type not in ("purchase", "review"):
         return jsonify({"ok": False, "message": "잘못된 유형입니다."}), 400
 
-    if not models.drive_uploader or not models.sheets_manager:
+    if not models.drive_uploader or not models.db_manager:
         return jsonify({"ok": False, "message": "시스템 초기화 중입니다."}), 503
 
     try:
@@ -236,7 +236,7 @@ def api_upload():
         drive_link = models.drive_uploader.upload(
             file.read(), filename, file.content_type or "image/jpeg", capture_type, desc
         )
-        models.sheets_manager.update_after_upload(capture_type, row_idx, drive_link)
+        models.db_manager.update_after_upload(capture_type, row_idx, drive_link)
         _touch_reviewer_by_row(row_idx)
 
         label = "구매" if capture_type == "purchase" else "리뷰"

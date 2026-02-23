@@ -4,6 +4,7 @@ models.py - 데이터 모델 / 앱 전역 인스턴스
 Flask 앱에서 공유하는 매니저 인스턴스들.
 """
 
+import os
 import logging
 
 from modules.state_store import StateStore
@@ -20,8 +21,8 @@ state_store = StateStore()
 chat_logger = ChatLogger()
 activity_logger = ActivityLogger()
 
-# ──────── 매니저 (sheets 의존, init_app에서 초기화) ────────
-sheets_manager = None
+# ──────── 매니저 (init_app에서 초기화) ────────
+db_manager = None
 drive_uploader = None
 campaign_manager = None
 reviewer_manager = None
@@ -30,56 +31,56 @@ timeout_manager = None
 step_machine = None
 ai_handler = None
 
+# 하위 호환 (기존 코드에서 sheets_manager 참조하는 곳 대비)
+sheets_manager = None
+
 
 def init_app(web_url: str = "", socketio=None):
     """앱 시작 시 매니저 초기화"""
-    global sheets_manager, drive_uploader, campaign_manager
+    global db_manager, drive_uploader, campaign_manager, sheets_manager
     global reviewer_manager, reviewer_grader, timeout_manager, step_machine, ai_handler
 
-    from google_client import get_sheets_manager, get_drive_uploader
+    # ── PostgreSQL 초기화 ──
+    database_url = os.environ.get("DATABASE_URL", "")
+    if database_url:
+        from modules.db_manager import DBManager
+        try:
+            db_manager = DBManager(database_url)
+            sheets_manager = db_manager  # 하위 호환
+            logging.info("PostgreSQL 초기화 완료")
+        except Exception as e:
+            logging.error(f"PostgreSQL 초기화 실패: {e}")
+            db_manager = None
+            sheets_manager = None
+    else:
+        logging.warning("DATABASE_URL 미설정 - DB 비활성화")
+        db_manager = None
+        sheets_manager = None
 
+    # ── Google Drive 업로더 (이미지 업로드용 유지) ──
     try:
-        sheets_manager = get_sheets_manager()
+        from google_client import get_drive_uploader
         drive_uploader = get_drive_uploader()
     except Exception as e:
-        logging.warning(f"Google API 초기화 실패 (환경변수 확인 필요): {e}")
-        sheets_manager = None
+        logging.warning(f"Google Drive 초기화 실패: {e}")
         drive_uploader = None
 
-    if sheets_manager:
-        # 필수 컬럼 보장
-        sheets_manager.ensure_main_column("진행자이름")
-        # 캠페인 컬럼 일괄 확인/추가 (API 호출 최소화)
-        sheets_manager.ensure_campaign_columns([
-            "결제금액", "리뷰가이드", "중복허용", "리뷰비",
-            "상품번호", "캠페인유형", "플랫폼",
-            "키워드위치", "옵션지정방식", "옵션목록",
-            "체류시간", "상품찜필수", "알림받기필수", "광고클릭금지",
-            "결제방법", "블라인드계정금지", "재구매확인",
-            "구매가능시간", "한달중복허용",
-            "배송메모필수", "배송메모내용", "배송메모안내링크",
-            "리뷰타입", "리뷰가이드내용", "리뷰이미지폴더",
-            "추가안내사항", "신청마감일", "공개여부", "선정여부",
-            "상품이미지", "상품금액", "리워드",
-        ])
-
-        sheets_manager.ensure_reviewer_db()
-        campaign_manager = CampaignManager(sheets_manager)
-        reviewer_manager = ReviewerManager(sheets_manager)
-        reviewer_grader = ReviewerGrader(sheets_manager)
-        chat_logger.set_sheets_manager(sheets_manager)
-        activity_logger.set_sheets_manager(sheets_manager)
+    if db_manager:
+        campaign_manager = CampaignManager(db_manager)
+        reviewer_manager = ReviewerManager(db_manager)
+        reviewer_grader = ReviewerGrader(db_manager)
+        # chat_logger, activity_logger는 메모리 기반으로 동작
+        # (구글시트 제거로 영구 보관 없음 — 향후 DB 로깅 추가 가능)
     else:
         campaign_manager = None
         reviewer_manager = None
         reviewer_grader = None
 
     # AI 핸들러 (서버PC 릴레이)
-    import os as _os
-    relay_url = _os.environ.get("AI_RELAY_URL", "")
+    relay_url = os.environ.get("AI_RELAY_URL", "")
     if relay_url:
         from modules.ai_handler import AIHandler
-        ai_handler = AIHandler(relay_url, api_key=_os.environ.get("API_KEY", ""))
+        ai_handler = AIHandler(relay_url, api_key=os.environ.get("API_KEY", ""))
         logging.info(f"AI 핸들러 초기화 완료 (릴레이: {relay_url})")
     else:
         ai_handler = None
@@ -96,7 +97,7 @@ def init_app(web_url: str = "", socketio=None):
 
     # 타임아웃 매니저 (20분 취소)
     timeout_manager = TimeoutManager(state_store)
-    timeout_manager.set_sheets_manager(sheets_manager)
+    timeout_manager.set_sheets_manager(db_manager)
     timeout_manager.set_chat_logger(chat_logger)
     if socketio:
         timeout_manager.set_socketio(socketio)

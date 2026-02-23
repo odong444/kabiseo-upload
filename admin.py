@@ -60,8 +60,8 @@ def logout():
 def dashboard():
     stats = {}
     recent_messages = []
-    if models.sheets_manager:
-        stats = models.sheets_manager.get_today_stats()
+    if models.db_manager:
+        stats = models.db_manager.get_today_stats()
     recent_messages = models.chat_logger.get_recent_messages(20)
     return render_template("admin/dashboard.html", stats=stats, recent_messages=recent_messages)
 
@@ -77,31 +77,25 @@ def campaigns():
     return render_template("admin/campaigns.html", campaigns=campaign_list)
 
 
-@admin_bp.route("/campaigns/<int:row>/edit", methods=["GET"])
+@admin_bp.route("/campaigns/<campaign_id>/edit", methods=["GET"])
 @admin_required
-def campaign_edit(row):
-    if not models.sheets_manager:
+def campaign_edit(campaign_id):
+    if not models.db_manager:
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.campaigns"))
 
-    all_campaigns = models.sheets_manager.get_all_campaigns()
-    campaign = None
-    for c in all_campaigns:
-        if c.get("_row_idx") == row:
-            campaign = c
-            break
-
+    campaign = models.db_manager.get_campaign_by_id(campaign_id)
     if not campaign:
         flash("캠페인을 찾을 수 없습니다.")
         return redirect(url_for("admin.campaigns"))
 
-    return render_template("admin/campaign_edit.html", campaign=campaign, row=row)
+    return render_template("admin/campaign_edit.html", campaign=campaign, row=campaign_id)
 
 
-@admin_bp.route("/campaigns/<int:row>/edit", methods=["POST"])
+@admin_bp.route("/campaigns/<campaign_id>/edit", methods=["POST"])
 @admin_required
-def campaign_edit_post(row):
-    if not models.sheets_manager:
+def campaign_edit_post(campaign_id):
+    if not models.db_manager:
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.campaigns"))
 
@@ -114,12 +108,15 @@ def campaign_edit_post(row):
         "공개여부", "캠페인가이드", "메모",
     ]
 
+    update_data = {}
     for field_name in editable_fields:
         value = request.form.get(field_name, "").strip()
-        try:
-            models.sheets_manager.update_campaign_cell(row, field_name, value)
-        except Exception as e:
-            logger.error(f"캠페인 수정 에러 ({field_name}): {e}")
+        update_data[field_name] = value
+
+    try:
+        models.db_manager.update_campaign(campaign_id, update_data)
+    except Exception as e:
+        logger.error(f"캠페인 수정 에러: {e}")
 
     flash("캠페인이 수정되었습니다.")
     return redirect(url_for("admin.campaigns"))
@@ -136,7 +133,7 @@ def campaign_new():
 @admin_bp.route("/campaigns/new", methods=["POST"])
 @admin_required
 def campaign_new_post():
-    if not models.sheets_manager:
+    if not models.db_manager:
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.campaigns"))
 
@@ -145,7 +142,6 @@ def campaign_new_post():
 
     campaign_id = str(uuid.uuid4())[:8]
 
-    # 간소화된 필드
     fields = [
         "캠페인유형", "플랫폼", "업체명", "상품명",
         "총수량", "일수량", "진행일수",
@@ -169,17 +165,8 @@ def campaign_new_post():
         except Exception as e:
             logger.error(f"상품이미지 업로드 에러: {e}")
 
-    # 새 컬럼 확보
-    models.sheets_manager.ensure_campaign_columns(["진행일수", "캠페인가이드"])
-
-    # 시트에 행 추가
     try:
-        ws = models.sheets_manager.spreadsheet.worksheet("캠페인관리")
-        headers = ws.row_values(1)
-        new_row = []
-        for h in headers:
-            new_row.append(data.get(h, ""))
-        ws.append_row(new_row, value_input_option="USER_ENTERED")
+        models.db_manager.create_campaign(data)
         flash(f"캠페인 '{data['상품명']}' 등록 완료 (ID: {campaign_id})")
     except Exception as e:
         logger.error(f"캠페인 등록 에러: {e}")
@@ -233,8 +220,8 @@ def _sort_by_date_asc(items, date_key="날짜"):
 @admin_required
 def reviews():
     items = []
-    if models.sheets_manager:
-        all_items = models.sheets_manager.get_all_reviewers()
+    if models.db_manager:
+        all_items = models.db_manager.get_all_reviewers()
         items = [i for i in all_items if i.get("상태") == "리뷰제출"]
     items = _sort_by_date_asc(items)
     return render_template("admin/reviews.html", items=items)
@@ -243,19 +230,19 @@ def reviews():
 @admin_bp.route("/reviews/approve", methods=["POST"])
 @admin_required
 def reviews_approve():
-    if not models.sheets_manager:
+    if not models.db_manager:
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.reviews"))
 
     row_indices = request.form.getlist("row_idx")
     processed = 0
-    for row_str in row_indices:
+    for id_str in row_indices:
         try:
-            row_idx = int(row_str)
-            models.sheets_manager.approve_review(row_idx)
+            progress_id = int(id_str)
+            models.db_manager.approve_review(progress_id)
             processed += 1
         except Exception as e:
-            logger.error(f"검수 승인 에러 (row {row_str}): {e}")
+            logger.error(f"검수 승인 에러 (id {id_str}): {e}")
 
     flash(f"{processed}건 승인 완료 (입금대기)")
     return redirect(url_for("admin.reviews"))
@@ -264,7 +251,7 @@ def reviews_approve():
 @admin_bp.route("/reviews/reject", methods=["POST"])
 @admin_required
 def reviews_reject():
-    if not models.sheets_manager:
+    if not models.db_manager:
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.reviews"))
 
@@ -272,15 +259,15 @@ def reviews_reject():
     reason = request.form.get("reason", "").strip() or "리뷰 사진을 다시 확인해주세요."
     processed = 0
 
-    for row_str in row_indices:
+    for id_str in row_indices:
         try:
-            row_idx = int(row_str)
-            row_data = models.sheets_manager.get_row_dict(row_idx)
-            models.sheets_manager.reject_review(row_idx, reason)
+            progress_id = int(id_str)
+            row_data = models.db_manager.get_row_dict(progress_id)
+            models.db_manager.reject_review(progress_id, reason)
             processed += 1
             _notify_reviewer_reject(row_data, reason)
         except Exception as e:
-            logger.error(f"검수 반려 에러 (row {row_str}): {e}")
+            logger.error(f"검수 반려 에러 (id {id_str}): {e}")
 
     flash(f"{processed}건 반려 완료")
     return redirect(url_for("admin.reviews"))
@@ -290,12 +277,12 @@ def reviews_reject():
 @admin_bp.route("/api/reviews/approve", methods=["POST"])
 @admin_required
 def api_reviews_approve():
-    if not models.sheets_manager:
+    if not models.db_manager:
         return jsonify({"ok": False, "message": "시스템 초기화 중"})
     data = request.get_json(silent=True) or {}
     row_idx = data.get("row_idx")
     try:
-        models.sheets_manager.approve_review(int(row_idx))
+        models.db_manager.approve_review(int(row_idx))
         return jsonify({"ok": True})
     except Exception as e:
         logger.error(f"검수 승인 API 에러: {e}")
@@ -305,14 +292,14 @@ def api_reviews_approve():
 @admin_bp.route("/api/reviews/reject", methods=["POST"])
 @admin_required
 def api_reviews_reject():
-    if not models.sheets_manager:
+    if not models.db_manager:
         return jsonify({"ok": False, "message": "시스템 초기화 중"})
     data = request.get_json(silent=True) or {}
     row_idx = data.get("row_idx")
     reason = data.get("reason", "").strip() or "리뷰 사진을 다시 확인해주세요."
     try:
-        row_data = models.sheets_manager.get_row_dict(int(row_idx))
-        models.sheets_manager.reject_review(int(row_idx), reason)
+        row_data = models.db_manager.get_row_dict(int(row_idx))
+        models.db_manager.reject_review(int(row_idx), reason)
         _notify_reviewer_reject(row_data, reason)
         return jsonify({"ok": True})
     except Exception as e:
@@ -326,8 +313,8 @@ def api_reviews_reject():
 @admin_required
 def settlement():
     items = []
-    if models.sheets_manager:
-        all_items = models.sheets_manager.get_all_reviewers()
+    if models.db_manager:
+        all_items = models.db_manager.get_all_reviewers()
         items = [i for i in all_items if i.get("상태") == "입금대기"]
     # 리뷰제출일 오름차순 (오래된 것 먼저)
     items = _sort_by_date_asc(items, "리뷰제출일")
@@ -337,22 +324,21 @@ def settlement():
 @admin_bp.route("/settlement/process", methods=["POST"])
 @admin_required
 def settlement_process():
-    if not models.sheets_manager:
+    if not models.db_manager:
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.settlement"))
 
     row_indices = request.form.getlist("row_idx")
     processed = 0
-    for row_str in row_indices:
+    for id_str in row_indices:
         try:
-            row_idx = int(row_str)
-            # 기존 입금금액 사용
-            row_data = models.sheets_manager.get_row_dict(row_idx)
+            progress_id = int(id_str)
+            row_data = models.db_manager.get_row_dict(progress_id)
             amount = row_data.get("입금금액", "0") or "0"
-            models.sheets_manager.process_settlement(row_idx, amount)
+            models.db_manager.process_settlement(progress_id, amount)
             processed += 1
         except Exception as e:
-            logger.error(f"정산 처리 에러 (row {row_str}): {e}")
+            logger.error(f"정산 처리 에러 (id {id_str}): {e}")
 
     flash(f"{processed}건 정산 처리 완료")
     return redirect(url_for("admin.settlement"))
@@ -363,8 +349,8 @@ def settlement_process():
 def settlement_download():
     """입금대기 목록 엑셀(CSV) 다운로드"""
     items = []
-    if models.sheets_manager:
-        all_items = models.sheets_manager.get_all_reviewers()
+    if models.db_manager:
+        all_items = models.db_manager.get_all_reviewers()
         items = [i for i in all_items if i.get("상태") == "입금대기"]
     items = _sort_by_date_asc(items, "리뷰제출일")
 
@@ -400,14 +386,15 @@ def settlement_download():
 @admin_required
 def reviewers():
     items = []
-    if models.sheets_manager:
-        items = models.sheets_manager.get_all_reviewers()
+    if models.db_manager:
+        items = models.db_manager.get_all_reviewers()
     q = request.args.get("q", "").strip()
     if q:
         ql = q.lower()
         items = [
             i for i in items
             if ql in i.get("이름", "").lower()
+            or ql in i.get("진행자이름", "").lower()
             or ql in i.get("연락처", "")
             or ql in i.get("아이디", "").lower()
         ]
@@ -427,19 +414,19 @@ def guide():
 @admin_bp.route("/reviewers/restore", methods=["POST"])
 @admin_required
 def reviewers_restore():
-    if not models.sheets_manager:
+    if not models.db_manager:
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.reviewers"))
 
     row_indices = request.form.getlist("row_idx")
     processed = 0
-    for row_str in row_indices:
+    for id_str in row_indices:
         try:
-            row_idx = int(row_str)
-            models.sheets_manager.restore_from_timeout(row_idx)
+            progress_id = int(id_str)
+            models.db_manager.restore_from_timeout(progress_id)
             processed += 1
         except Exception as e:
-            logger.error(f"타임아웃 복원 에러 (row {row_str}): {e}")
+            logger.error(f"타임아웃 복원 에러 (id {id_str}): {e}")
 
     flash(f"{processed}건 가이드전달 상태로 복원 완료")
     return redirect(url_for("admin.reviewers"))
@@ -456,8 +443,8 @@ def overview():
 
     # Calculate stats per campaign
     all_reviewers = []
-    if models.sheets_manager:
-        all_reviewers = models.sheets_manager.get_all_reviewers()
+    if models.db_manager:
+        all_reviewers = models.db_manager.get_all_reviewers()
 
     # Group by campaign
     campaign_stats = []
@@ -516,43 +503,6 @@ def activity_logs():
 
 # ──────── API (AJAX) ────────
 
-@admin_bp.route("/api/fix-rejected-remarks", methods=["POST"])
-@admin_required
-def fix_rejected_remarks():
-    """반려 건 중 비고가 비어있는 것을 채워주는 일회성 API"""
-    if not models.sheets_manager:
-        return jsonify({"ok": False, "message": "시스템 초기화 중"})
-
-    ws = models.sheets_manager._get_ws()
-    headers = models.sheets_manager._get_headers(ws)
-    all_rows = ws.get_all_values()
-
-    status_col = models.sheets_manager._find_col(headers, "상태")
-    remark_col = models.sheets_manager._find_col(headers, "비고")
-    review_link_col = models.sheets_manager._find_col(headers, "리뷰캡쳐링크")
-    review_date_col = models.sheets_manager._find_col(headers, "리뷰제출일")
-
-    if status_col < 0 or remark_col < 0:
-        return jsonify({"ok": False, "message": "컬럼 없음"})
-
-    fixed = 0
-    for i, row in enumerate(all_rows[1:], start=2):
-        if len(row) <= max(status_col, remark_col):
-            continue
-        # 리뷰대기 상태 + 비고 비어있음 + 리뷰캡쳐링크 비어있음 + 리뷰제출일 비어있음 → 반려 건
-        if row[status_col] != "리뷰대기":
-            continue
-        if row[remark_col].strip():
-            continue
-        has_review_link = review_link_col >= 0 and len(row) > review_link_col and row[review_link_col].strip()
-        has_review_date = review_date_col >= 0 and len(row) > review_date_col and row[review_date_col].strip()
-        if not has_review_link and not has_review_date:
-            ws.update_cell(i, remark_col + 1, "반려")
-            fixed += 1
-
-    return jsonify({"ok": True, "fixed": fixed})
-
-
 @admin_bp.route("/api/rate", methods=["POST"])
 @admin_required
 def rate_message():
@@ -579,7 +529,7 @@ def api_campaign_preview():
     buy_time = data.get("구매가능시간", "")
     custom_guide = data.get("캠페인가이드", "").strip()
 
-    # 카드 데이터 (chat.js에서 렌더링하는 형식과 동일)
+    # 카드 데이터
     card = {
         "name": product_name,
         "store": store_name,
@@ -591,7 +541,7 @@ def api_campaign_preview():
         "price": product_price,
     }
 
-    # 구매 가이드 텍스트 (리뷰어에게 전달되는 형태)
+    # 구매 가이드 텍스트
     guide_parts = [
         "━━━━━━━━━━━━━━━━━━",
         f"📌 {product_name} 구매 가이드",

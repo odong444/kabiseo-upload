@@ -72,7 +72,7 @@
                         <td>{{ c.get('리뷰비', '') }}</td>
                         <td><span class="admin-status-badge">{{ c.get('상태', '모집중') }}</span></td>
                         <td>
-                            <a href="{{ url_for('admin.campaign_edit', row=c.get('_row_idx', 0)) }}"
+                            <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
                                class="admin-btn admin-btn-sm">수정</a>
                         </td>
                     </tr>
