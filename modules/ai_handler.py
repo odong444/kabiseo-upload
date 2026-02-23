@@ -82,18 +82,25 @@ class AIHandler:
             if campaign:
                 situation += f", 캠페인: {campaign}"
 
+            # 학습된 Q&A 사례
+            learned_qa = context.get("learned_qa", "")
+            learned_section = ""
+            if learned_qa:
+                learned_section = f"[과거 답변 사례]\n{learned_qa}\n\n"
+
             prompt = (
-                f"아래 챗봇 사양과 FAQ를 참고해 응답을 작성해줘.\n"
+                f"아래 챗봇 사양과 FAQ, 과거 답변 사례를 참고해 응답을 작성해줘.\n"
                 f"응답 텍스트만 출력하고 코드블록이나 설명은 붙이지 마.\n"
                 f"짧고 친절하게 2-3문장, 이모지 적당히.\n\n"
                 f"[규칙]\n"
-                f"- FAQ에 있는 질문이면 해당 답변을 기반으로 응답\n"
+                f"- FAQ나 과거 답변 사례에 비슷한 질문이 있으면 해당 답변을 기반으로 응답\n"
                 f"- 답변할 수 없거나 확실하지 않으면 응답 끝에 [UNCERTAIN] 태그\n"
                 f"- 결제 오류, 개인정보 유출, 계좌 문제, 배송 사고 등 긴급 상황이면 [URGENT] 태그\n"
                 f"- 확실하면 태그 없이 응답\n"
                 f"- 폼 수정, 취소 요청, 배송 문제 등 담당자 조치가 필요한 건은 [UNCERTAIN] 태그\n\n"
                 f"[챗봇 사양]\n{CHATBOT_SPEC}\n\n"
                 f"[FAQ]\n{FAQ_KNOWLEDGE}\n\n"
+                f"{learned_section}"
                 f"[상황] {situation}\n"
                 f"[사용자 메시지] {user_message}\n\n"
                 f"응답:"

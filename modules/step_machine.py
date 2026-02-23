@@ -1369,6 +1369,8 @@ class StepMachine:
 
     def _build_ai_context(self, state: ReviewerState) -> dict:
         """AI 응답에 전달할 리뷰어 컨텍스트"""
+        import models
+
         campaign = state.temp_data.get("campaign", {})
         items = {}
         try:
@@ -1377,11 +1379,25 @@ class StepMachine:
         except Exception:
             pass
 
+        # 학습된 Q&A (답변 완료된 문의)
+        learned_qa = ""
+        try:
+            if models.db_manager:
+                resolved = models.db_manager.get_learned_qa(limit=30)
+                if resolved:
+                    lines = []
+                    for qa in resolved:
+                        lines.append(f"Q: {qa['message']}\nA: {qa['admin_reply']}")
+                    learned_qa = "\n\n".join(lines)
+        except Exception:
+            pass
+
         return {
             "reviewer_name": state.name,
             "current_step": state.step,
             "campaign_name": campaign.get("상품명", ""),
             "in_progress_count": len(items.get("in_progress", [])),
+            "learned_qa": learned_qa,
         }
 
     def _ask_ai(self, state: ReviewerState, user_message: str):

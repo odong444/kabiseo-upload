@@ -894,6 +894,15 @@ class DBManager:
         row = self._fetchone("SELECT COUNT(*) as cnt FROM inquiries WHERE status = '대기'")
         return row["cnt"] if row else 0
 
+    def get_learned_qa(self, limit: int = 30) -> list[dict]:
+        """답변 완료된 문의 Q&A (AI 학습용). 최신순."""
+        return self._fetchall(
+            """SELECT message, admin_reply FROM inquiries
+               WHERE status = '완료' AND admin_reply != ''
+               ORDER BY replied_at DESC LIMIT %s""",
+            (limit,)
+        )
+
     def count_today_all_campaigns(self) -> dict:
         """오늘 캠페인별 신청 건수 ({캠페인ID: count})"""
         today = today_str()
