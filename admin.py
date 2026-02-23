@@ -717,6 +717,35 @@ def api_inquiry_reply():
     return jsonify({"ok": True, "message": msg})
 
 
+# ──────── 디버그 ────────
+
+@admin_bp.route("/api/debug/campaigns")
+@admin_required
+def debug_campaigns():
+    """캠페인 데이터 디버그용"""
+    result = {"campaigns": [], "active": [], "cards": [], "stats": {}}
+    if models.campaign_manager:
+        all_c = models.campaign_manager.get_all_campaigns()
+        result["campaigns"] = [
+            {k: v for k, v in c.items() if k in ("캠페인ID", "상품명", "상태", "총수량", "완료수량", "일수량", "공개여부", "구매가능시간")}
+            for c in all_c
+        ]
+        active = models.campaign_manager.get_active_campaigns()
+        result["active"] = [
+            {k: v for k, v in c.items() if k in ("캠페인ID", "상품명", "상태", "총수량", "_남은수량", "_buy_time_active")}
+            for c in active
+        ]
+        cards = models.campaign_manager.build_campaign_cards("테스트", "010-0000-0000")
+        result["cards"] = cards
+    if models.db_manager:
+        result["stats"] = models.db_manager.get_campaign_stats()
+        try:
+            result["count_all"] = models.db_manager.count_all_campaigns()
+        except Exception as e:
+            result["count_all_error"] = str(e)
+    return jsonify(result)
+
+
 # ──────── 스프레드시트 (데이터 편집) ────────
 
 @admin_bp.route("/spreadsheet")

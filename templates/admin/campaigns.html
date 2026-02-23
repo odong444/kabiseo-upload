@@ -81,7 +81,7 @@
                         <td>{{ c.get('오늘수량', '0') }}</td>
                         <td>{{ c.get('일수량', '0') }}</td>
                         <td>{{ c.get('구매가능시간', '') or '24시간' }}</td>
-                        <td>{{ '{:,}'.format(c.get('리뷰비', '')|int) if c.get('리뷰비', '') else '' }}</td>
+                        <td>{{ c.get('리뷰비', '') }}</td>
                         <td><span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span></td>
                         <td>
                             <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"

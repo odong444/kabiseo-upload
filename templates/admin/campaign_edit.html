@@ -41,7 +41,7 @@
         {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('admin.campaign_edit_post', row=row) }}" class="admin-form">
+        <form method="POST" action="{{ url_for('admin.campaign_edit_post', campaign_id=row) }}" class="admin-form">
             <div class="form-grid">
                 <div class="form-group">
                     <label>상태</label>
