@@ -1013,6 +1013,8 @@ class StepMachine:
                 state.name, state.phone, campaign_id, target_id, parsed,
                 campaign=campaign,
             )
+            # 양식 제출 → 구매캡쳐대기
+            self._update_status_by_id(state.name, state.phone, campaign_id, target_id, "구매캡쳐대기")
 
             submitted_ids.append(target_id)
             remaining_ids = [sid for sid in store_ids if sid not in submitted_ids]
@@ -1390,7 +1392,8 @@ class StepMachine:
         return {
             "신청": "⚪",
             "가이드전달": "🟡",
-            "구매내역제출": "🔵",
+            "구매캡쳐대기": "🔵",
+            "리뷰대기": "🟠",
             "리뷰제출": "🟢",
             "입금대기": "💰",
             "입금완료": "✅",

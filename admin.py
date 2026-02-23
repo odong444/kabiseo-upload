@@ -539,8 +539,8 @@ def fix_rejected_remarks():
     for i, row in enumerate(all_rows[1:], start=2):
         if len(row) <= max(status_col, remark_col):
             continue
-        # 구매내역제출 상태 + 비고 비어있음 + 리뷰캡쳐링크 비어있음 + 리뷰제출일 비어있음 → 반려 건
-        if row[status_col] != "구매내역제출":
+        # 리뷰대기 상태 + 비고 비어있음 + 리뷰캡쳐링크 비어있음 + 리뷰제출일 비어있음 → 반려 건
+        if row[status_col] != "리뷰대기":
             continue
         if row[remark_col].strip():
             continue

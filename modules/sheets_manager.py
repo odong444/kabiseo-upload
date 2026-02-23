@@ -27,16 +27,17 @@ logger = logging.getLogger(__name__)
 # 상태 상수
 STATUS_APPLIED = "신청"
 STATUS_GUIDE_SENT = "가이드전달"
-STATUS_PURCHASE_DONE = "구매내역제출"
-STATUS_REVIEW_DONE = "리뷰제출"
+STATUS_PURCHASE_WAIT = "구매캡쳐대기"    # 양식 제출 후
+STATUS_REVIEW_WAIT = "리뷰대기"          # 구매캡쳐 제출 후
+STATUS_REVIEW_DONE = "리뷰제출"          # 리뷰캡쳐 제출 후
 STATUS_PAYMENT_WAIT = "입금대기"
 STATUS_SETTLED = "입금완료"
 STATUS_TIMEOUT = "타임아웃취소"
 STATUS_CANCELLED = "취소"
 
-# 하위 호환
-STATUS_FORM_RECEIVED = "구매내역제출"
-STATUS_REVIEW_WAIT = "리뷰대기"
+# 하위 호환 (기존 코드 참조용)
+STATUS_PURCHASE_DONE = STATUS_PURCHASE_WAIT
+STATUS_FORM_RECEIVED = STATUS_PURCHASE_WAIT
 
 
 class SheetsManager:
@@ -114,7 +115,7 @@ class SheetsManager:
         if depositor_col < 0 or status_col < 0:
             return []
 
-        target_status = STATUS_FORM_RECEIVED if capture_type == "purchase" else STATUS_REVIEW_WAIT
+        target_status = STATUS_PURCHASE_WAIT if capture_type == "purchase" else STATUS_REVIEW_WAIT
 
         results = []
         for i, row in enumerate(all_rows[1:], start=2):
@@ -127,8 +128,8 @@ class SheetsManager:
         return results
 
     # 사진 제출 대상 상태
-    _PURCHASE_UPLOAD_STATUSES = {STATUS_GUIDE_SENT}  # 가이드전달 → 구매캡쳐 제출 대기
-    _REVIEW_UPLOAD_STATUSES = {STATUS_PURCHASE_DONE}  # 구매내역제출 → 리뷰캡쳐 제출 대기
+    _PURCHASE_UPLOAD_STATUSES = {STATUS_PURCHASE_WAIT}  # 구매캡쳐대기 → 구매캡쳐 제출
+    _REVIEW_UPLOAD_STATUSES = {STATUS_REVIEW_WAIT}      # 리뷰대기 → 리뷰캡쳐 제출
 
     def search_by_name_phone_or_depositor(self, capture_type: str, query: str, phone: str = "") -> list[dict]:
         """진행자/수취인/예금주로 검색 (사진 제출 대상)"""
@@ -173,7 +174,7 @@ class SheetsManager:
         completed = []
         for item in all_items:
             status = item.get("상태", "")
-            if status in (STATUS_SETTLED, STATUS_REVIEW_DONE):
+            if status in (STATUS_SETTLED, STATUS_REVIEW_DONE, STATUS_PAYMENT_WAIT):
                 completed.append(item)
             elif status in (STATUS_CANCELLED, STATUS_TIMEOUT):
                 continue
@@ -194,7 +195,7 @@ class SheetsManager:
                 paid.append(item)
             elif status == STATUS_REVIEW_DONE:
                 pending.append(item)
-            elif status == STATUS_PURCHASE_DONE:
+            elif status == STATUS_REVIEW_WAIT:
                 no_review.append(item)
 
         return {"paid": paid, "pending": pending, "no_review": no_review}
@@ -223,10 +224,10 @@ class SheetsManager:
         """업로드 완료 후 시트 업데이트"""
         if capture_type == "purchase":
             self.update_cell_by_col(row_idx, "구매캡쳐링크", drive_link)
-            self.update_cell_by_col(row_idx, "상태", STATUS_PURCHASE_DONE)
+            self.update_cell_by_col(row_idx, "상태", STATUS_REVIEW_WAIT)  # 구매캡쳐 → 리뷰대기
         elif capture_type == "review":
             self.update_cell_by_col(row_idx, "리뷰캡쳐링크", drive_link)
-            self.update_cell_by_col(row_idx, "상태", STATUS_REVIEW_DONE)
+            self.update_cell_by_col(row_idx, "상태", STATUS_REVIEW_DONE)  # 리뷰캡쳐 → 리뷰제출
             self.update_cell_by_col(row_idx, "리뷰제출일", today_str())
             # 반려 사유 클리어 (재제출)
             row_data = self.get_row_dict(row_idx)
@@ -250,8 +251,8 @@ class SheetsManager:
         self.update_cell_by_col(row_idx, "상태", STATUS_PAYMENT_WAIT)
 
     def reject_review(self, row_idx: int, reason: str = ""):
-        """리뷰 검수 반려 → 구매내역제출로 되돌리고 리뷰캡쳐링크 삭제"""
-        self.update_cell_by_col(row_idx, "상태", STATUS_PURCHASE_DONE)
+        """리뷰 검수 반려 → 리뷰대기로 되돌리고 리뷰캡쳐링크 삭제"""
+        self.update_cell_by_col(row_idx, "상태", STATUS_REVIEW_WAIT)
         self.update_cell_by_col(row_idx, "리뷰캡쳐링크", "")
         self.update_cell_by_col(row_idx, "리뷰제출일", "")
         self.update_cell_by_col(row_idx, "비고", f"반려: {reason}" if reason else "반려")
@@ -560,7 +561,7 @@ class SheetsManager:
             logger.error(f"메인 시트 컬럼 추가 에러: {e}")
 
     # 구매 완료 이후 상태 (이 상태부터 모집 수량 차감)
-    _DONE_STATUSES = {"구매내역제출", "리뷰제출", "입금대기", "입금완료"}
+    _DONE_STATUSES = {"구매캡쳐대기", "리뷰대기", "리뷰제출", "입금대기", "입금완료"}
 
     def count_all_campaigns(self) -> dict:
         """캠페인별 구매완료 건수 ({캠페인ID: count}) - 구매내역제출 이후만"""
@@ -651,7 +652,7 @@ class SheetsManager:
             if item.get("리뷰제출일", "") == today:
                 review_today += 1
             # 양식접수일이 오늘이면 신규
-            if item.get("상태", "") in (STATUS_GUIDE_SENT, STATUS_FORM_RECEIVED):
+            if item.get("상태", "") in (STATUS_GUIDE_SENT, STATUS_PURCHASE_WAIT):
                 new_today += 1
 
         return {
