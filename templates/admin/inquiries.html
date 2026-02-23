@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>카비서 관리자 - 문의 관리</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .admin-status-badge.대기 { background: #fef3c7; color: #92400e; }
+    .admin-status-badge.완료 { background: #d1fae5; color: #065f46; }
+    </style>
 </head>
 <body class="admin-body">
     <header class="admin-header">
@@ -19,7 +23,7 @@
                 <a href="{{ url_for('admin.settlement') }}">정산</a>
                 <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
                 <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
-                <a href="{{ url_for('admin.inquiries') }}" class="active">문의{% if pending_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.inquiries') }}" class="active">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
                 <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
                 <a href="{{ url_for('admin.guide') }}">가이드</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
@@ -28,7 +32,7 @@
     </header>
 
     <main class="admin-main">
-        <h1>문의 관리 {% if pending_count %}<span style="color:#ef4444;font-size:16px;">(대기 {{ pending_count }}건)</span>{% endif %}</h1>
+        <h1>문의 관리 {% if pending_inquiry_count %}<span style="color:#ef4444;font-size:16px;">(대기 {{ pending_inquiry_count }}건)</span>{% endif %}</h1>
 
         <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
             <label for="statusFilter" style="font-weight:600;">상태:</label>
@@ -61,13 +65,13 @@
                         <td>{{ item.reviewer_name }}</td>
                         <td>{{ item.reviewer_phone }}</td>
                         <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ item.message }}">{{ item.message[:50] }}{% if item.message|length > 50 %}...{% endif %}</td>
-                        <td><span class="admin-status-badge {{ '대기' if item.status == '대기' else '완료' }}">{{ item.status }}</span></td>
+                        <td><span class="admin-status-badge {{ item.status }}">{{ item.status }}</span></td>
                         <td>{% if item.is_urgent %}<span style="color:#ef4444;font-weight:700;">긴급</span>{% endif %}</td>
                         <td>
                             {% if item.status == '대기' %}
-                            <button class="btn btn-sm btn-primary" onclick="openReplyModal({{ item.id }}, '{{ item.reviewer_name }}', {{ item.message|tojson }}, {{ (item.context or '')|tojson }})">답변</button>
+                            <button class="btn btn-sm btn-primary reply-btn" data-idx="{{ loop.index0 }}">답변</button>
                             {% else %}
-                            <button class="btn btn-sm" onclick="viewReply({{ item.admin_reply|tojson }})" style="background:#e5e7eb;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;">보기</button>
+                            <button class="btn btn-sm view-btn" data-idx="{{ loop.index0 }}" style="background:#e5e7eb;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;">보기</button>
                             {% endif %}
                         </td>
                     </tr>
@@ -111,6 +115,19 @@
     </div>
 
     <script>
+    var INQUIRIES = [
+        {% for item in inquiries %}
+        {
+            "id": {{ item.id }},
+            "reviewer_name": {{ (item.reviewer_name or '')|tojson }},
+            "message": {{ (item.message or '')|tojson }},
+            "context": {{ (item.context or '')|tojson }},
+            "admin_reply": {{ (item.admin_reply or '')|tojson }},
+            "status": {{ (item.status or '')|tojson }}
+        }{{ ',' if not loop.last }}
+        {% endfor %}
+    ];
+
     var _replyInquiryId = 0;
 
     function filterStatus(val) {
@@ -119,15 +136,19 @@
         location.href = url;
     }
 
-    function openReplyModal(id, name, message, context) {
-        _replyInquiryId = id;
-        document.getElementById('replyTitle').textContent = name + ' 문의 답변';
-        document.getElementById('inquiryMessage').textContent = message;
+    function openReplyModal(idx) {
+        var item = INQUIRIES[idx];
+        if (!item) return;
+
+        _replyInquiryId = item.id;
+        document.getElementById('replyTitle').textContent = (item.reviewer_name || '') + ' 문의 답변';
+        document.getElementById('inquiryMessage').textContent = item.message || '';
         document.getElementById('replyText').value = '';
 
         var ctxArea = document.getElementById('contextArea');
-        if (context && context.trim()) {
-            document.getElementById('inquiryContext').textContent = context;
+        var ctx = item.context || '';
+        if (ctx.trim()) {
+            document.getElementById('inquiryContext').textContent = ctx;
             ctxArea.style.display = 'block';
         } else {
             ctxArea.style.display = 'none';
@@ -140,8 +161,10 @@
         document.getElementById('replyModal').style.display = 'none';
     }
 
-    function viewReply(reply) {
-        alert('답변 내용:\n\n' + reply);
+    function viewReply(idx) {
+        var item = INQUIRIES[idx];
+        if (!item) return;
+        alert('답변 내용:\n\n' + (item.admin_reply || ''));
     }
 
     function submitReply() {
@@ -168,6 +191,25 @@
             alert('에러: ' + e.message);
         });
     }
+
+    // 이벤트 위임으로 버튼 클릭 처리
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.reply-btn');
+        if (btn) {
+            openReplyModal(parseInt(btn.dataset.idx));
+            return;
+        }
+        var vbtn = e.target.closest('.view-btn');
+        if (vbtn) {
+            viewReply(parseInt(vbtn.dataset.idx));
+            return;
+        }
+    });
+
+    // 모달 바깥 클릭 닫기
+    document.getElementById('replyModal').addEventListener('click', function(e) {
+        if (e.target === this) closeReplyModal();
+    });
     </script>
 </body>
 </html>

@@ -18,6 +18,17 @@ admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin1234")
 
 
+@admin_bp.app_context_processor
+def inject_pending_count():
+    """모든 admin 페이지에 문의 대기 건수 주입"""
+    if session.get("admin_logged_in") and models.db_manager:
+        try:
+            return {"pending_inquiry_count": models.db_manager.get_pending_inquiry_count()}
+        except Exception:
+            pass
+    return {"pending_inquiry_count": 0}
+
+
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -74,6 +85,17 @@ def campaigns():
     campaign_list = []
     if models.campaign_manager:
         campaign_list = models.campaign_manager.get_all_campaigns()
+
+    # 실시간 통계 반영
+    stats = {}
+    if models.db_manager:
+        stats = models.db_manager.get_campaign_stats()
+    for c in campaign_list:
+        cid = c.get("캠페인ID", "")
+        s = stats.get(cid, {})
+        c["완료수량"] = str(s.get("done", 0))
+        c["오늘수량"] = str(s.get("today", 0))
+
     return render_template("admin/campaigns.html", campaigns=campaign_list)
 
 
@@ -449,34 +471,25 @@ def overview():
     if models.campaign_manager:
         campaigns = models.campaign_manager.get_all_campaigns()
 
-    # Calculate stats per campaign
-    all_reviewers = []
+    # SQL 집계로 캠페인별 통계 조회
+    stats = {}
     if models.db_manager:
-        all_reviewers = models.db_manager.get_all_reviewers()
+        stats = models.db_manager.get_campaign_stats()
 
-    # Group by campaign
     campaign_stats = []
     for c in campaigns:
         cid = c.get("캠페인ID", "")
         total = int(c.get("총수량", 0) or 0)
-        done = int(c.get("완료수량", 0) or 0)
-
-        # Count review and settlement from reviewer data
-        review_done = 0
-        settlement_done = 0
-        for r in all_reviewers:
-            if r.get("캠페인ID") == cid:
-                status = r.get("상태", "")
-                if status in ("리뷰제출", "입금대기", "입금완료"):
-                    review_done += 1
-                if status == "입금완료":
-                    settlement_done += 1
+        s = stats.get(cid, {})
+        done = s.get("done", 0)
 
         rate = round(done / total * 100, 1) if total > 0 else 0
         campaign_stats.append({
             **c,
-            "review_done": review_done,
-            "settlement_done": settlement_done,
+            "완료수량": str(done),
+            "review_done": s.get("review_done", 0),
+            "settlement_done": s.get("settlement_done", 0),
+            "today_count": s.get("today", 0),
             "rate": rate,
         })
 
@@ -643,13 +656,10 @@ def api_kakao_bulk():
 def inquiries():
     status_filter = request.args.get("status", "")
     items = []
-    pending_count = 0
     if models.db_manager:
         items = models.db_manager.get_inquiries(status_filter or None)
-        pending_count = models.db_manager.get_pending_inquiry_count()
     return render_template("admin/inquiries.html",
-                           inquiries=items, status_filter=status_filter,
-                           pending_count=pending_count)
+                           inquiries=items, status_filter=status_filter)
 
 
 @admin_bp.route("/api/inquiry/reply", methods=["POST"])

@@ -273,6 +273,33 @@ class DBManager:
         # 하위 호환: 시트 컬럼명 매핑
         return [self._campaign_to_sheet_dict(r) for r in rows]
 
+    def get_campaign_stats(self) -> dict:
+        """캠페인별 진행 통계를 SQL 집계로 반환. {campaign_id: {...stats}}"""
+        sql = """
+            SELECT campaign_id,
+                   COUNT(*) FILTER (WHERE status NOT IN ('취소','타임아웃취소')) AS active_count,
+                   COUNT(*) FILTER (WHERE status = '입금완료') AS done_count,
+                   COUNT(*) FILTER (WHERE status IN ('리뷰제출','입금대기','입금완료')) AS review_done,
+                   COUNT(*) FILTER (WHERE status = '입금대기') AS settlement_pending,
+                   COUNT(*) FILTER (WHERE status = '입금완료') AS settlement_done,
+                   COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE
+                                    AND status NOT IN ('취소','타임아웃취소')) AS today_count
+            FROM progress
+            GROUP BY campaign_id
+        """
+        rows = self._fetchall(sql)
+        result = {}
+        for r in rows:
+            result[r["campaign_id"]] = {
+                "active": r["active_count"],
+                "done": r["done_count"],
+                "review_done": r["review_done"],
+                "settlement_pending": r["settlement_pending"],
+                "settlement_done": r["settlement_done"],
+                "today": r["today_count"],
+            }
+        return result
+
     def get_campaign_by_id(self, campaign_id: str) -> dict | None:
         row = self._fetchone("SELECT * FROM campaigns WHERE id = %s", (campaign_id,))
         return self._campaign_to_sheet_dict(row) if row else None

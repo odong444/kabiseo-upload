@@ -114,7 +114,7 @@
                 <a href="{{ url_for('admin.settlement') }}">정산</a>
                 <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
                 <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
-                <a href="{{ url_for('admin.inquiries') }}">문의</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
                 <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
                 <a href="{{ url_for('admin.guide') }}">가이드</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
@@ -179,6 +179,7 @@
                         <th>상품명</th>
                         <th>총수량</th>
                         <th>완료</th>
+                        <th>오늘</th>
                         <th>달성률(%)</th>
                         <th>리뷰완료</th>
                         <th>정산완료</th>
@@ -250,6 +251,7 @@
                 + '<td>' + (c['상품명'] || '') + '</td>'
                 + '<td>' + total + '</td>'
                 + '<td>' + done + '</td>'
+                + '<td>' + (c['today_count'] || 0) + '</td>'
                 + '<td>'
                 +   '<span class="rate-bar"><span class="rate-bar-fill ' + rateClass + '" style="width:' + Math.min(rate, 100) + '%"></span></span>'
                 +   '<strong>' + rate + '%</strong>'

@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>카비서 관리자 - 캠페인</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .admin-status-badge.모집중 { background: #e3f2fd; color: #1565c0; }
+    .admin-status-badge.진행중 { background: #e8f5e9; color: #2e7d32; }
+    .admin-status-badge.마감 { background: #fff8e1; color: #f57f17; }
+    .admin-status-badge.종료 { background: #f5f5f5; color: #999; }
+    .today-highlight { color: #2563eb; font-weight: 700; }
+    .daily-over { color: #ef4444; font-weight: 700; }
+    </style>
 </head>
 <body class="admin-body">
     <header class="admin-header">
@@ -19,7 +27,7 @@
                 <a href="{{ url_for('admin.settlement') }}">정산</a>
                 <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
                 <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
-                <a href="{{ url_for('admin.inquiries') }}">문의</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
                 <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
                 <a href="{{ url_for('admin.guide') }}">가이드</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
@@ -54,6 +62,7 @@
                         <th>플랫폼</th>
                         <th>총수량</th>
                         <th>완료</th>
+                        <th>오늘</th>
                         <th>일수량</th>
                         <th>구매시간</th>
                         <th>리뷰비</th>
@@ -67,12 +76,13 @@
                         <td>{{ c.get('상품명', '') }}</td>
                         <td>{{ c.get('업체명', '') }}</td>
                         <td>{{ c.get('플랫폼', '') }}</td>
-                        <td>{{ c.get('총수량', '') }}</td>
-                        <td>{{ c.get('완료수량', '') }}</td>
-                        <td>{{ c.get('일수량', '') }}</td>
+                        <td>{{ c.get('총수량', '0') }}</td>
+                        <td>{{ c.get('완료수량', '0') }}</td>
+                        <td>{{ c.get('오늘수량', '0') }}</td>
+                        <td>{{ c.get('일수량', '0') }}</td>
                         <td>{{ c.get('구매가능시간', '') or '24시간' }}</td>
-                        <td>{{ c.get('리뷰비', '') }}</td>
-                        <td><span class="admin-status-badge">{{ c.get('상태', '모집중') }}</span></td>
+                        <td>{{ '{:,}'.format(c.get('리뷰비', '')|int) if c.get('리뷰비', '') else '' }}</td>
+                        <td><span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span></td>
                         <td>
                             <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
                                class="admin-btn admin-btn-sm">수정</a>
