@@ -266,6 +266,9 @@ def reviews_reject():
             models.db_manager.reject_review(progress_id, reason)
             processed += 1
             _notify_reviewer_reject(row_data, reason)
+            # 카카오톡 반려 알림
+            if models.kakao_notifier:
+                models.kakao_notifier.notify_review_rejected(progress_id, reason)
         except Exception as e:
             logger.error(f"검수 반려 에러 (id {id_str}): {e}")
 
@@ -298,9 +301,13 @@ def api_reviews_reject():
     row_idx = data.get("row_idx")
     reason = data.get("reason", "").strip() or "리뷰 사진을 다시 확인해주세요."
     try:
-        row_data = models.db_manager.get_row_dict(int(row_idx))
-        models.db_manager.reject_review(int(row_idx), reason)
+        progress_id = int(row_idx)
+        row_data = models.db_manager.get_row_dict(progress_id)
+        models.db_manager.reject_review(progress_id, reason)
         _notify_reviewer_reject(row_data, reason)
+        # 카카오톡 반려 알림
+        if models.kakao_notifier:
+            models.kakao_notifier.notify_review_rejected(progress_id, reason)
         return jsonify({"ok": True})
     except Exception as e:
         logger.error(f"검수 반려 API 에러: {e}")
@@ -576,3 +583,53 @@ def api_campaign_preview():
         "guide_text": "\n".join(guide_parts),
         "recruit_text": "\n".join(recruit_lines),
     })
+
+
+# ──────── 카카오톡 수동 발송 ────────
+
+@admin_bp.route("/api/kakao/send", methods=["POST"])
+@admin_required
+def api_kakao_send():
+    """카카오톡 단건 발송"""
+    if not models.kakao_notifier:
+        return jsonify({"ok": False, "message": "카카오 알림 미설정"})
+
+    data = request.get_json(silent=True) or {}
+    progress_id = data.get("progress_id")
+    custom_message = data.get("message", "").strip()
+
+    if not progress_id:
+        return jsonify({"ok": False, "message": "progress_id 필수"})
+
+    try:
+        ok = models.kakao_notifier.send_reminder(int(progress_id), custom_message)
+        return jsonify({"ok": ok, "message": "발송 성공" if ok else "발송 실패"})
+    except Exception as e:
+        logger.error(f"카톡 발송 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/kakao/bulk", methods=["POST"])
+@admin_required
+def api_kakao_bulk():
+    """카카오톡 일괄 발송"""
+    if not models.kakao_notifier:
+        return jsonify({"ok": False, "message": "카카오 알림 미설정"})
+
+    data = request.get_json(silent=True) or {}
+    progress_ids = data.get("progress_ids", [])
+    custom_message = data.get("message", "").strip()
+
+    if not progress_ids:
+        return jsonify({"ok": False, "message": "progress_ids 필수"})
+
+    sent = 0
+    for pid in progress_ids:
+        try:
+            ok = models.kakao_notifier.send_reminder(int(pid), custom_message)
+            if ok:
+                sent += 1
+        except Exception:
+            pass
+
+    return jsonify({"ok": True, "sent": sent, "total": len(progress_ids)})

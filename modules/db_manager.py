@@ -138,7 +138,8 @@ CREATE TABLE IF NOT EXISTS progress (
     settlement_date DATE,
     settled_date    DATE,
     is_collected    BOOLEAN DEFAULT FALSE,
-    remark          TEXT DEFAULT ''
+    remark          TEXT DEFAULT '',
+    last_reminder_date DATE
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
@@ -166,6 +167,11 @@ class DBManager:
         with self._conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(_SCHEMA_SQL)
+                # 마이그레이션: 기존 테이블에 새 컬럼 추가
+                try:
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS last_reminder_date DATE")
+                except Exception:
+                    pass
             conn.commit()
         logger.info("DB 스키마 확인/생성 완료")
 

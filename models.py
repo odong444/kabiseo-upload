@@ -30,6 +30,7 @@ reviewer_grader = None
 timeout_manager = None
 step_machine = None
 ai_handler = None
+kakao_notifier = None
 
 # 하위 호환 (기존 코드에서 sheets_manager 참조하는 곳 대비)
 sheets_manager = None
@@ -38,7 +39,7 @@ sheets_manager = None
 def init_app(web_url: str = "", socketio=None):
     """앱 시작 시 매니저 초기화"""
     global db_manager, drive_uploader, campaign_manager, sheets_manager
-    global reviewer_manager, reviewer_grader, timeout_manager, step_machine, ai_handler
+    global reviewer_manager, reviewer_grader, timeout_manager, step_machine, ai_handler, kakao_notifier
 
     # ── PostgreSQL 초기화 ──
     database_url = os.environ.get("DATABASE_URL", "")
@@ -95,10 +96,20 @@ def init_app(web_url: str = "", socketio=None):
         ai_handler=ai_handler,
     ) if campaign_manager and reviewer_manager else None
 
+    # 카카오톡 알림
+    if db_manager:
+        from modules.kakao_notifier import KakaoNotifier
+        kakao_notifier = KakaoNotifier(db_manager, web_url=web_url)
+        logging.info("카카오톡 알림 초기화 완료")
+    else:
+        kakao_notifier = None
+
     # 타임아웃 매니저 (20분 취소)
     timeout_manager = TimeoutManager(state_store)
     timeout_manager.set_sheets_manager(db_manager)
     timeout_manager.set_chat_logger(chat_logger)
+    if kakao_notifier:
+        timeout_manager.set_kakao_notifier(kakao_notifier)
     if socketio:
         timeout_manager.set_socketio(socketio)
     timeout_manager.start()

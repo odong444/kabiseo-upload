@@ -29,6 +29,7 @@ class TimeoutManager:
         self._socketio = None
         self._db_manager = None
         self._chat_logger = None
+        self._kakao_notifier = None
 
     def set_socketio(self, socketio):
         """SocketIO 인스턴스 설정 (앱 시작 후)"""
@@ -40,6 +41,9 @@ class TimeoutManager:
 
     def set_chat_logger(self, chat_logger):
         self._chat_logger = chat_logger
+
+    def set_kakao_notifier(self, kakao_notifier):
+        self._kakao_notifier = kakao_notifier
 
     def start(self):
         if self._running:
@@ -58,6 +62,7 @@ class TimeoutManager:
 
     def _check_loop(self):
         sheet_check_counter = 0
+        deadline_check_counter = 0
         while self._running:
             try:
                 self._check_all()
@@ -72,6 +77,15 @@ class TimeoutManager:
                     self._check_db_stale()
                 except Exception as e:
                     logger.error(f"DB 타임아웃 체크 에러: {e}")
+
+            # 리뷰 기한 리마인더: 1시간마다 (15초 * 240 = 3600초)
+            deadline_check_counter += 1
+            if deadline_check_counter >= 240:
+                deadline_check_counter = 0
+                try:
+                    self._check_review_deadlines()
+                except Exception as e:
+                    logger.error(f"리뷰 기한 체크 에러: {e}")
 
             time.sleep(15)  # 15초마다 체크
 
@@ -106,6 +120,14 @@ class TimeoutManager:
         if self._socketio:
             self._socketio.emit("bot_message", {"message": msg}, room=rid)
 
+        # 카카오톡 경고
+        if self._kakao_notifier:
+            try:
+                product = state.temp_data.get("campaign", {}).get("상품명", "")
+                self._kakao_notifier.notify_timeout_warning(state.name, state.phone, product)
+            except Exception as e:
+                logger.warning(f"카톡 타임아웃 경고 실패: {e}")
+
     def _do_timeout_cancel(self, state):
         """20분 타임아웃 취소 처리"""
         rid = state.reviewer_id
@@ -134,9 +156,25 @@ class TimeoutManager:
         if self._socketio:
             self._socketio.emit("bot_message", {"message": msg}, room=rid)
 
+        # 카카오톡 취소 알림
+        if self._kakao_notifier:
+            try:
+                product = campaign.get("상품명", "")
+                self._kakao_notifier.notify_timeout_cancelled(state.name, state.phone, product)
+            except Exception as e:
+                logger.warning(f"카톡 타임아웃 취소 알림 실패: {e}")
+
         # 상태 리셋
         state.reset()
         self._warned.discard(rid)
+
+    def _check_review_deadlines(self):
+        """리뷰 기한 D-3, D-1 리마인더 발송"""
+        if not self._kakao_notifier:
+            return
+        sent = self._kakao_notifier.send_review_deadline_reminders()
+        if sent:
+            logger.info(f"리뷰 기한 리마인더 발송: {sent}건")
 
     def _check_db_stale(self):
         """DB에서 오래된 건 처리: 타임아웃 취소 + 취소 행 삭제"""
