@@ -686,20 +686,35 @@ def api_inquiry_reply():
     if not ok:
         return jsonify({"ok": False, "message": "답변 저장 실패"})
 
-    # 카톡으로 답변 발송
+    reviewer_name = inquiry.get("reviewer_name", "")
+    reviewer_phone = inquiry.get("reviewer_phone", "")
+    is_urgent = inquiry.get("is_urgent", False)
+
+    # 1) 웹 채팅에 답변 메시지 전송 (일반/긴급 모두)
+    chat_msg = f"[문의 답변]\n{reply_text}\n\n※ 추가 문의는 메뉴에서 '담당자 문의'를 이용해주세요."
+    if reviewer_name and reviewer_phone:
+        rid = f"{reviewer_name}_{reviewer_phone}"
+        if models.chat_logger:
+            models.chat_logger.log(rid, "bot", chat_msg)
+        if models.timeout_manager and models.timeout_manager._socketio:
+            models.timeout_manager._socketio.emit(
+                "bot_message", {"message": chat_msg}, room=rid
+            )
+
+    # 2) 긴급문의만 카톡으로 추가 발송
     kakao_ok = False
-    if models.kakao_notifier and inquiry.get("reviewer_name") and inquiry.get("reviewer_phone"):
+    if is_urgent and models.kakao_notifier and reviewer_name and reviewer_phone:
         try:
             kakao_ok = models.kakao_notifier.notify_inquiry_reply(
-                inquiry["reviewer_name"], inquiry["reviewer_phone"], reply_text
+                reviewer_name, reviewer_phone, reply_text
             )
         except Exception as e:
             logger.error(f"문의 답변 카톡 발송 실패: {e}")
 
-    return jsonify({
-        "ok": True,
-        "message": "답변 완료" + (" (카톡 발송됨)" if kakao_ok else ""),
-    })
+    msg = "답변 완료 (웹채팅 전송됨)"
+    if is_urgent:
+        msg += " + 카톡 발송" + ("됨" if kakao_ok else " 실패")
+    return jsonify({"ok": True, "message": msg})
 
 
 # ──────── 스프레드시트 (데이터 편집) ────────
