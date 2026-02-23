@@ -171,10 +171,25 @@
                     <div class="form-group form-group-full">
                         <div class="calc-hint hidden" id="calcHint"></div>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group form-group-full">
                         <label>모집 및 구매진행시간</label>
-                        <input type="text" name="구매가능시간" placeholder="예: 09:00~22:00 또는 18:00~익일07:00">
-                        <small style="color:#888; font-size:12px;">비우면 24시간 가능. 이 시간에만 캠페인 노출 + 카톡 홍보</small>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <select id="buyTimeStart" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                                <option value="">시작</option>
+                                {% for h in range(24) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d:00'|format(h) }}</option>{% endfor %}
+                            </select>
+                            <span>~</span>
+                            <label style="display:flex;align-items:center;gap:4px;margin:0;font-weight:400;">
+                                <input type="checkbox" id="buyTimeNextDay" style="width:auto;"> 익일
+                            </label>
+                            <select id="buyTimeEnd" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                                <option value="">종료</option>
+                                {% for h in range(25) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d:00'|format(h) }}</option>{% endfor %}
+                            </select>
+                            <button type="button" onclick="clearBuyTime()" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;background:#f9f9f9;cursor:pointer;font-size:12px;">24시간(초기화)</button>
+                        </div>
+                        <input type="hidden" name="구매가능시간" id="buyTimeValue">
+                        <small style="color:#888;font-size:12px;">비우면 24시간. 이 시간에만 캠페인 노출 + 카톡 홍보</small>
                     </div>
                     <div class="form-group form-group-full">
                         <label>중복진행 가능여부</label>
@@ -236,6 +251,27 @@
     </div>
 
     <script>
+    // 구매시간 드롭다운
+    function updateBuyTime() {
+        var s = document.getElementById('buyTimeStart').value;
+        var e = document.getElementById('buyTimeEnd').value;
+        var nd = document.getElementById('buyTimeNextDay').checked;
+        var val = '';
+        if (s && e) {
+            val = s + ':00~' + (nd ? '익일' : '') + e + ':00';
+        }
+        document.getElementById('buyTimeValue').value = val;
+    }
+    function clearBuyTime() {
+        document.getElementById('buyTimeStart').value = '';
+        document.getElementById('buyTimeEnd').value = '';
+        document.getElementById('buyTimeNextDay').checked = false;
+        document.getElementById('buyTimeValue').value = '';
+    }
+    document.getElementById('buyTimeStart').addEventListener('change', updateBuyTime);
+    document.getElementById('buyTimeEnd').addEventListener('change', updateBuyTime);
+    document.getElementById('buyTimeNextDay').addEventListener('change', updateBuyTime);
+
     (function() {
         // 플랫폼 "기타" 토글
         const platformSelect = document.getElementById('platformSelect');

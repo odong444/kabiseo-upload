@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>카비서 관리자 - 캠페인 수정</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .file-upload-area {
+            border: 2px dashed #ddd; border-radius: 8px; padding: 20px;
+            text-align: center; cursor: pointer; transition: border-color 0.2s;
+        }
+        .file-upload-area:hover { border-color: #fee500; }
+        .file-upload-area.has-file { border-color: #4caf50; background: #f0faf0; }
+        .file-upload-area input[type="file"] { display: none; }
+        .file-upload-label { color: #888; font-size: 14px; }
+        .file-upload-area.has-file .file-upload-label { color: #4caf50; font-weight: 600; }
+        .current-image { margin-top: 8px; }
+        .current-image img { max-width: 200px; border-radius: 8px; border: 1px solid #ddd; }
+    </style>
 </head>
 <body class="admin-body">
     <header class="admin-header">
@@ -41,7 +54,7 @@
         {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('admin.campaign_edit_post', campaign_id=row) }}" class="admin-form">
+        <form method="POST" action="{{ url_for('admin.campaign_edit_post', campaign_id=row) }}" enctype="multipart/form-data" class="admin-form">
             <div class="form-grid">
                 <div class="form-group">
                     <label>상태</label>
@@ -106,10 +119,25 @@
                     <input type="number" name="완료수량" value="{{ campaign.get('완료수량', '') }}">
                 </div>
 
-                <div class="form-group">
+                <div class="form-group form-group-full">
                     <label>구매가능시간</label>
-                    <input type="text" name="구매가능시간" value="{{ campaign.get('구매가능시간', '') }}" placeholder="예: 09:00~22:00 또는 18:00~익일07:00">
-                    <small style="color:#888; font-size:12px;">비우면 24시간. 이 시간에만 캠페인 노출</small>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <select id="buyTimeStart" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                            <option value="">시작</option>
+                            {% for h in range(24) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d:00'|format(h) }}</option>{% endfor %}
+                        </select>
+                        <span>~</span>
+                        <label style="display:flex;align-items:center;gap:4px;margin:0;font-weight:400;">
+                            <input type="checkbox" id="buyTimeNextDay" style="width:auto;"> 익일
+                        </label>
+                        <select id="buyTimeEnd" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                            <option value="">종료</option>
+                            {% for h in range(25) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d:00'|format(h) }}</option>{% endfor %}
+                        </select>
+                        <button type="button" onclick="clearBuyTime()" style="padding:6px 12px;border:1px solid #ddd;border-radius:6px;background:#f9f9f9;cursor:pointer;font-size:12px;">24시간(초기화)</button>
+                    </div>
+                    <input type="hidden" name="구매가능시간" id="buyTimeValue" value="{{ campaign.get('구매가능시간', '') }}">
+                    <small style="color:#888;font-size:12px;">비우면 24시간. 이 시간에만 캠페인 노출</small>
                 </div>
 
                 <div class="form-group">
@@ -154,6 +182,21 @@
                 </div>
 
                 <div class="form-group form-group-full">
+                    <label>상품이미지</label>
+                    {% set current_image = campaign.get('상품이미지', '') %}
+                    {% if current_image %}
+                    <div class="current-image">
+                        <p style="font-size:12px;color:#666;margin-bottom:4px;">현재 이미지:</p>
+                        <img src="{{ current_image.replace('/file/d/', '/thumbnail?id=').replace('/view', '&sz=w300') if '/file/d/' in current_image else current_image }}" alt="상품이미지" onerror="this.style.display='none'">
+                    </div>
+                    {% endif %}
+                    <div class="file-upload-area" id="imageUploadArea" style="margin-top:8px;">
+                        <input type="file" name="상품이미지" id="imageFile" accept="image/*">
+                        <div class="file-upload-label" id="imageLabel">{{ '새 이미지로 교체하려면 클릭' if current_image else '클릭하여 이미지를 선택하세요 (JPG, PNG)' }}</div>
+                    </div>
+                </div>
+
+                <div class="form-group form-group-full">
                     <label>메모</label>
                     <textarea name="메모" rows="3">{{ campaign.get('메모', '') }}</textarea>
                 </div>
@@ -165,5 +208,57 @@
             </div>
         </form>
     </main>
+    <script>
+    function updateBuyTime() {
+        var s = document.getElementById('buyTimeStart').value;
+        var e = document.getElementById('buyTimeEnd').value;
+        var nd = document.getElementById('buyTimeNextDay').checked;
+        var val = '';
+        if (s && e) {
+            val = s + ':00~' + (nd ? '익일' : '') + e + ':00';
+        }
+        document.getElementById('buyTimeValue').value = val;
+    }
+    function clearBuyTime() {
+        document.getElementById('buyTimeStart').value = '';
+        document.getElementById('buyTimeEnd').value = '';
+        document.getElementById('buyTimeNextDay').checked = false;
+        document.getElementById('buyTimeValue').value = '';
+    }
+    document.getElementById('buyTimeStart').addEventListener('change', updateBuyTime);
+    document.getElementById('buyTimeEnd').addEventListener('change', updateBuyTime);
+    document.getElementById('buyTimeNextDay').addEventListener('change', updateBuyTime);
+
+    // 이미지 업로드
+    (function() {
+        var area = document.getElementById('imageUploadArea');
+        var fileInput = document.getElementById('imageFile');
+        var label = document.getElementById('imageLabel');
+        area.addEventListener('click', function() { fileInput.click(); });
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                label.textContent = this.files[0].name;
+                area.classList.add('has-file');
+            } else {
+                label.textContent = '클릭하여 이미지를 선택하세요 (JPG, PNG)';
+                area.classList.remove('has-file');
+            }
+        });
+    })();
+
+    // 기존 값 파싱해서 드롭다운에 세팅
+    (function() {
+        var raw = document.getElementById('buyTimeValue').value.trim();
+        if (!raw) return;
+        var nd = raw.indexOf('익일') >= 0;
+        var clean = raw.replace('익일', '').replace(/\s/g, '');
+        var m = clean.match(/(\d{1,2}):(\d{2})[~\-](\d{1,2}):(\d{2})/);
+        if (m) {
+            document.getElementById('buyTimeStart').value = ('0' + m[1]).slice(-2);
+            document.getElementById('buyTimeEnd').value = ('0' + m[3]).slice(-2);
+            document.getElementById('buyTimeNextDay').checked = nd;
+        }
+    })();
+    </script>
 </body>
 </html>

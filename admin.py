@@ -135,6 +135,19 @@ def campaign_edit_post(campaign_id):
         value = request.form.get(field_name, "").strip()
         update_data[field_name] = value
 
+    # 상품이미지 파일 업로드
+    image_file = request.files.get("상품이미지")
+    if image_file and image_file.filename:
+        try:
+            if models.drive_uploader:
+                link = models.drive_uploader.upload_from_flask_file(
+                    image_file, capture_type="purchase",
+                    description=f"캠페인 상품이미지: {update_data.get('상품명', '')}"
+                )
+                update_data["상품이미지"] = link
+        except Exception as e:
+            logger.error(f"상품이미지 업로드 에러: {e}")
+
     try:
         models.db_manager.update_campaign(campaign_id, update_data)
     except Exception as e:

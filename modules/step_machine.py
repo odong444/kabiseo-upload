@@ -1134,18 +1134,25 @@ class StepMachine:
         """조건부 구매 가이드 자동 생성"""
         form_template = self._build_form_template(campaign, name, phone, store_ids)
 
+        # 상품이미지 태그 (채팅 프론트엔드에서 렌더링)
+        product_image = campaign.get("상품이미지", "").strip()
+        image_tag = f"[IMG:{product_image}]" if product_image else ""
+
         # 캠페인가이드(자유기술)가 있으면 우선 사용
         custom_guide = campaign.get("캠페인가이드", "").strip()
         if custom_guide:
             product_name = campaign.get("상품명", "")
-            parts = [
+            parts = []
+            if image_tag:
+                parts.append(image_tag)
+            parts.extend([
                 "━━━━━━━━━━━━━━━━━━",
                 f"📌 {product_name} 구매 가이드",
                 "━━━━━━━━━━━━━━━━━━",
                 "",
                 custom_guide,
                 "",
-            ]
+            ])
             buy_time = campaign.get("구매가능시간", "").strip()
             if buy_time:
                 parts.append(f"⏰ 구매 가능 시간: {buy_time}")
@@ -1161,6 +1168,8 @@ class StepMachine:
         entry_method = campaign.get("유입방식", "").strip()
 
         parts = []
+        if image_tag:
+            parts.append(image_tag)
         parts.append("━━━━━━━━━━━━━━━━━━")
         parts.append(f"📌 {product_name} 구매 가이드")
         parts.append("━━━━━━━━━━━━━━━━━━")

@@ -590,12 +590,35 @@
         return div.innerHTML;
     }
 
+    function driveToEmbed(url) {
+        var match = url.match(/\/file\/d\/([^\/]+)/);
+        if (match) {
+            return 'https://drive.google.com/thumbnail?id=' + match[1] + '&sz=w400';
+        }
+        return url;
+    }
+
     function escapeHtml(text) {
+        // [IMG:url] 태그 추출
+        var images = [];
+        var cleanText = (text || '').replace(/\[IMG:(.*?)\]/g, function(m, url) {
+            images.push(url);
+            return '';
+        });
+
         var div = document.createElement('div');
-        div.textContent = text || '';
+        div.textContent = cleanText;
         var escaped = div.innerHTML.replace(/\n/g, '<br>');
         escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#4a90d9;text-decoration:underline;">$1</a>');
-        return escaped;
+
+        // 이미지 렌더링
+        var imageHtml = '';
+        images.forEach(function(url) {
+            var imgUrl = driveToEmbed(url);
+            imageHtml += '<div style="margin:8px 0;"><img src="' + imgUrl + '" style="max-width:100%;border-radius:8px;" onerror="this.parentNode.style.display=\'none\'" loading="lazy" /></div>';
+        });
+
+        return imageHtml + escaped;
     }
 
     // ──────── 사이드바 ────────
