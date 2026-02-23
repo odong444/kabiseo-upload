@@ -63,6 +63,7 @@ def init_app(web_url: str = "", socketio=None):
             "상품이미지", "상품금액", "리워드",
         ])
 
+        sheets_manager.ensure_reviewer_db()
         campaign_manager = CampaignManager(sheets_manager)
         reviewer_manager = ReviewerManager(sheets_manager)
         reviewer_grader = ReviewerGrader(sheets_manager)

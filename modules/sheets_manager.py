@@ -43,6 +43,8 @@ class SheetsManager:
     """구글시트 CRUD 매니저"""
 
     MAIN_SHEET = "카비서_정리"
+    REVIEWER_DB_SHEET = "리뷰어DB"
+    REVIEWER_DB_HEADERS = ["이름", "연락처", "아이디목록", "카톡친구", "등록일", "참여횟수", "메모"]
 
     def __init__(self, gspread_client, spreadsheet_id: str):
         self.client = gspread_client
@@ -658,3 +660,94 @@ class SheetsManager:
             "review_today": review_today,
             "total": len(all_items),
         }
+
+    # ──────────── 리뷰어DB ────────────
+
+    def ensure_reviewer_db(self):
+        """리뷰어DB 시트 존재 확인 + 헤더 보장."""
+        import gspread
+        try:
+            ws = self.spreadsheet.worksheet(self.REVIEWER_DB_SHEET)
+            headers = ws.row_values(1)
+            if headers != self.REVIEWER_DB_HEADERS:
+                ws.clear()
+                ws.update([[h for h in self.REVIEWER_DB_HEADERS]], "A1")
+                logger.info("리뷰어DB 헤더 재설정")
+        except gspread.exceptions.WorksheetNotFound:
+            ws = self.spreadsheet.add_worksheet(
+                title=self.REVIEWER_DB_SHEET,
+                rows=1000, cols=len(self.REVIEWER_DB_HEADERS),
+            )
+            ws.update([[h for h in self.REVIEWER_DB_HEADERS]], "A1")
+            logger.info("리뷰어DB 시트 생성")
+
+    def upsert_reviewer_login(self, name: str, phone: str):
+        """로그인 시 리뷰어DB에 upsert. 없으면 추가, 있으면 무시."""
+        try:
+            ws = self._get_ws(self.REVIEWER_DB_SHEET)
+            headers = self._get_headers(ws)
+            all_rows = ws.get_all_values()
+
+            name_col = self._find_col(headers, "이름")
+            phone_col = self._find_col(headers, "연락처")
+
+            for row in all_rows[1:]:
+                if (name_col >= 0 and phone_col >= 0 and
+                        len(row) > max(name_col, phone_col) and
+                        row[name_col] == name and row[phone_col] == phone):
+                    return  # 이미 존재
+
+            # 새 행 추가
+            new_row = [""] * len(headers)
+            defaults = {
+                "이름": name,
+                "연락처": phone,
+                "아이디목록": "",
+                "카톡친구": "N",
+                "등록일": today_str(),
+                "참여횟수": "0",
+                "메모": "",
+            }
+            for col_name, value in defaults.items():
+                idx = self._find_col(headers, col_name)
+                if idx >= 0:
+                    new_row[idx] = value
+            ws.append_row(new_row, value_input_option="USER_ENTERED")
+            logger.info("리뷰어DB 등록: %s (%s)", name, phone)
+        except Exception as e:
+            logger.warning("리뷰어DB upsert 실패: %s", e)
+
+    def update_reviewer_store_ids(self, name: str, phone: str, store_id: str):
+        """캠페인 등록 시 아이디목록 + 참여횟수 업데이트."""
+        try:
+            ws = self._get_ws(self.REVIEWER_DB_SHEET)
+            headers = self._get_headers(ws)
+            all_rows = ws.get_all_values()
+
+            name_col = self._find_col(headers, "이름")
+            phone_col = self._find_col(headers, "연락처")
+            ids_col = self._find_col(headers, "아이디목록")
+            count_col = self._find_col(headers, "참여횟수")
+
+            for i, row in enumerate(all_rows[1:], start=2):
+                if (name_col < 0 or phone_col < 0 or
+                        len(row) <= max(name_col, phone_col)):
+                    continue
+                if row[name_col] != name or row[phone_col] != phone:
+                    continue
+
+                # 아이디 추가 (중복 방지)
+                if ids_col >= 0:
+                    existing = row[ids_col] if ids_col < len(row) else ""
+                    id_list = [x.strip() for x in existing.split(",") if x.strip()]
+                    if store_id not in id_list:
+                        id_list.append(store_id)
+                        ws.update_cell(i, ids_col + 1, ", ".join(id_list))
+
+                # 참여횟수 +1
+                if count_col >= 0:
+                    current = int(row[count_col]) if count_col < len(row) and row[count_col].isdigit() else 0
+                    ws.update_cell(i, count_col + 1, str(current + 1))
+                break
+        except Exception as e:
+            logger.warning("리뷰어DB 아이디 업데이트 실패: %s", e)

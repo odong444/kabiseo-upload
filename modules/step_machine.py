@@ -752,6 +752,20 @@ class StepMachine:
         for sid in ids:
             self._update_status_by_id(state.name, state.phone, campaign_id, sid, "가이드전달")
 
+        # 리뷰어DB 아이디목록 업데이트
+        try:
+            for sid in ids:
+                self.reviewers.sheets.update_reviewer_store_ids(state.name, state.phone, sid)
+        except Exception:
+            pass
+
+        # 서버PC에 친구추가 요청 (카카오톡 DM 기반)
+        try:
+            from modules.signal_sender import request_friend_add
+            request_friend_add(state.name, state.phone)
+        except Exception:
+            pass
+
         state.temp_data["submitted_ids"] = []
         id_summary = ", ".join(ids)
         confirm = f"✅ 아이디 확인: {id_summary}"

@@ -38,6 +38,13 @@ def register_handlers(socketio):
         reviewer_id = models.state_store.make_id(name, phone)
         join_room(reviewer_id)
 
+        # 리뷰어DB에 등록 (최초 로그인 시 자동 추가)
+        if models.sheets_manager:
+            try:
+                models.sheets_manager.upsert_reviewer_login(name, phone)
+            except Exception:
+                pass
+
         # 이전 대화 이력 전송
         history = models.chat_logger.get_history(reviewer_id)
         if history:
