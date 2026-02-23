@@ -34,6 +34,7 @@ class KakaoNotifier:
         return {
             "name": row.get("진행자이름", "") or row.get("수취인명", ""),
             "phone": row.get("진행자연락처", "") or row.get("연락처", ""),
+            "recipient_name": row.get("수취인명", ""),
             "product_name": row.get("제품명", ""),
             "store_ids": row.get("아이디", ""),
             "deadline": row.get("리뷰기한", ""),
@@ -57,6 +58,7 @@ class KakaoNotifier:
         extra = extra or {}
         msg = template.format(
             name=info["name"],
+            recipient_name=info["recipient_name"],
             product_name=info["product_name"],
             store_ids=info["store_ids"],
             deadline=info.get("deadline", ""),
@@ -74,6 +76,7 @@ class KakaoNotifier:
             return False
 
         msg = ktpl.REVIEW_REJECTED.format(
+            recipient_name=info["recipient_name"],
             product_name=info["product_name"],
             store_ids=info["store_ids"],
             reason=reason,
@@ -83,21 +86,27 @@ class KakaoNotifier:
 
     # ──────── 자동 발송: 타임아웃 ────────
 
-    def notify_timeout_warning(self, name: str, phone: str, product_name: str) -> bool:
+    def notify_timeout_warning(self, name: str, phone: str, product_name: str,
+                               recipient_name: str = "", store_ids: str = "") -> bool:
         """타임아웃 15분 경고"""
         msg = ktpl.TIMEOUT_WARNING.format(
             product_name=product_name,
+            recipient_name=recipient_name,
+            store_ids=store_ids,
             web_url=self.web_url,
         )
         return request_reminder(name, phone, self._add_footer(msg))
 
-    def notify_timeout_cancelled(self, name: str, phone: str, product_name: str) -> bool:
+    def notify_timeout_cancelled(self, name: str, phone: str, product_name: str,
+                                  recipient_name: str = "", store_ids: str = "") -> bool:
         """타임아웃 취소"""
         msg = ktpl.TIMEOUT_CANCELLED.format(
             product_name=product_name,
+            recipient_name=recipient_name,
+            store_ids=store_ids,
             web_url=self.web_url,
         )
-        return request_notification(name, phone, msg)
+        return request_notification(name, phone, self._add_footer(msg))
 
     # ──────── 관리자 수동 독촉 ────────
 
@@ -118,7 +127,9 @@ class KakaoNotifier:
 
         msg = ktpl.ADMIN_REMINDER.format(
             message=message,
+            recipient_name=info["recipient_name"],
             product_name=info["product_name"],
+            store_ids=info["store_ids"],
             link=link,
         )
         return request_reminder(info["name"], info["phone"], self._add_footer(msg))
@@ -132,8 +143,8 @@ class KakaoNotifier:
         d1 = today + timedelta(days=1)
 
         rows = self.db._fetchall(
-            """SELECT p.id, p.store_id, p.review_deadline, p.last_reminder_date,
-                      r.name, r.phone, c.product_name
+            """SELECT p.id, p.store_id, p.recipient_name, p.review_deadline,
+                      p.last_reminder_date, r.name, r.phone, c.product_name
                FROM progress p
                JOIN reviewers r ON p.reviewer_id = r.id
                JOIN campaigns c ON p.campaign_id = c.id
@@ -151,7 +162,9 @@ class KakaoNotifier:
 
             msg = ktpl.REVIEW_DEADLINE_REMINDER.format(
                 days=days_left,
+                recipient_name=row.get("recipient_name", ""),
                 product_name=row.get("product_name", ""),
+                store_ids=row.get("store_id", ""),
                 web_url=self.web_url,
             )
 

@@ -123,8 +123,12 @@ class TimeoutManager:
         # 카카오톡 경고
         if self._kakao_notifier:
             try:
-                product = state.temp_data.get("campaign", {}).get("상품명", "")
-                self._kakao_notifier.notify_timeout_warning(state.name, state.phone, product)
+                campaign = state.temp_data.get("campaign", {})
+                product = campaign.get("상품명", "")
+                recipient = state.temp_data.get("recipient_name", "")
+                sids = ", ".join(state.temp_data.get("store_ids", []))
+                self._kakao_notifier.notify_timeout_warning(
+                    state.name, state.phone, product, recipient, sids)
             except Exception as e:
                 logger.warning(f"카톡 타임아웃 경고 실패: {e}")
 
@@ -160,7 +164,10 @@ class TimeoutManager:
         if self._kakao_notifier:
             try:
                 product = campaign.get("상품명", "")
-                self._kakao_notifier.notify_timeout_cancelled(state.name, state.phone, product)
+                recipient = state.temp_data.get("recipient_name", "")
+                sids = ", ".join(store_ids) if isinstance(store_ids, list) else str(store_ids)
+                self._kakao_notifier.notify_timeout_cancelled(
+                    state.name, state.phone, product, recipient, sids)
             except Exception as e:
                 logger.warning(f"카톡 타임아웃 취소 알림 실패: {e}")
 

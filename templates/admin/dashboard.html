@@ -30,7 +30,7 @@
         <!-- 리뷰어 목록 -->
         <h1>리뷰어 목록</h1>
         <form class="admin-search" method="GET" action="{{ url_for('admin.reviewers') }}" style="margin-bottom:1rem;">
-            <input type="text" name="q" placeholder="이름/연락처/아이디 검색" value="{{ q|default('') }}">
+            <input type="text" name="q" placeholder="진행자/수취인/연락처/아이디 검색" value="{{ q|default('') }}">
             <button type="submit" class="btn btn-primary">검색</button>
         </form>
 
@@ -55,8 +55,9 @@
                 <thead>
                     <tr>
                         <th style="width:40px;"><input type="checkbox" id="checkAll"></th>
-                        <th>수취인명</th>
-                        <th>연락처</th>
+                        <th>진행자</th>
+                        <th>진행자연락처</th>
+                        <th>수취인</th>
                         <th>아이디</th>
                         <th>제품명</th>
                         <th>상태</th>
@@ -68,8 +69,9 @@
                     {% for item in reviewers|default([]) %}
                     <tr data-status="{{ item.get('상태', '') }}">
                         <td><input type="checkbox" name="row_idx" value="{{ item.get('_row_idx', '') }}" class="row-check"></td>
+                        <td>{{ item.get('진행자이름', '') }}</td>
+                        <td>{{ item.get('진행자연락처', '') }}</td>
                         <td>{{ item.get('수취인명', '') }}</td>
-                        <td>{{ item.get('연락처', '') }}</td>
                         <td>{{ item.get('아이디', '') }}</td>
                         <td>{{ item.get('상품명', item.get('제품명', '')) }}</td>
                         <td><span class="admin-status-badge {{ item.get('상태', '')|lower }}">{{ item.get('상태', '') }}</span></td>

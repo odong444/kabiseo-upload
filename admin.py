@@ -400,8 +400,9 @@ def reviewers():
         ql = q.lower()
         items = [
             i for i in items
-            if ql in i.get("이름", "").lower()
-            or ql in i.get("진행자이름", "").lower()
+            if ql in i.get("진행자이름", "").lower()
+            or ql in i.get("진행자연락처", "")
+            or ql in i.get("수취인명", "").lower()
             or ql in i.get("연락처", "")
             or ql in i.get("아이디", "").lower()
         ]

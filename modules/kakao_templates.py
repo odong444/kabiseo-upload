@@ -10,6 +10,7 @@ kakao_templates.py - 카카오톡 알림 메시지 템플릿
 GUIDE_SENT = """[카비서] 구매 가이드를 확인해주세요.
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 
 가이드와 양식을 확인하고 제출해주세요.
 👉 {web_url}/chat"""
@@ -17,6 +18,7 @@ GUIDE_SENT = """[카비서] 구매 가이드를 확인해주세요.
 PURCHASE_WAIT = """[카비서] 구매 캡쳐를 제출해주세요.
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 
 👉 {web_url}/upload/purchase
 
@@ -25,6 +27,7 @@ PURCHASE_WAIT = """[카비서] 구매 캡쳐를 제출해주세요.
 REVIEW_WAIT = """[카비서] 리뷰를 작성해주세요.
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 리뷰 기한: {deadline}
 
 👉 {web_url}/upload/review"""
@@ -32,6 +35,7 @@ REVIEW_WAIT = """[카비서] 리뷰를 작성해주세요.
 REVIEW_SUBMITTED = """[카비서] 리뷰 캡쳐가 접수되었습니다.
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 
 검수 후 입금 안내드리겠습니다.
 진행현황: {web_url}/status"""
@@ -39,6 +43,7 @@ REVIEW_SUBMITTED = """[카비서] 리뷰 캡쳐가 접수되었습니다.
 REVIEW_REJECTED = """[카비서] 리뷰 검수 반려
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 사유: {reason}
 
 리뷰를 다시 제출해주세요.
@@ -47,6 +52,7 @@ REVIEW_REJECTED = """[카비서] 리뷰 검수 반려
 PAYMENT_WAIT = """[카비서] 리뷰 검수 승인!
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 
 곧 리뷰비를 입금해드리겠습니다.
 입금현황: {web_url}/payment"""
@@ -54,6 +60,7 @@ PAYMENT_WAIT = """[카비서] 리뷰 검수 승인!
 SETTLED = """[카비서] 입금 완료!
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 금액: {amount}원
 
 이용해주셔서 감사합니다.
@@ -64,6 +71,7 @@ SETTLED = """[카비서] 입금 완료!
 TIMEOUT_WARNING = """[카비서] 5분 후 자동 취소됩니다!
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 
 양식과 캡쳐를 빨리 제출해주세요.
 👉 {web_url}/chat"""
@@ -71,6 +79,7 @@ TIMEOUT_WARNING = """[카비서] 5분 후 자동 취소됩니다!
 TIMEOUT_CANCELLED = """[카비서] 신청이 자동 취소되었습니다.
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 
 자리가 있으면 다시 신청 가능합니다.
 👉 {web_url}/chat"""
@@ -80,6 +89,7 @@ TIMEOUT_CANCELLED = """[카비서] 신청이 자동 취소되었습니다.
 REVIEW_DEADLINE_REMINDER = """[카비서] 리뷰 기한이 {days}일 남았습니다.
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 
 리뷰 캡쳐를 제출해주세요.
 👉 {web_url}/upload/review"""
@@ -89,6 +99,7 @@ REVIEW_DEADLINE_REMINDER = """[카비서] 리뷰 기한이 {days}일 남았습�
 ADMIN_REMINDER = """[카비서] {message}
 
 상품: {product_name}
+수취인: {recipient_name} / 아이디: {store_ids}
 
 👉 {link}"""
 
