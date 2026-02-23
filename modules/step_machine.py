@@ -467,6 +467,21 @@ class StepMachine:
                 cards=cards
             )
 
+        # 재구매 체크
+        try:
+            repurchase = self.campaigns.db.check_repurchase(
+                state.name, state.phone, campaign.get("캠페인ID", "")
+            )
+            if repurchase:
+                prev = repurchase[0]
+                return _resp(
+                    f"⚠️ 이 상품은 이전에 '{prev['product_name']}' 캠페인에서 구매한 이력이 있습니다.\n"
+                    f"재구매로 판별될 수 있어 신청이 제한됩니다.",
+                    buttons=self._menu_buttons()
+                )
+        except Exception:
+            pass
+
         state.selected_campaign_id = campaign.get("캠페인ID", str(choice))
         state.temp_data["campaign"] = campaign
         state.temp_data["store_ids"] = []

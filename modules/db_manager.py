@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     company         TEXT NOT NULL DEFAULT '',
     product_name    TEXT NOT NULL DEFAULT '',
     product_link    TEXT DEFAULT '',
+    product_codes   JSONB DEFAULT '{}',
     product_image   TEXT DEFAULT '',
     product_price   INTEGER DEFAULT 0,
     payment_amount  INTEGER DEFAULT 0,
@@ -200,6 +201,10 @@ class DBManager:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_date DATE")
                 except Exception:
                     pass
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS product_codes JSONB DEFAULT '{}'")
+                except Exception:
+                    pass
             conn.commit()
         logger.info("DB 스키마 확인/생성 완료")
 
@@ -321,7 +326,7 @@ class DBManager:
         d = self._campaign_from_sheet_dict(data)
         sql = """
             INSERT INTO campaigns (
-                id, status, company, product_name, product_link, product_image,
+                id, status, company, product_name, product_link, product_codes, product_image,
                 product_price, payment_amount, campaign_type, platform, options, option_list,
                 keyword, keyword_position, current_rank, entry_method,
                 total_qty, daily_qty, done_qty, max_daily, duration_days,
@@ -336,7 +341,7 @@ class DBManager:
                 deadline_date, is_public, is_selected, reward, memo
             ) VALUES (
                 %(id)s, %(status)s, %(company)s, %(product_name)s, %(product_link)s,
-                %(product_image)s, %(product_price)s, %(payment_amount)s, %(campaign_type)s, %(platform)s,
+                %(product_codes)s, %(product_image)s, %(product_price)s, %(payment_amount)s, %(campaign_type)s, %(platform)s,
                 %(options)s, %(option_list)s, %(keyword)s, %(keyword_position)s,
                 %(current_rank)s, %(entry_method)s, %(total_qty)s, %(daily_qty)s,
                 %(done_qty)s, %(max_daily)s, %(duration_days)s, %(same_day_ship)s,
@@ -377,7 +382,7 @@ class DBManager:
     # 캠페인 시트↔DB 컬럼 매핑
     _CAMPAIGN_FIELD_MAP = {
         "캠페인ID": "id", "상태": "status", "업체명": "company",
-        "상품명": "product_name", "상품링크": "product_link",
+        "상품명": "product_name", "상품링크": "product_link", "상품코드": "product_codes",
         "상품이미지": "product_image", "상품금액": "product_price",
         "캠페인유형": "campaign_type", "플랫폼": "platform",
         "옵션": "options", "옵션목록": "option_list",
@@ -409,7 +414,7 @@ class DBManager:
 
     _CAMPAIGN_COLUMNS = {
         "id", "status", "company", "product_name", "product_link",
-        "product_image", "product_price", "payment_amount",
+        "product_codes", "product_image", "product_price", "payment_amount",
         "campaign_type", "platform",
         "options", "option_list", "keyword", "keyword_position",
         "current_rank", "entry_method", "total_qty", "daily_qty",
@@ -458,6 +463,19 @@ class DBManager:
                 except Exception:
                     return "[]"
             return json.dumps(value) if value else "[]"
+        if col == "product_codes":
+            import json
+            if isinstance(value, dict):
+                return json.dumps(value)
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    return "{}"
+                try:
+                    return json.dumps(json.loads(value))
+                except Exception:
+                    return "{}"
+            return "{}"
         if col in ("deadline_date", "start_date"):
             if not value or not str(value).strip():
                 return None
@@ -512,6 +530,9 @@ class DBManager:
                 if col == "daily_schedule":
                     result[col] = "[]"
                     continue
+                if col == "product_codes":
+                    result[col] = "{}"
+                    continue
                 result[col] = ""
 
         return result
@@ -534,6 +555,8 @@ class DBManager:
                 result["신청마감일"] = str(value) if value else ""
             elif db_col == "start_date":
                 result["시작일"] = str(value) if value else ""
+            elif db_col == "product_codes":
+                result["상품코드"] = value if isinstance(value, dict) else {}
             elif db_col == "daily_schedule":
                 import json
                 if isinstance(value, list):
@@ -898,6 +921,63 @@ class DBManager:
                 count = cur.rowcount
             conn.commit()
         return count
+
+    def check_repurchase(self, name: str, phone: str, campaign_id: str) -> list[dict]:
+        """같은 상품코드를 가진 다른 캠페인에서 리뷰어의 이전 구매 이력 조회.
+        Returns: [{"campaign_id": ..., "product_name": ..., "status": ...}]
+        """
+        # 현재 캠페인의 product_codes 조회
+        campaign = self._fetchone(
+            "SELECT product_codes FROM campaigns WHERE id = %s", (campaign_id,)
+        )
+        if not campaign or not campaign.get("product_codes"):
+            return []
+
+        codes = campaign["product_codes"]
+        if isinstance(codes, str):
+            import json
+            try:
+                codes = json.loads(codes)
+            except Exception:
+                return []
+        if not codes or not codes.get("codes"):
+            return []
+
+        product_id = codes["codes"].get("product_id", "")
+        if not product_id:
+            return []
+
+        # 같은 product_id를 가진 다른 캠페인 ID 조회
+        other_campaigns = self._fetchall(
+            """SELECT id, product_name FROM campaigns
+               WHERE id != %s AND product_codes->'codes'->>'product_id' = %s""",
+            (campaign_id, product_id)
+        )
+        if not other_campaigns:
+            return []
+
+        other_ids = [c["id"] for c in other_campaigns]
+        name_map = {c["id"]: c["product_name"] for c in other_campaigns}
+
+        # 리뷰어의 해당 캠페인들 진행 이력
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return []
+
+        rows = self._fetchall(
+            """SELECT campaign_id, status FROM progress
+               WHERE reviewer_id = %s AND campaign_id = ANY(%s)
+               AND status NOT IN (%s, %s)""",
+            (reviewer["id"], other_ids, STATUS_TIMEOUT, STATUS_CANCELLED)
+        )
+        return [
+            {
+                "campaign_id": r["campaign_id"],
+                "product_name": name_map.get(r["campaign_id"], ""),
+                "status": r["status"],
+            }
+            for r in rows
+        ]
 
     def delete_old_cancelled_rows(self, days: int = 1) -> int:
         """신청일+N일 지난 취소/타임아웃취소 행 삭제"""

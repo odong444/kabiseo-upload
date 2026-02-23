@@ -77,6 +77,64 @@ def parse_buy_time(text: str):
     return (sh, sm, eh, em, next_day)
 
 
+def extract_product_codes(url: str) -> dict:
+    """상품링크에서 상품코드 추출. 플랫폼별 파싱.
+
+    Returns: {"platform": "coupang", "codes": {"product_id": "...", ...}}
+    """
+    if not url or not url.strip():
+        return {}
+    url = url.strip()
+
+    from urllib.parse import urlparse, parse_qs
+
+    # 쿠팡: productId(경로) + itemId + vendorItemId(쿼리)
+    m = re.search(r'coupang\.com/.*products?/(\d+)', url)
+    if m:
+        codes = {"product_id": m.group(1)}
+        try:
+            qs = parse_qs(urlparse(url).query)
+            if "itemId" in qs:
+                codes["item_id"] = qs["itemId"][0]
+            if "vendorItemId" in qs:
+                codes["vendor_item_id"] = qs["vendorItemId"][0]
+        except Exception:
+            pass
+        return {"platform": "coupang", "codes": codes}
+
+    # 스마트스토어
+    m = re.search(r'smartstore\.naver\.com/([^/]+)/products/(\d+)', url)
+    if m:
+        return {"platform": "naver", "codes": {"store": m.group(1), "product_id": m.group(2)}}
+
+    # 11번가
+    m = re.search(r'11st\.co\.kr/.*products?/(\d+)', url)
+    if m:
+        return {"platform": "11st", "codes": {"product_id": m.group(1)}}
+
+    # 지마켓
+    m = re.search(r'gmarket\.co\.kr/.*(?:goodsCode=|Item/)(\d+)', url, re.IGNORECASE)
+    if m:
+        return {"platform": "gmarket", "codes": {"product_id": m.group(1)}}
+
+    # 올리브영
+    m = re.search(r'oliveyoung\.co\.kr/.*goodsNo=(\w+)', url)
+    if m:
+        return {"platform": "oliveyoung", "codes": {"product_id": m.group(1)}}
+
+    # 오늘의집
+    m = re.search(r'ohou\.se/.*(?:productions?|products?)/(\d+)', url)
+    if m:
+        return {"platform": "ohouse", "codes": {"product_id": m.group(1)}}
+
+    # 일반 URL: 마지막 숫자 경로
+    m = re.search(r'/(\d{5,})(?:\?|$|/)', url)
+    if m:
+        return {"platform": "etc", "codes": {"product_id": m.group(1)}}
+
+    return {}
+
+
 def is_within_buy_time(buy_time_str: str) -> bool:
     """현재 KST 시각이 구매가능시간 범위 내인지
 

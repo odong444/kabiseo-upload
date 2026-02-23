@@ -169,6 +169,14 @@ def campaign_edit_post(campaign_id):
         except Exception as e:
             logger.error(f"상품이미지 업로드 에러: {e}")
 
+    # 상품링크에서 상품코드 자동 추출
+    from modules.utils import extract_product_codes
+    product_link = update_data.get("상품링크", "")
+    if product_link:
+        codes = extract_product_codes(product_link)
+        if codes:
+            update_data["상품코드"] = codes
+
     try:
         logger.info(f"캠페인 수정 시도: {campaign_id}, data: {update_data}")
         models.db_manager.update_campaign(campaign_id, update_data)
@@ -205,11 +213,20 @@ def campaign_new_post():
         "캠페인유형", "플랫폼", "업체명", "상품명",
         "총수량", "일수량", "진행일수",
         "상품금액", "리뷰비", "중복허용", "구매가능시간", "캠페인가이드",
+        "상품링크",
     ]
 
     data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
     for field in fields:
         data[field] = request.form.get(field, "").strip()
+
+    # 상품링크에서 상품코드 자동 추출
+    from modules.utils import extract_product_codes
+    product_link = data.get("상품링크", "")
+    if product_link:
+        codes = extract_product_codes(product_link)
+        if codes:
+            data["상품코드"] = codes
 
     # 일정 자동 생성
     total = safe_int(data.get("총수량", 0))

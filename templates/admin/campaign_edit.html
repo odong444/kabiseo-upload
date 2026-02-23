@@ -186,6 +186,21 @@
                 </div>
 
                 <div class="form-group">
+                    <label>상품코드 (자동추출)</label>
+                    {% set codes = campaign.get('상품코드', {}) %}
+                    {% if codes and codes.get('codes') %}
+                    <div style="background:#f0f7ff;padding:8px 12px;border-radius:6px;font-size:13px;">
+                        <span style="color:#666;">{{ codes.get('platform', '') }}:</span>
+                        {% for k, v in codes.get('codes', {}).items() %}
+                        <span style="margin-left:8px;"><b>{{ k }}</b>={{ v }}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div style="color:#999;font-size:13px;">상품링크 저장 시 자동 추출됩니다</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
                     <label>키워드</label>
                     <input type="text" name="키워드" value="{{ campaign.get('키워드', '') }}">
                 </div>
