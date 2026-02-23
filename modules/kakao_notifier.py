@@ -13,6 +13,8 @@ from modules.signal_sender import request_notification, request_reminder
 
 logger = logging.getLogger("kakao_notifier")
 
+FOOTER = "\n\n※ 본 메시지는 발신전용입니다. 문의사항은 웹채팅을 이용해주세요."
+
 
 class KakaoNotifier:
     """카카오톡 알림 발송기"""
@@ -20,6 +22,9 @@ class KakaoNotifier:
     def __init__(self, db_manager, web_url: str = ""):
         self.db = db_manager
         self.web_url = web_url
+
+    def _add_footer(self, msg: str) -> str:
+        return msg + FOOTER
 
     def _get_progress_info(self, progress_id: int) -> dict:
         """progress 행에서 발송에 필요한 정보 추출"""
@@ -58,7 +63,7 @@ class KakaoNotifier:
             amount=extra.get("amount", info.get("amount", "0")),
             web_url=self.web_url,
         )
-        return request_notification(info["name"], info["phone"], msg)
+        return request_notification(info["name"], info["phone"], self._add_footer(msg))
 
     # ──────── 자동 발송: 리뷰 반려 ────────
 
@@ -74,7 +79,7 @@ class KakaoNotifier:
             reason=reason,
             web_url=self.web_url,
         )
-        return request_notification(info["name"], info["phone"], msg)
+        return request_notification(info["name"], info["phone"], self._add_footer(msg))
 
     # ──────── 자동 발송: 타임아웃 ────────
 
@@ -84,7 +89,7 @@ class KakaoNotifier:
             product_name=product_name,
             web_url=self.web_url,
         )
-        return request_reminder(name, phone, msg)
+        return request_reminder(name, phone, self._add_footer(msg))
 
     def notify_timeout_cancelled(self, name: str, phone: str, product_name: str) -> bool:
         """타임아웃 취소"""
@@ -116,7 +121,7 @@ class KakaoNotifier:
             product_name=info["product_name"],
             link=link,
         )
-        return request_reminder(info["name"], info["phone"], msg)
+        return request_reminder(info["name"], info["phone"], self._add_footer(msg))
 
     # ──────── 리뷰 기한 리마인더 (스케줄러) ────────
 
@@ -150,7 +155,7 @@ class KakaoNotifier:
                 web_url=self.web_url,
             )
 
-            ok = request_notification(row["name"], row["phone"], msg)
+            ok = request_notification(row["name"], row["phone"], self._add_footer(msg))
             if ok:
                 self.db._execute(
                     "UPDATE progress SET last_reminder_date = %s WHERE id = %s",
