@@ -56,7 +56,7 @@ STEP_DESCRIPTIONS = {
     9: "기타 문의 모드",
 }
 
-TAG_PATTERN = re.compile(r"\s*\[(UNCERTAIN|URGENT)\]\s*", re.IGNORECASE)
+TAG_PATTERN = re.compile(r"\s*\[(UNCERTAIN|URGENT|EDIT)\]\s*", re.IGNORECASE)
 
 
 class AIHandler:
@@ -97,7 +97,8 @@ class AIHandler:
                 f"- 답변할 수 없거나 확실하지 않으면 응답 끝에 [UNCERTAIN] 태그\n"
                 f"- 결제 오류, 개인정보 유출, 계좌 문제, 배송 사고 등 긴급 상황이면 [URGENT] 태그\n"
                 f"- 확실하면 태그 없이 응답\n"
-                f"- 폼 수정, 취소 요청, 배송 문제 등 담당자 조치가 필요한 건은 [UNCERTAIN] 태그\n\n"
+                f"- 폼 수정, 취소 요청, 배송 문제 등 담당자 조치가 필요한 건은 [UNCERTAIN] 태그\n"
+                f"- 사용자가 정보 수정(계좌변경, 아이디변경, 주문번호, 수취인, 주소 등)을 요청하면 [EDIT] 태그\n\n"
                 f"[챗봇 사양]\n{CHATBOT_SPEC}\n\n"
                 f"[FAQ]\n{FAQ_KNOWLEDGE}\n\n"
                 f"{learned_section}"
@@ -126,11 +127,13 @@ class AIHandler:
             # 태그 파싱
             uncertain = bool(re.search(r"\[UNCERTAIN\]", raw, re.IGNORECASE))
             urgent = bool(re.search(r"\[URGENT\]", raw, re.IGNORECASE))
+            edit = bool(re.search(r"\[EDIT\]", raw, re.IGNORECASE))
             clean = TAG_PATTERN.sub("", raw).strip()
 
             return {
                 "message": clean,
                 "confident": not uncertain,
+                "edit": edit,
                 "urgent": urgent,
             }
 

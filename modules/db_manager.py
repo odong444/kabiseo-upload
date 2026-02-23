@@ -715,7 +715,7 @@ class DBManager:
         field_map = {
             "수취인명": "recipient_name", "연락처": "phone",
             "은행": "bank", "계좌": "account", "예금주": "depositor",
-            "주소": "address", "닉네임": "nickname",
+            "주소": "address", "닉네임": "nickname", "아이디": "store_id",
             "결제금액": "payment_amount", "주문번호": "order_number",
             "구매일": "purchase_date", "리뷰기한": "review_deadline",
             "리뷰비": "review_fee", "입금금액": "payment_total",
@@ -729,6 +729,15 @@ class DBManager:
             f"UPDATE progress SET {db_col} = %s, updated_at = NOW() WHERE id = %s",
             (value, progress_id)
         )
+
+    def delete_progress(self, progress_id: int) -> bool:
+        """progress 행 삭제"""
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM progress WHERE id = %s", (progress_id,))
+                ok = cur.rowcount > 0
+            conn.commit()
+        return ok
 
     def approve_review(self, progress_id: int):
         """검수 승인 → 입금대기"""

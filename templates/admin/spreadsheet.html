@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 데이터</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .filter-bar {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .filter-bar label {
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+    }
+    .filter-bar select {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        background: #fff;
+        outline: none;
+    }
+    .filter-bar select:focus { border-color: #fee500; }
+    .filter-bar .btn-filter {
+        padding: 8px 18px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fee500;
+        font-size: 14px;
+        font-weight: 600;
+        color: #3c1e1e;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .filter-bar .btn-filter:hover { background: #e6cf00; }
+
+    .spreadsheet-wrap {
+        overflow-x: auto;
+        margin-bottom: 24px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+    }
+    .spreadsheet-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+    .spreadsheet-table thead th {
+        background: #f8f8f8;
+        border-bottom: 2px solid #ddd;
+        padding: 8px 10px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #555;
+        text-align: left;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    .spreadsheet-table tbody tr {
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .spreadsheet-table tbody tr:hover {
+        background: #fefce8;
+    }
+    .spreadsheet-table tbody td {
+        padding: 5px 8px;
+        color: #333;
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .spreadsheet-table tbody td.readonly {
+        color: #888;
+        background: #fafafa;
+    }
+    .spreadsheet-table tbody td.editable {
+        border-bottom: 1px dotted #bbb;
+        cursor: pointer;
+    }
+    .spreadsheet-table tbody td.editable:hover {
+        background: #fffde7;
+    }
+    .spreadsheet-table tbody td input.cell-input {
+        width: 100%;
+        min-width: 60px;
+        padding: 3px 5px;
+        border: 1px solid #fee500;
+        border-radius: 4px;
+        font-size: 12px;
+        outline: none;
+        background: #fffff0;
+        box-sizing: border-box;
+    }
+    .spreadsheet-table tbody td select.cell-select {
+        padding: 3px 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 12px;
+        background: #fff;
+        outline: none;
+    }
+    .spreadsheet-table tbody td select.cell-select:focus {
+        border-color: #fee500;
+    }
+    .btn-delete {
+        padding: 2px 8px;
+        border: none;
+        border-radius: 4px;
+        background: #ef4444;
+        color: #fff;
+        font-size: 11px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .btn-delete:hover { background: #dc2626; }
+
+    @keyframes flashGreen {
+        0% { background-color: #bbf7d0; }
+        100% { background-color: transparent; }
+    }
+    .cell-saved {
+        animation: flashGreen 0.8s ease-out;
+    }
+
+    .result-count {
+        font-size: 14px;
+        color: #888;
+        margin-bottom: 12px;
+    }
+    .result-count strong { color: #333; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.overview') }}">전체현황</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의</a>
+                <a href="{{ url_for('admin.spreadsheet') }}" class="active">데이터</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>데이터 관리</h1>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- Filters -->
+        <div class="filter-bar">
+            <label>캠페인:</label>
+            <select id="filterCampaign">
+                <option value="">전체</option>
+                {% for c in campaigns|default([]) %}
+                <option value="{{ c.get('캠페인ID', '') }}" {% if campaign_filter == c.get('캠페인ID', '')|string %}selected{% endif %}>{{ c.get('상품명', '') }}</option>
+                {% endfor %}
+            </select>
+            <label>상태:</label>
+            <select id="filterStatus">
+                <option value="">전체</option>
+                {% for s in ['신청','가이드전달','구매캡쳐대기','리뷰대기','리뷰제출','입금대기','입금완료','타임아웃취소'] %}
+                <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn-filter" onclick="applyFilters()">필터 적용</button>
+        </div>
+
+        <div class="result-count">검색 결과: <strong>{{ items|default([])|length }}</strong>건</div>
+
+        <!-- Table -->
+        {% if items %}
+        <div class="spreadsheet-wrap">
+            <table class="spreadsheet-table" id="spreadsheetTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>날짜</th>
+                        <th>제품명</th>
+                        <th>진행자이름</th>
+                        <th>수취인명</th>
+                        <th>연락처</th>
+                        <th>은행</th>
+                        <th>계좌</th>
+                        <th>예금주</th>
+                        <th>아이디</th>
+                        <th>주문번호</th>
+                        <th>주소</th>
+                        <th>상태</th>
+                        <th>구매일</th>
+                        <th>리뷰기한</th>
+                        <th>리뷰비</th>
+                        <th>입금금액</th>
+                        <th>비고</th>
+                        <th>삭제</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr data-id="{{ item.get('_row_idx', '') }}">
+                        <td class="readonly">{{ item.get('_row_idx', '') }}</td>
+                        <td class="readonly">{{ item.get('날짜', '') }}</td>
+                        <td class="readonly">{{ item.get('제품명', '') }}</td>
+                        <td class="readonly">{{ item.get('진행자이름', '') }}</td>
+                        <td class="editable" data-field="수취인명">{{ item.get('수취인명', '') }}</td>
+                        <td class="editable" data-field="연락처">{{ item.get('연락처', '') }}</td>
+                        <td class="editable" data-field="은행">{{ item.get('은행', '') }}</td>
+                        <td class="editable" data-field="계좌">{{ item.get('계좌', '') }}</td>
+                        <td class="editable" data-field="예금주">{{ item.get('예금주', '') }}</td>
+                        <td class="editable" data-field="아이디">{{ item.get('아이디', '') }}</td>
+                        <td class="editable" data-field="주문번호">{{ item.get('주문번호', '') }}</td>
+                        <td class="editable" data-field="주소">{{ item.get('주소', '') }}</td>
+                        <td data-field="상태">
+                            <select class="cell-select" data-field="상태" data-id="{{ item.get('_row_idx', '') }}" onchange="saveSelect(this)">
+                                {% for s in ['신청','가이드전달','구매캡쳐대기','리뷰대기','리뷰제출','입금대기','입금완료','타임아웃취소'] %}
+                                <option value="{{ s }}" {% if item.get('상태', '') == s %}selected{% endif %}>{{ s }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td class="editable" data-field="구매일">{{ item.get('구매일', '') }}</td>
+                        <td class="editable" data-field="리뷰기한">{{ item.get('리뷰기한', '') }}</td>
+                        <td class="editable" data-field="리뷰비">{{ item.get('리뷰비', '') }}</td>
+                        <td class="editable" data-field="입금금액">{{ item.get('입금금액', '') }}</td>
+                        <td class="editable" data-field="비고">{{ item.get('비고', '') }}</td>
+                        <td>
+                            <button class="btn-delete" onclick="deleteRow(this, '{{ item.get('_row_idx', '') }}')">삭제</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="admin-empty">데이터가 없습니다. 필터를 변경해보세요.</p>
+        {% endif %}
+    </main>
+
+    <script>
+    // --- Filter ---
+    function applyFilters() {
+        var campaign = document.getElementById('filterCampaign').value;
+        var status = document.getElementById('filterStatus').value;
+        var params = new URLSearchParams();
+        if (campaign) params.set('campaign', campaign);
+        if (status) params.set('status', status);
+        var qs = params.toString();
+        window.location.href = '{{ url_for("admin.spreadsheet") }}' + (qs ? '?' + qs : '');
+    }
+
+    // --- Inline Edit (double-click) ---
+    document.querySelectorAll('#spreadsheetTable td.editable').forEach(function(td) {
+        td.addEventListener('dblclick', function() {
+            if (td.querySelector('input')) return; // already editing
+
+            var oldValue = td.textContent.trim();
+            var field = td.getAttribute('data-field');
+            var row = td.closest('tr');
+            var progressId = row.getAttribute('data-id');
+
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'cell-input';
+            input.value = oldValue;
+
+            td.textContent = '';
+            td.appendChild(input);
+            input.focus();
+            input.select();
+
+            function commit() {
+                var newValue = input.value.trim();
+                if (newValue === oldValue) {
+                    // No change, revert
+                    td.textContent = oldValue;
+                    return;
+                }
+                // Save via API
+                fetch('/admin/api/progress/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        progress_id: progressId,
+                        field: field,
+                        value: newValue
+                    })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.ok) {
+                        td.textContent = newValue;
+                        td.classList.add('cell-saved');
+                        setTimeout(function() { td.classList.remove('cell-saved'); }, 900);
+                    } else {
+                        td.textContent = oldValue;
+                        alert('저장 실패: ' + (d.message || '알 수 없는 오류'));
+                    }
+                })
+                .catch(function(e) {
+                    td.textContent = oldValue;
+                    alert('저장 에러: ' + e.message);
+                });
+            }
+
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    input.blur();
+                }
+                if (e.key === 'Escape') {
+                    td.textContent = oldValue;
+                }
+            });
+
+            input.addEventListener('blur', function() {
+                // Small delay to allow Escape to fire first
+                setTimeout(function() {
+                    if (td.querySelector('input')) {
+                        commit();
+                    }
+                }, 50);
+            });
+        });
+    });
+
+    // --- Status Select Save ---
+    function saveSelect(sel) {
+        var progressId = sel.getAttribute('data-id');
+        var field = sel.getAttribute('data-field');
+        var newValue = sel.value;
+        var td = sel.closest('td');
+
+        fetch('/admin/api/progress/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                progress_id: progressId,
+                field: field,
+                value: newValue
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                td.classList.add('cell-saved');
+                setTimeout(function() { td.classList.remove('cell-saved'); }, 900);
+            } else {
+                alert('상태 변경 실패: ' + (d.message || '알 수 없는 오류'));
+            }
+        })
+        .catch(function(e) {
+            alert('상태 변경 에러: ' + e.message);
+        });
+    }
+
+    // --- Delete Row ---
+    function deleteRow(btn, progressId) {
+        if (!confirm('이 항목을 삭제하시겠습니까? (ID: ' + progressId + ')')) return;
+
+        fetch('/admin/api/progress/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress_id: progressId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                var row = btn.closest('tr');
+                row.style.transition = 'opacity 0.3s';
+                row.style.opacity = '0';
+                setTimeout(function() { row.remove(); }, 300);
+            } else {
+                alert('삭제 실패: ' + (d.message || '알 수 없는 오류'));
+            }
+        })
+        .catch(function(e) {
+            alert('삭제 에러: ' + e.message);
+        });
+    }
+    </script>
+</body>
+</html>

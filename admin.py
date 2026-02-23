@@ -690,3 +690,71 @@ def api_inquiry_reply():
         "ok": True,
         "message": "답변 완료" + (" (카톡 발송됨)" if kakao_ok else ""),
     })
+
+
+# ──────── 스프레드시트 (데이터 편집) ────────
+
+@admin_bp.route("/spreadsheet")
+@admin_required
+def spreadsheet():
+    items = []
+    campaigns = []
+    if models.db_manager:
+        items = models.db_manager.get_all_reviewers()
+        try:
+            campaigns = models.campaign_manager.get_all() if models.campaign_manager else []
+        except Exception:
+            campaigns = []
+    campaign_filter = request.args.get("campaign", "")
+    status_filter = request.args.get("status", "")
+    if campaign_filter:
+        items = [i for i in items if i.get("캠페인ID") == campaign_filter]
+    if status_filter:
+        items = [i for i in items if i.get("상태") == status_filter]
+    return render_template("admin/spreadsheet.html",
+                           items=items, campaigns=campaigns,
+                           campaign_filter=campaign_filter,
+                           status_filter=status_filter)
+
+
+@admin_bp.route("/api/progress/update", methods=["POST"])
+@admin_required
+def api_progress_update():
+    """셀 단위 수정"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+
+    data = request.get_json(silent=True) or {}
+    progress_id = data.get("progress_id")
+    field = data.get("field", "")
+    value = data.get("value", "")
+
+    if not progress_id or not field:
+        return jsonify({"ok": False, "message": "progress_id, field 필수"})
+
+    try:
+        models.db_manager.update_progress_field(int(progress_id), field, value)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error(f"스프레드시트 수정 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/progress/delete", methods=["POST"])
+@admin_required
+def api_progress_delete():
+    """행 삭제"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+
+    data = request.get_json(silent=True) or {}
+    progress_id = data.get("progress_id")
+    if not progress_id:
+        return jsonify({"ok": False, "message": "progress_id 필수"})
+
+    try:
+        ok = models.db_manager.delete_progress(int(progress_id))
+        return jsonify({"ok": ok})
+    except Exception as e:
+        logger.error(f"행 삭제 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})

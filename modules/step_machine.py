@@ -99,6 +99,7 @@ class StepMachine:
             {"label": "내 진행현황", "value": "2"},
             {"label": "사진 제출", "value": "3"},
             {"label": "입금 확인", "value": "4"},
+            {"label": "정보 수정", "value": "6"},
         ]
 
     def _back_button(self, value="__back__"):
@@ -230,6 +231,10 @@ class StepMachine:
             return _resp("담당자에게 전달할 문의 내용을 입력해주세요.",
                          buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
 
+        # 글로벌 정보 수정
+        if msg == "__edit__":
+            return self._enter_edit_mode(state)
+
         if step == 0:
             return self._step0_menu(state, msg)
         elif step == 1:
@@ -252,6 +257,12 @@ class StepMachine:
             return self._step9_inquiry_ai(state, msg)
         elif step == 10:
             return self._step10_inquiry_submit(state, msg)
+        elif step == 11:
+            return self._step11_edit_select(state, msg)
+        elif step == 12:
+            return self._step12_edit_field(state, msg)
+        elif step == 13:
+            return self._step13_edit_value(state, msg)
         else:
             state.step = 0
             return _resp(tpl.WELCOME_BACK.format(name=state.name), buttons=self._menu_buttons())
@@ -412,6 +423,9 @@ class StepMachine:
             state.step = 9
             return _resp("궁금한 점을 자유롭게 입력해주세요! 😊\nAI가 답변드리고, 필요하면 담당자에게 연결해드릴게요.",
                          buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
+
+        elif choice == 6:
+            return self._enter_edit_mode(state)
 
         return self._ask_ai(state, message)
 
@@ -1409,10 +1423,17 @@ class StepMachine:
             context = self._build_ai_context(state)
             result = self.ai_handler.get_response(user_message, context)
             if result and result.get("message"):
+                # [EDIT] 태그 → 정보 수정 안내
+                if result.get("edit"):
+                    buttons = [
+                        {"label": "✏️ 정보 수정하기", "value": "__edit__"},
+                        {"label": "↩ 메뉴로", "value": "메뉴"},
+                    ]
+                    return _resp(result["message"], buttons=buttons)
+
                 buttons = list(self._menu_buttons())
                 if not result.get("confident"):
                     buttons.insert(0, {"label": "📞 담당자에게 문의남기기", "value": "__inquiry__"})
-                # urgent 정보를 임시 저장
                 if result.get("urgent"):
                     state.temp_data["_inquiry_urgent"] = True
                 return _resp(result["message"], buttons=buttons)
@@ -1504,5 +1525,158 @@ class StepMachine:
         state.temp_data = {}
         return _resp(
             "✅ 문의가 접수되었습니다!\n담당자 확인 후 빠른 시일 내 답변드리겠습니다.",
+            buttons=self._menu_buttons()
+        )
+
+    # ─────────── 정보 수정 (STEP 11~13) ───────────
+
+    _EDITABLE_FIELDS = [
+        {"label": "계좌정보 (은행/계좌/예금주)", "value": "edit_account"},
+        {"label": "아이디", "value": "edit_아이디"},
+        {"label": "수취인명", "value": "edit_수취인명"},
+        {"label": "연락처", "value": "edit_연락처"},
+        {"label": "주소", "value": "edit_주소"},
+        {"label": "주문번호", "value": "edit_주문번호"},
+    ]
+
+    def _enter_edit_mode(self, state: ReviewerState):
+        """정보 수정 모드 진입 → 진행 건 목록 표시"""
+        import models
+        items = self.reviewers.get_items(state.name, state.phone)
+        in_progress = items.get("in_progress", [])
+
+        if not in_progress:
+            return _resp("현재 진행 중인 건이 없습니다.", buttons=self._menu_buttons())
+
+        if len(in_progress) == 1:
+            # 1건이면 바로 항목 선택으로
+            item = in_progress[0]
+            state.step = 12
+            state.temp_data["_edit_progress_id"] = item.get("_row_idx") or item.get("id")
+            state.temp_data["_edit_product"] = item.get("제품명", "")
+            return _resp(
+                f"✏️ [{item.get('제품명', '')}] 수정할 항목을 선택해주세요.",
+                buttons=self._EDITABLE_FIELDS + [{"label": "↩ 메뉴로", "value": "메뉴"}]
+            )
+
+        # 여러 건이면 선택
+        state.step = 11
+        buttons = []
+        for item in in_progress:
+            pid = item.get("_row_idx") or item.get("id")
+            label = f"{item.get('제품명', '')} ({item.get('아이디', '')})"
+            buttons.append({"label": label, "value": f"editpick_{pid}"})
+        buttons.append({"label": "↩ 메뉴로", "value": "메뉴"})
+        return _resp("수정할 건을 선택해주세요.", buttons=buttons)
+
+    def _step11_edit_select(self, state: ReviewerState, message: str):
+        """STEP 11: 수정할 진행 건 선택"""
+        if message.startswith("editpick_"):
+            try:
+                pid = int(message.replace("editpick_", ""))
+            except ValueError:
+                return _resp("잘못된 선택입니다.", buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
+
+            import models
+            row = models.db_manager.get_row_dict(pid) if models.db_manager else {}
+            if not row:
+                return _resp("해당 건을 찾을 수 없습니다.", buttons=self._menu_buttons())
+
+            state.step = 12
+            state.temp_data["_edit_progress_id"] = pid
+            state.temp_data["_edit_product"] = row.get("제품명", "")
+            return _resp(
+                f"✏️ [{row.get('제품명', '')}] 수정할 항목을 선택해주세요.",
+                buttons=self._EDITABLE_FIELDS + [{"label": "↩ 메뉴로", "value": "메뉴"}]
+            )
+
+        return _resp("수정할 건을 선택해주세요.", buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
+
+    def _step12_edit_field(self, state: ReviewerState, message: str):
+        """STEP 12: 수정할 항목 선택"""
+        import models
+        pid = state.temp_data.get("_edit_progress_id")
+        row = models.db_manager.get_row_dict(pid) if models.db_manager and pid else {}
+
+        if message == "edit_account":
+            state.step = 13
+            state.temp_data["_edit_fields"] = ["은행", "계좌", "예금주"]
+            current = f"현재: {row.get('은행', '-')} / {row.get('계좌', '-')} / {row.get('예금주', '-')}"
+            return _resp(
+                f"{current}\n\n새 계좌정보를 입력해주세요.\n예시: 국민은행 1234567890 홍길동",
+                buttons=[{"label": "↩ 이전", "value": "__back_edit__"}]
+            )
+
+        field_map = {
+            "edit_아이디": "아이디", "edit_수취인명": "수취인명",
+            "edit_연락처": "연락처", "edit_주소": "주소", "edit_주문번호": "주문번호",
+        }
+        field = field_map.get(message)
+        if field:
+            state.step = 13
+            state.temp_data["_edit_fields"] = [field]
+            current = row.get(field, "-")
+            return _resp(
+                f"현재 {field}: {current}\n\n새 {field}을(를) 입력해주세요.",
+                buttons=[{"label": "↩ 이전", "value": "__back_edit__"}]
+            )
+
+        if message == "__back_edit__":
+            state.step = 12
+            return _resp(
+                f"✏️ [{state.temp_data.get('_edit_product', '')}] 수정할 항목을 선택해주세요.",
+                buttons=self._EDITABLE_FIELDS + [{"label": "↩ 메뉴로", "value": "메뉴"}]
+            )
+
+        return _resp("수정할 항목을 선택해주세요.",
+                     buttons=self._EDITABLE_FIELDS + [{"label": "↩ 메뉴로", "value": "메뉴"}])
+
+    def _step13_edit_value(self, state: ReviewerState, message: str):
+        """STEP 13: 새 값 입력 → DB 업데이트"""
+        import models
+
+        if message == "__back_edit__":
+            state.step = 12
+            return _resp(
+                f"✏️ [{state.temp_data.get('_edit_product', '')}] 수정할 항목을 선택해주세요.",
+                buttons=self._EDITABLE_FIELDS + [{"label": "↩ 메뉴로", "value": "메뉴"}]
+            )
+
+        pid = state.temp_data.get("_edit_progress_id")
+        fields = state.temp_data.get("_edit_fields", [])
+
+        if not pid or not fields or not models.db_manager:
+            state.step = 0
+            return _resp("오류가 발생했습니다.", buttons=self._menu_buttons())
+
+        try:
+            if fields == ["은행", "계좌", "예금주"]:
+                # 계좌정보: "은행 계좌번호 예금주" 파싱
+                parts = message.strip().split()
+                if len(parts) < 3:
+                    return _resp(
+                        "형식을 확인해주세요.\n예시: 국민은행 1234567890 홍길동",
+                        buttons=[{"label": "↩ 이전", "value": "__back_edit__"}]
+                    )
+                models.db_manager.update_progress_field(pid, "은행", parts[0])
+                models.db_manager.update_progress_field(pid, "계좌", parts[1])
+                models.db_manager.update_progress_field(pid, "예금주", " ".join(parts[2:]))
+                changed = f"은행: {parts[0]}, 계좌: {parts[1]}, 예금주: {' '.join(parts[2:])}"
+            else:
+                field = fields[0]
+                models.db_manager.update_progress_field(pid, field, message.strip())
+                changed = f"{field}: {message.strip()}"
+
+            logger.info(f"정보 수정: progress_id={pid}, {changed} (by {state.name})")
+
+        except Exception as e:
+            logger.error(f"정보 수정 실패: {e}")
+            state.step = 0
+            return _resp("수정 중 오류가 발생했습니다.", buttons=self._menu_buttons())
+
+        state.step = 0
+        state.temp_data = {}
+        return _resp(
+            f"✅ 수정 완료!\n{changed}",
             buttons=self._menu_buttons()
         )
