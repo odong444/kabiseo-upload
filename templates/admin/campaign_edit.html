@@ -171,7 +171,7 @@
                 <div class="form-group">
                     <label>공개여부</label>
                     <select name="공개여부">
-                        <option value="" {{ 'selected' if campaign.get('공개여부', '') not in ['N'] }}>Y (공개)</option>
+                        <option value="Y" {{ 'selected' if campaign.get('공개여부', '') != 'N' }}>Y (공개)</option>
                         <option value="N" {{ 'selected' if campaign.get('공개여부', '') == 'N' }}>N (비공개)</option>
                     </select>
                 </div>
