@@ -149,11 +149,12 @@ def campaign_edit_post(campaign_id):
             logger.error(f"상품이미지 업로드 에러: {e}")
 
     try:
+        logger.info(f"캠페인 수정 시도: {campaign_id}, data: {update_data}")
         models.db_manager.update_campaign(campaign_id, update_data)
+        flash("캠페인이 수정되었습니다.")
     except Exception as e:
-        logger.error(f"캠페인 수정 에러: {e}")
-
-    flash("캠페인이 수정되었습니다.")
+        logger.error(f"캠페인 수정 에러: {e}", exc_info=True)
+        flash(f"수정 중 오류 발생: {e}")
     return redirect(url_for("admin.campaigns"))
 
 

@@ -259,6 +259,11 @@
             document.getElementById('buyTimeNextDay').checked = nd;
         }
     })();
+
+    // 폼 제출 전 구매시간 값 확인
+    document.querySelector('form').addEventListener('submit', function() {
+        updateBuyTime();
+    });
     </script>
 </body>
 </html>

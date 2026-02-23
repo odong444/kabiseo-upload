@@ -159,7 +159,7 @@ body {
     margin-bottom: 6px;
     color: #555;
 }
-.form-group input {
+.form-group input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
     width: 100%;
     padding: 14px 16px;
     border: 2px solid #ddd;
@@ -1211,7 +1211,7 @@ body {
     color: #555;
     margin-bottom: 6px;
 }
-.form-group input,
+.form-group input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 .form-group select,
 .form-group textarea {
     width: 100%;
