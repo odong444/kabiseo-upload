@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     ship_memo_required BOOLEAN DEFAULT FALSE,
     ship_memo_content  TEXT DEFAULT '',
     ship_memo_link  TEXT DEFAULT '',
+    daily_schedule  JSONB DEFAULT '[]',
+    start_date      DATE,
     deadline_date   DATE,
     is_public       BOOLEAN DEFAULT TRUE,
     is_selected     BOOLEAN DEFAULT FALSE,
@@ -191,6 +193,11 @@ class DBManager:
                     pass
                 try:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS payment_amount INTEGER DEFAULT 0")
+                except Exception:
+                    pass
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS daily_schedule JSONB DEFAULT '[]'")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_date DATE")
                 except Exception:
                     pass
             conn.commit()
@@ -325,6 +332,7 @@ class DBManager:
                 payment_method, dwell_time, bookmark_required, alert_required,
                 no_ad_click, no_blind_account, reorder_check,
                 ship_memo_required, ship_memo_content, ship_memo_link,
+                daily_schedule, start_date,
                 deadline_date, is_public, is_selected, reward, memo
             ) VALUES (
                 %(id)s, %(status)s, %(company)s, %(product_name)s, %(product_link)s,
@@ -340,7 +348,8 @@ class DBManager:
                 %(payment_method)s, %(dwell_time)s, %(bookmark_required)s,
                 %(alert_required)s, %(no_ad_click)s, %(no_blind_account)s,
                 %(reorder_check)s, %(ship_memo_required)s, %(ship_memo_content)s,
-                %(ship_memo_link)s, %(deadline_date)s, %(is_public)s,
+                %(ship_memo_link)s, %(daily_schedule)s, %(start_date)s,
+                %(deadline_date)s, %(is_public)s,
                 %(is_selected)s, %(reward)s, %(memo)s
             )
         """
@@ -395,6 +404,7 @@ class DBManager:
         "리워드": "reward", "메모": "memo",
         "등록일": "created_at", "결제금액": "payment_amount",
         "리뷰가이드": "review_guide",
+        "일정": "daily_schedule", "시작일": "start_date",
     }
 
     _CAMPAIGN_COLUMNS = {
@@ -412,7 +422,8 @@ class DBManager:
         "payment_method", "dwell_time", "bookmark_required",
         "alert_required", "no_ad_click", "no_blind_account",
         "reorder_check", "ship_memo_required", "ship_memo_content",
-        "ship_memo_link", "deadline_date", "is_public",
+        "ship_memo_link", "daily_schedule", "start_date",
+        "deadline_date", "is_public",
         "is_selected", "reward", "memo",
     }
 
@@ -447,10 +458,28 @@ class DBManager:
                 except Exception:
                     return "[]"
             return json.dumps(value) if value else "[]"
-        if col == "deadline_date":
+        if col in ("deadline_date", "start_date"):
             if not value or not str(value).strip():
                 return None
             return str(value).strip()
+        if col == "daily_schedule":
+            import json
+            if isinstance(value, list):
+                return json.dumps(value)
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    return "[]"
+                try:
+                    return json.dumps(json.loads(value))
+                except Exception:
+                    # "3,5,4,3,4,2" 형태 파싱
+                    try:
+                        nums = [int(x.strip()) for x in value.split(",") if x.strip()]
+                        return json.dumps(nums)
+                    except Exception:
+                        return "[]"
+            return "[]"
         return str(value) if value is not None else ""
 
     def _campaign_from_sheet_dict(self, data: dict) -> dict:
@@ -478,8 +507,11 @@ class DBManager:
                 result[col] = 0
         for col in self._CAMPAIGN_COLUMNS:
             if result.get(col) is None:
-                if col == "deadline_date":
+                if col in ("deadline_date", "start_date"):
                     continue  # DATE 컬럼은 빈 문자열 대신 NULL 유지
+                if col == "daily_schedule":
+                    result[col] = "[]"
+                    continue
                 result[col] = ""
 
         return result
@@ -500,6 +532,19 @@ class DBManager:
                 result["등록일"] = value.strftime("%Y-%m-%d") if value else ""
             elif db_col == "deadline_date":
                 result["신청마감일"] = str(value) if value else ""
+            elif db_col == "start_date":
+                result["시작일"] = str(value) if value else ""
+            elif db_col == "daily_schedule":
+                import json
+                if isinstance(value, list):
+                    result["일정"] = value
+                elif isinstance(value, str):
+                    try:
+                        result["일정"] = json.loads(value)
+                    except Exception:
+                        result["일정"] = []
+                else:
+                    result["일정"] = value if value else []
             elif db_col == "option_list":
                 import json
                 result["옵션목록"] = json.dumps(value) if value else "[]"

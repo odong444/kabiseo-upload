@@ -15,6 +15,27 @@ logger = logging.getLogger(__name__)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
+
+def _generate_schedule(total: int, lo: int, hi: int, days: int) -> list[int]:
+    """총수량을 일수에 맞게 lo~hi 범위로 랜덤 배분"""
+    import random
+    schedule = []
+    remaining = total
+    for i in range(days):
+        if i == days - 1:
+            schedule.append(max(0, remaining))
+        else:
+            left = days - i - 1
+            min_today = max(lo, remaining - hi * left)
+            max_today = min(hi, remaining - lo * left)
+            if min_today > max_today:
+                min_today = max_today = max(1, remaining // (left + 1))
+            val = random.randint(max(1, min_today), max(1, max_today))
+            val = min(val, remaining)
+            schedule.append(val)
+            remaining -= val
+    return schedule
+
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin1234")
 
 
@@ -124,7 +145,7 @@ def campaign_edit_post(campaign_id):
     editable_fields = [
         "상태", "상품명", "업체명", "플랫폼", "캠페인유형",
         "상품금액", "리뷰비", "결제금액",
-        "총수량", "일수량", "진행일수", "완료수량",
+        "총수량", "일수량", "진행일수", "완료수량", "일정", "시작일",
         "구매가능시간", "중복허용",
         "상품링크", "키워드", "유입방식", "리뷰기한일수",
         "공개여부", "캠페인가이드", "메모",
@@ -173,8 +194,10 @@ def campaign_new_post():
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.campaigns"))
 
+    import re
     import uuid
-    from modules.utils import today_str
+    import random
+    from modules.utils import today_str, safe_int
 
     campaign_id = str(uuid.uuid4())[:8]
 
@@ -187,6 +210,21 @@ def campaign_new_post():
     data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
     for field in fields:
         data[field] = request.form.get(field, "").strip()
+
+    # 일정 자동 생성
+    total = safe_int(data.get("총수량", 0))
+    daily_str = data.get("일수량", "").strip()
+    days = safe_int(data.get("진행일수", 0))
+    if total > 0 and days > 0 and daily_str:
+        range_match = re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
+        if range_match:
+            lo, hi = int(range_match.group(1)), int(range_match.group(2))
+        else:
+            lo = hi = safe_int(daily_str)
+        if lo > 0 and hi >= lo:
+            schedule = _generate_schedule(total, lo, hi, days)
+            data["일정"] = schedule
+            data["시작일"] = today_str()
 
     # 상품이미지 파일 업로드
     image_file = request.files.get("상품이미지")

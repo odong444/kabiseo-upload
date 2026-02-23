@@ -98,15 +98,8 @@ class CampaignManager:
             remaining = c.get("_남은수량", total - done)
             campaign_id = c.get("캠페인ID", "")
 
-            # 하루진행량 파싱 (숫자 또는 범위 "3-5")
-            daily_str = c.get("일수량", "").strip()
-            daily_target = 0
-            if daily_str:
-                range_match = re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
-                if range_match:
-                    daily_target = safe_int(range_match.group(2))
-                else:
-                    daily_target = safe_int(daily_str)
+            # 오늘 목표 수량 결정: 일정 > 일수량 순
+            daily_target = self._get_today_target(c)
 
             today_done = today_counts.get(campaign_id, 0)
             daily_full = daily_target > 0 and today_done >= daily_target
@@ -146,6 +139,34 @@ class CampaignManager:
 
             cards.append(card)
         return cards
+
+    def _get_today_target(self, campaign: dict) -> int:
+        """오늘 목표 수량. 일정이 있으면 해당 날짜 목표, 없으면 일수량 최대값."""
+        import re
+        from datetime import date, datetime
+
+        schedule = campaign.get("일정", [])
+        start_date_str = campaign.get("시작일", "").strip()
+
+        if schedule and start_date_str:
+            try:
+                start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                day_index = (date.today() - start).days
+                if 0 <= day_index < len(schedule):
+                    return safe_int(schedule[day_index])
+                elif day_index >= len(schedule):
+                    return 0  # 일정 종료
+            except Exception:
+                pass
+
+        # 폴백: 일수량 최대값
+        daily_str = campaign.get("일수량", "").strip()
+        if daily_str:
+            range_match = re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
+            if range_match:
+                return safe_int(range_match.group(2))
+            return safe_int(daily_str)
+        return 0
 
     def build_campaign_list_text(self, name: str = "", phone: str = "") -> str:
         """채팅용 캠페인 목록 텍스트 (하위호환)"""
@@ -236,12 +257,7 @@ class CampaignManager:
 
     def is_daily_full(self, campaign: dict) -> bool:
         """해당 캠페인의 금일 모집목표 도달 여부"""
-        import re
-        daily_str = campaign.get("일수량", "").strip()
-        if not daily_str:
-            return False
-        range_match = re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
-        daily_target = safe_int(range_match.group(2)) if range_match else safe_int(daily_str)
+        daily_target = self._get_today_target(campaign)
         if daily_target <= 0:
             return False
         campaign_id = campaign.get("캠페인ID", "")
