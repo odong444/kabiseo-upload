@@ -10,8 +10,129 @@
     .admin-status-badge.진행중 { background: #e8f5e9; color: #2e7d32; }
     .admin-status-badge.마감 { background: #fff8e1; color: #f57f17; }
     .admin-status-badge.종료 { background: #f5f5f5; color: #999; }
-    .today-highlight { color: #2563eb; font-weight: 700; }
-    .daily-over { color: #ef4444; font-weight: 700; }
+
+    /* 오늘/목표 색상 */
+    .today-normal { color: #2563eb; font-weight: 700; }
+    .today-over { color: #ef4444; font-weight: 700; }
+    .today-done { color: #16a34a; font-weight: 700; }
+
+    /* 달성률 프로그레스 바 */
+    .progress-cell { min-width: 100px; }
+    .progress-bar-mini {
+        width: 100%;
+        height: 6px;
+        background: #e5e7eb;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-bottom: 2px;
+    }
+    .progress-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s;
+    }
+    .progress-bar-fill.high { background: #22c55e; }
+    .progress-bar-fill.mid { background: #eab308; }
+    .progress-bar-fill.low { background: #ef4444; }
+    .progress-pct {
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .progress-pct.high { color: #16a34a; }
+    .progress-pct.mid { color: #ca8a04; }
+    .progress-pct.low { color: #dc2626; }
+
+    /* 토글 버튼 */
+    .toggle-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 2px 6px;
+        color: #888;
+        transition: transform 0.2s;
+    }
+    .toggle-btn.open { transform: rotate(180deg); }
+
+    /* 클릭 가능한 행 */
+    .campaign-row { cursor: pointer; }
+    .campaign-row:hover { background: #f9fafb; }
+
+    /* 펼침 상세 영역 */
+    .detail-row { display: none; }
+    .detail-row.open { display: table-row; }
+    .detail-cell {
+        padding: 16px 20px !important;
+        background: #f8fafc;
+        border-left: 3px solid #e2e8f0;
+    }
+    .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px 24px;
+        margin-bottom: 12px;
+    }
+    .detail-item {
+        font-size: 13px;
+    }
+    .detail-label {
+        color: #94a3b8;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+    .detail-value {
+        color: #1e293b;
+        font-weight: 500;
+        word-break: break-all;
+    }
+    .detail-value a {
+        color: #2563eb;
+        text-decoration: underline;
+    }
+
+    /* 일정 블록 */
+    .schedule-blocks {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+    }
+    .schedule-block {
+        background: #f1f5f9;
+        border-radius: 4px;
+        padding: 3px 8px;
+        font-size: 11px;
+        text-align: center;
+        min-width: 38px;
+        border: 1px solid #e2e8f0;
+    }
+    .schedule-block .day-num {
+        font-size: 10px;
+        color: #94a3b8;
+    }
+    .schedule-block .day-qty {
+        font-weight: 700;
+        color: #334155;
+    }
+    .schedule-block.today {
+        background: #dbeafe;
+        border-color: #3b82f6;
+    }
+    .schedule-block.today .day-num { color: #2563eb; }
+    .schedule-block.today .day-qty { color: #1d4ed8; }
+    .schedule-block.past {
+        opacity: 0.5;
+    }
+    .schedule-none {
+        font-size: 12px;
+        color: #94a3b8;
+        font-style: italic;
+    }
+
+    /* 숫자 셀 */
+    .num-cell { text-align: center; font-variant-numeric: tabular-nums; }
     </style>
 </head>
 <body class="admin-body">
@@ -21,7 +142,6 @@
             <nav class="admin-nav">
                 <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
                 <a href="{{ url_for('admin.campaigns') }}" class="active">캠페인</a>
-                <a href="{{ url_for('admin.overview') }}">전체현황</a>
                 <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
                 <a href="{{ url_for('admin.reviews') }}">검수</a>
                 <a href="{{ url_for('admin.settlement') }}">정산</a>
@@ -54,38 +174,127 @@
 
         {% if campaigns %}
         <div class="admin-table-wrap">
-            <table class="admin-table">
+            <table class="admin-table" id="campaignTable">
                 <thead>
                     <tr>
+                        <th style="width:28px;"></th>
                         <th>상품명</th>
                         <th>업체명</th>
-                        <th>플랫폼</th>
-                        <th>총수량</th>
-                        <th>완료</th>
-                        <th>오늘</th>
-                        <th>일수량</th>
-                        <th>구매시간</th>
-                        <th>리뷰비</th>
+                        <th class="num-cell">총수량</th>
+                        <th class="num-cell">오늘/목표</th>
+                        <th class="num-cell">구매</th>
+                        <th class="num-cell">리뷰</th>
+                        <th class="num-cell">정산</th>
+                        <th class="progress-cell">달성률</th>
                         <th>상태</th>
                         <th>관리</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for c in campaigns %}
-                    <tr>
-                        <td>{{ c.get('상품명', '') }}</td>
+                    {% set total = (c.get('총수량', '0')|int) or 0 %}
+                    {% set active = (c.get('신청수', '0')|int) or 0 %}
+                    {% set today = (c.get('오늘수량', '0')|int) or 0 %}
+                    {% set target = (c.get('오늘목표', '0')|int) or 0 %}
+                    {% set purchase = (c.get('구매완료', '0')|int) or 0 %}
+                    {% set review = (c.get('리뷰완료', '0')|int) or 0 %}
+                    {% set settle = (c.get('정산완료', '0')|int) or 0 %}
+                    {% set rate = ((active / total * 100)|round(1)) if total > 0 else 0 %}
+                    {% set rate_class = 'high' if rate >= 70 else ('mid' if rate >= 40 else 'low') %}
+                    <!-- 메인 행 -->
+                    <tr class="campaign-row" data-idx="{{ loop.index0 }}" onclick="toggleDetail({{ loop.index0 }})">
+                        <td><button type="button" class="toggle-btn" id="toggleBtn{{ loop.index0 }}">&#9660;</button></td>
+                        <td style="font-weight:600;">{{ c.get('상품명', '') }}</td>
                         <td>{{ c.get('업체명', '') }}</td>
-                        <td>{{ c.get('플랫폼', '') }}</td>
-                        <td>{{ c.get('총수량', '0') }}</td>
-                        <td>{{ c.get('완료수량', '0') }}</td>
-                        <td>{{ c.get('오늘수량', '0') }}</td>
-                        <td>{{ c.get('일수량', '0') }}</td>
-                        <td>{{ c.get('구매가능시간', '') or '24시간' }}</td>
-                        <td>{{ c.get('리뷰비', '') }}</td>
+                        <td class="num-cell">{{ total }}</td>
+                        <td class="num-cell">
+                            {% if target > 0 %}
+                                {% if today >= target %}
+                                <span class="today-done">{{ today }}/{{ target }}</span>
+                                {% elif today > 0 %}
+                                <span class="today-normal">{{ today }}/{{ target }}</span>
+                                {% else %}
+                                <span style="color:#64748b;">0/{{ target }}</span>
+                                {% endif %}
+                            {% else %}
+                            <span style="color:#cbd5e1;">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="num-cell">{{ purchase }}</td>
+                        <td class="num-cell">{{ review }}</td>
+                        <td class="num-cell">{{ settle }}</td>
+                        <td class="progress-cell">
+                            <div class="progress-bar-mini">
+                                <div class="progress-bar-fill {{ rate_class }}" style="width:{{ [rate, 100]|min }}%"></div>
+                            </div>
+                            <span class="progress-pct {{ rate_class }}">{{ active }}/{{ total }} ({{ rate }}%)</span>
+                        </td>
                         <td><span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span></td>
                         <td>
                             <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
-                               class="admin-btn admin-btn-sm">수정</a>
+                               class="admin-btn admin-btn-sm" onclick="event.stopPropagation();">수정</a>
+                        </td>
+                    </tr>
+                    <!-- 상세 펼침 행 -->
+                    <tr class="detail-row" id="detailRow{{ loop.index0 }}">
+                        <td colspan="11" class="detail-cell">
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <div class="detail-label">플랫폼</div>
+                                    <div class="detail-value">{{ c.get('플랫폼', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">구매시간</div>
+                                    <div class="detail-value">{{ c.get('구매가능시간', '') or '24시간' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">리뷰비</div>
+                                    <div class="detail-value">{{ c.get('리뷰비', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">시작일</div>
+                                    <div class="detail-value">{{ c.get('시작일', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">키워드</div>
+                                    <div class="detail-value">{{ c.get('키워드', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">상품링크</div>
+                                    <div class="detail-value">
+                                        {% set link = c.get('상품링크', '') %}
+                                        {% if link %}
+                                        <a href="{{ link }}" target="_blank" rel="noopener">{{ link[:50] }}{% if link|length > 50 %}...{% endif %}</a>
+                                        {% else %}-{% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 일별 일정 -->
+                            <div style="margin-top:8px;">
+                                <div class="detail-label">일별 일정</div>
+                                {% set schedule = c.get('일정', []) %}
+                                {% set start_date = c.get('시작일', '') %}
+                                {% if schedule %}
+                                <div class="schedule-blocks">
+                                    {% for qty in schedule %}
+                                    {% set day_class = '' %}
+                                    {% if start_date %}
+                                    {# day_index calculated via JS below #}
+                                    {% endif %}
+                                    <div class="schedule-block" data-day="{{ loop.index0 }}" data-start="{{ start_date }}">
+                                        <div class="day-num">{{ loop.index }}일차</div>
+                                        <div class="day-qty">{{ qty }}</div>
+                                    </div>
+                                    {% endfor %}
+                                    <div class="schedule-block" style="background:#fff3e0;border-color:#ffcc80;">
+                                        <div class="day-num">합계</div>
+                                        <div class="day-qty">{{ schedule|sum }}</div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="schedule-none">일정 없음</div>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -96,5 +305,41 @@
         <p class="admin-empty">등록된 캠페인이 없습니다.</p>
         {% endif %}
     </main>
+
+    <script>
+    function toggleDetail(idx) {
+        var row = document.getElementById('detailRow' + idx);
+        var btn = document.getElementById('toggleBtn' + idx);
+        if (row.classList.contains('open')) {
+            row.classList.remove('open');
+            btn.classList.remove('open');
+        } else {
+            row.classList.add('open');
+            btn.classList.add('open');
+        }
+    }
+
+    // 일정 블록에 오늘 하이라이트 적용
+    (function() {
+        var today = new Date();
+        today.setHours(0,0,0,0);
+        var blocks = document.querySelectorAll('.schedule-block[data-start]');
+        blocks.forEach(function(block) {
+            var startStr = block.getAttribute('data-start');
+            var dayIdx = parseInt(block.getAttribute('data-day'));
+            if (!startStr || isNaN(dayIdx)) return;
+            var parts = startStr.split('-');
+            if (parts.length !== 3) return;
+            var startDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            startDate.setHours(0,0,0,0);
+            var diffDays = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+            if (dayIdx === diffDays) {
+                block.classList.add('today');
+            } else if (dayIdx < diffDays) {
+                block.classList.add('past');
+            }
+        });
+    })();
+    </script>
 </body>
 </html>

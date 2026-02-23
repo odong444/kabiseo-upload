@@ -296,6 +296,7 @@ class DBManager:
             SELECT campaign_id,
                    COUNT(*) FILTER (WHERE status NOT IN ('취소','타임아웃취소')) AS active_count,
                    COUNT(*) FILTER (WHERE status = '입금완료') AS done_count,
+                   COUNT(*) FILTER (WHERE status IN ('리뷰대기','리뷰제출','입금대기','입금완료')) AS purchase_done,
                    COUNT(*) FILTER (WHERE status IN ('리뷰제출','입금대기','입금완료')) AS review_done,
                    COUNT(*) FILTER (WHERE status = '입금대기') AS settlement_pending,
                    COUNT(*) FILTER (WHERE status = '입금완료') AS settlement_done,
@@ -310,6 +311,7 @@ class DBManager:
             result[r["campaign_id"]] = {
                 "active": r["active_count"],
                 "done": r["done_count"],
+                "purchase_done": r["purchase_done"],
                 "review_done": r["review_done"],
                 "settlement_pending": r["settlement_pending"],
                 "settlement_done": r["settlement_done"],

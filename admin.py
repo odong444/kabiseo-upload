@@ -103,6 +103,10 @@ def dashboard():
 @admin_bp.route("/campaigns")
 @admin_required
 def campaigns():
+    import re as _re
+    from datetime import date as _date, datetime as _datetime
+    from modules.utils import safe_int
+
     campaign_list = []
     if models.campaign_manager:
         campaign_list = models.campaign_manager.get_all_campaigns()
@@ -116,6 +120,32 @@ def campaigns():
         s = stats.get(cid, {})
         c["완료수량"] = str(s.get("done", 0))
         c["오늘수량"] = str(s.get("today", 0))
+        c["신청수"] = str(s.get("active", 0))
+        c["구매완료"] = str(s.get("purchase_done", 0))
+        c["리뷰완료"] = str(s.get("review_done", 0))
+        c["정산완료"] = str(s.get("settlement_done", 0))
+
+        # 오늘 목표 계산
+        today_target = 0
+        schedule = c.get("일정", [])
+        start_date_str = c.get("시작일", "").strip() if c.get("시작일") else ""
+        if schedule and start_date_str:
+            try:
+                start = _datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                day_index = (_date.today() - start).days
+                if 0 <= day_index < len(schedule):
+                    today_target = safe_int(schedule[day_index])
+            except Exception:
+                pass
+        if not today_target:
+            daily_str = c.get("일수량", "").strip() if c.get("일수량") else ""
+            if daily_str:
+                range_match = _re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
+                if range_match:
+                    today_target = safe_int(range_match.group(2))
+                else:
+                    today_target = safe_int(daily_str)
+        c["오늘목표"] = str(today_target)
 
     return render_template("admin/campaigns.html", campaigns=campaign_list)
 
@@ -529,54 +559,6 @@ def reviewers_restore():
 
     flash(f"{processed}건 가이드전달 상태로 복원 완료")
     return redirect(url_for("admin.reviewers"))
-
-
-# ──────── 전체현황 ────────
-
-@admin_bp.route("/overview")
-@admin_required
-def overview():
-    campaigns = []
-    if models.campaign_manager:
-        campaigns = models.campaign_manager.get_all_campaigns()
-
-    # SQL 집계로 캠페인별 통계 조회
-    stats = {}
-    if models.db_manager:
-        stats = models.db_manager.get_campaign_stats()
-
-    campaign_stats = []
-    for c in campaigns:
-        cid = c.get("캠페인ID", "")
-        total = int(c.get("총수량", 0) or 0)
-        s = stats.get(cid, {})
-        done = s.get("done", 0)
-
-        rate = round(done / total * 100, 1) if total > 0 else 0
-        campaign_stats.append({
-            **c,
-            "완료수량": str(done),
-            "review_done": s.get("review_done", 0),
-            "settlement_done": s.get("settlement_done", 0),
-            "today_count": s.get("today", 0),
-            "rate": rate,
-        })
-
-    # Company summary
-    companies = {}
-    for cs in campaign_stats:
-        company = cs.get("업체명", "기타")
-        if company not in companies:
-            companies[company] = {"count": 0, "total": 0, "done": 0}
-        companies[company]["count"] += 1
-        companies[company]["total"] += int(cs.get("총수량", 0) or 0)
-        companies[company]["done"] += int(cs.get("완료수량", 0) or 0)
-
-    for k, v in companies.items():
-        v["rate"] = round(v["done"] / v["total"] * 100, 1) if v["total"] > 0 else 0
-
-    return render_template("admin/overview.html",
-                          campaigns=campaign_stats, companies=companies)
 
 
 # ──────── 활동 로그 ────────
