@@ -700,6 +700,27 @@ def api_kakao_bulk():
     return jsonify({"ok": True, "sent": sent, "total": len(progress_ids)})
 
 
+# ──────── 친구추가 재시도 ────────
+
+@admin_bp.route("/api/friend-add", methods=["POST"])
+@admin_required
+def api_friend_add():
+    """서버PC에 카카오톡 친구추가 재시도 요청"""
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+
+    if not name or not phone:
+        return jsonify({"ok": False, "error": "name, phone 필수"})
+
+    from modules.signal_sender import request_friend_add
+    ok = request_friend_add(name, phone)
+    if ok:
+        return jsonify({"ok": True})
+    else:
+        return jsonify({"ok": False, "error": "서버PC 연결 실패 또는 태스크 전송 거부"})
+
+
 # ──────── 문의 관리 ────────
 
 @admin_bp.route("/inquiries")

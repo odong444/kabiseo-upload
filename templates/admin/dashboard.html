@@ -63,6 +63,7 @@
                         <th>제품명</th>
                         <th>상태</th>
                         <th>구매일</th>
+                        <th>친구</th>
                         <th>카톡</th>
                     </tr>
                 </thead>
@@ -77,6 +78,13 @@
                         <td>{{ item.get('상품명', item.get('제품명', '')) }}</td>
                         <td><span class="admin-status-badge {{ item.get('상태', '')|lower }}">{{ item.get('상태', '') }}</span></td>
                         <td>{{ item.get('구매일', '') }}</td>
+                        <td>
+                            {% if item.get('카카오친구') %}
+                            <span style="color:#2ECC71;font-size:12px;font-weight:600;">추가됨</span>
+                            {% else %}
+                            <button type="button" class="btn btn-sm" style="background:#ef4444;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px;" onclick="retryFriendAdd('{{ item.get('진행자이름', '') }}', '{{ item.get('진행자연락처', '') }}')">재시도</button>
+                            {% endif %}
+                        </td>
                         <td><button type="button" class="btn btn-sm" style="background:#fae100;color:#3c1e1e;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;" onclick="sendKakao({{ item.get('_row_idx', 0) }})">카톡</button></td>
                     </tr>
                     {% endfor %}
@@ -123,6 +131,25 @@
             document.getElementById('kakaoTarget').textContent = '대상: ' + _kakaoIds.length + '건';
             document.getElementById('kakaoMessage').value = '';
             document.getElementById('kakaoModal').style.display = 'flex';
+        }
+
+        function retryFriendAdd(name, phone) {
+            if (!name || !phone) { alert('진행자 정보가 없습니다.'); return; }
+            if (!confirm(name + ' (' + phone + ') 친구추가를 재시도하시겠습니까?')) return;
+            fetch('/admin/api/friend-add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, phone: phone })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) {
+                    alert('친구추가 요청 완료 (서버PC에서 처리됩니다)');
+                } else {
+                    alert('요청 실패: ' + (d.error || ''));
+                }
+            })
+            .catch(function(e) { alert('요청 에러: ' + e.message); });
         }
 
         function closeKakaoModal() {

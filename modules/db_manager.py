@@ -657,6 +657,7 @@ class DBManager:
             "닉네임": row.get("nickname", ""),
             "진행자이름": reviewer.get("name", "") if reviewer else "",
             "진행자연락처": reviewer.get("phone", "") if reviewer else "",
+            "카카오친구": reviewer.get("kakao_friend", False) if reviewer else False,
             "상태": row.get("status", ""),
             "구매일": str(row["purchase_date"]) if row.get("purchase_date") else "",
             "구매캡쳐링크": row.get("purchase_capture_url", ""),
