@@ -112,23 +112,24 @@ class StepMachine:
 
     def _try_recover_session(self, state: ReviewerState) -> bool:
         """서버 재시작 후 DB에서 세션 복구 시도.
-        가이드전달/구매캡쳐대기/리뷰대기 상태의 진행건이 있으면 세션 복원."""
+        가이드전달 상태(양식 미제출)만 복구 대상.
+        구매캡쳐대기/리뷰대기는 사진 업로드(웹)로 진행하므로 복구 불필요."""
         try:
             if not self.reviewers or not self.reviewers.db:
                 return False
 
             items = self.reviewers.db.search_by_name_phone(state.name, state.phone)
-            # 활성 상태 필터
-            recoverable = ("가이드전달", "구매캡쳐대기", "리뷰대기")
-            active = [
+
+            # 가이드전달 상태만 복구 (양식 미제출 건)
+            guide_sent = [
                 item for item in items
-                if item.get("상태") in recoverable
+                if item.get("상태") == "가이드전달"
             ]
-            if not active:
+            if not guide_sent:
                 return False
 
             # 가장 최근 캠페인 기준
-            campaign_id = active[0].get("캠페인ID", "")
+            campaign_id = guide_sent[0].get("캠페인ID", "")
             if not campaign_id:
                 return False
 
@@ -136,39 +137,33 @@ class StepMachine:
             if not campaign:
                 return False
 
-            # 같은 캠페인의 아이디들
+            # 같은 캠페인의 가이드전달 아이디들
             same_campaign = [
-                item for item in active
+                item for item in guide_sent
                 if item.get("캠페인ID") == campaign_id
             ]
             store_ids = [item.get("아이디", "") for item in same_campaign if item.get("아이디")]
-            statuses = {item.get("상태", "") for item in same_campaign}
+
+            # 같은 캠페인에서 이미 양식 제출된 아이디도 포함
+            all_campaign_items = [
+                item for item in items
+                if item.get("캠페인ID") == campaign_id
+            ]
+            submitted = [
+                item.get("아이디") for item in all_campaign_items
+                if item.get("상태") in ("구매캡쳐대기", "리뷰대기")
+                and item.get("아이디")
+            ]
+            all_ids = list(set(store_ids + submitted))
 
             state.selected_campaign_id = campaign_id
             state.temp_data = {
                 "campaign": campaign,
-                "store_ids": store_ids,
-                "submitted_ids": [],
-                "account_count": len(store_ids),
+                "store_ids": all_ids,
+                "submitted_ids": submitted,
+                "account_count": len(all_ids),
             }
-
-            if "구매캡쳐대기" in statuses or "리뷰대기" in statuses:
-                # 양식 제출 완료된 아이디
-                submitted = [
-                    item.get("아이디") for item in same_campaign
-                    if item.get("상태") in ("구매캡쳐대기", "리뷰대기")
-                ]
-                state.temp_data["submitted_ids"] = submitted
-                pending = [sid for sid in store_ids if sid not in submitted]
-                if pending:
-                    state.step = 4  # 아직 양식 미제출 건 있음
-                elif "리뷰대기" in statuses:
-                    state.step = 7
-                else:
-                    state.step = 6
-            else:
-                # 전부 가이드전달 → 양식 입력 단계
-                state.step = 4
+            state.step = 4  # 양식 입력 단계
 
             logger.info(f"세션 복구: {state.name} step={state.step} ids={store_ids}")
             return True
@@ -514,6 +509,15 @@ class StepMachine:
 
         elif choice == 6:
             return self._enter_edit_mode(state)
+
+        # 주문번호/양식 데이터를 단독으로 보낸 경우 안내
+        import re
+        if re.match(r"^(주문번호|주문\s*번호)\s*[:：]?\s*\d", message) or re.match(r"^\d{10,}$", message.strip()):
+            return _resp(
+                "주문번호는 양식과 함께 제출해주세요.\n"
+                "양식 입력 단계에서 모든 항목을 한 번에 보내주시면 됩니다.",
+                buttons=self._menu_buttons()
+            )
 
         return self._ask_ai(state, message)
 
