@@ -124,7 +124,7 @@ class TimeoutManager:
         if self._kakao_notifier:
             try:
                 campaign = state.temp_data.get("campaign", {})
-                product = campaign.get("상품명", "")
+                product = campaign.get("캠페인명", "") or campaign.get("상품명", "")
                 recipient = state.temp_data.get("recipient_name", "")
                 sids = ", ".join(state.temp_data.get("store_ids", []))
                 self._kakao_notifier.notify_timeout_warning(
@@ -163,7 +163,7 @@ class TimeoutManager:
         # 카카오톡 취소 알림
         if self._kakao_notifier:
             try:
-                product = campaign.get("상품명", "")
+                product = campaign.get("캠페인명", "") or campaign.get("상품명", "")
                 recipient = state.temp_data.get("recipient_name", "")
                 sids = ", ".join(store_ids) if isinstance(store_ids, list) else str(store_ids)
                 self._kakao_notifier.notify_timeout_cancelled(

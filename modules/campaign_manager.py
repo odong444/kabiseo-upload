@@ -113,7 +113,7 @@ class CampaignManager:
 
             card = {
                 "value": f"campaign_{i}",
-                "name": c.get("상품명", ""),
+                "name": c.get("캠페인명", "") or c.get("상품명", ""),
                 "store": c.get("업체명", ""),
                 "total": total,
                 "remaining": remaining,
@@ -194,10 +194,11 @@ class CampaignManager:
                 except Exception:
                     pass
 
+            display_name = c.get("캠페인명", "") or c.get("상품명", "")
             if my_ids:
                 text += CAMPAIGN_ITEM_WITH_IDS.format(
                     idx=i,
-                    product_name=c.get("상품명", ""),
+                    product_name=display_name,
                     store_name=c.get("업체명", ""),
                     option=c.get("옵션", "없음"),
                     remaining=remaining,
@@ -207,7 +208,7 @@ class CampaignManager:
             else:
                 text += CAMPAIGN_ITEM.format(
                     idx=i,
-                    product_name=c.get("상품명", ""),
+                    product_name=display_name,
                     store_name=c.get("업체명", ""),
                     option=c.get("옵션", "없음"),
                     remaining=remaining,
@@ -235,7 +236,7 @@ class CampaignManager:
             campaign_type = "실배송"
 
         return RECRUIT_TEMPLATE.format(
-            product_name=campaign.get("상품명", ""),
+            product_name=campaign.get("캠페인명", "") or campaign.get("상품명", ""),
             product_price=product_price,
             campaign_type=campaign_type,
             total=total,

@@ -196,7 +196,7 @@
                 <thead>
                     <tr>
                         <th style="width:28px;"></th>
-                        <th>상품명</th>
+                        <th>캠페인명</th>
                         <th>업체명</th>
                         <th class="num-cell">총수량</th>
                         <th class="num-cell">오늘/목표</th>
@@ -222,7 +222,7 @@
                     <!-- 메인 행 -->
                     <tr class="campaign-row" data-idx="{{ loop.index0 }}" onclick="toggleDetail({{ loop.index0 }})">
                         <td><button type="button" class="toggle-btn" id="toggleBtn{{ loop.index0 }}">&#9660;</button></td>
-                        <td style="font-weight:600;">{{ c.get('상품명', '') }}</td>
+                        <td style="font-weight:600;">{{ c.get('캠페인명', '') or c.get('상품명', '') }}</td>
                         <td>{{ c.get('업체명', '') }}</td>
                         <td class="num-cell">{{ total }}</td>
                         <td class="num-cell">
@@ -260,7 +260,7 @@
                                         onclick="event.stopPropagation(); campaignPause('{{ c.get('캠페인ID', '') }}', this);">중지</button>
                                 {% endif %}
                                 <button type="button" class="admin-btn admin-btn-sm admin-btn-danger"
-                                        onclick="event.stopPropagation(); campaignDelete('{{ c.get('캠페인ID', '') }}', '{{ c.get('상품명', '') | e }}', this);">삭제</button>
+                                        onclick="event.stopPropagation(); campaignDelete('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}', this);">삭제</button>
                             </div>
                         </td>
                     </tr>

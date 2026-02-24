@@ -37,7 +37,7 @@ class ReviewerManager:
             "캠페인ID": campaign.get("캠페인ID", ""),
             "업체명": campaign.get("업체명", ""),
             "날짜": today_str(),
-            "제품명": campaign.get("상품명", ""),
+            "제품명": campaign.get("캠페인명", "") or campaign.get("상품명", ""),
             "수취인명": fd.get("수취인명", ""),
             "연락처": _format_phone(fd.get("연락처", "")),
             "은행": fd.get("은행", ""),
@@ -53,7 +53,8 @@ class ReviewerManager:
             "리뷰비": campaign.get("리뷰비", ""),
         }
         progress_id = self.db.add_progress(data)
-        logger.info(f"리뷰어 등록: {name} ({phone}) - {campaign.get('상품명', '')} [{store_id}]")
+        display_name = campaign.get("캠페인명", "") or campaign.get("상품명", "")
+        logger.info(f"리뷰어 등록: {name} ({phone}) - {display_name} [{store_id}]")
         return progress_id
 
     def update_form_data(self, name: str, phone: str, campaign_id: str,

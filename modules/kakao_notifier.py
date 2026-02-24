@@ -178,7 +178,8 @@ class KakaoNotifier:
 
         rows = self.db._fetchall(
             """SELECT p.id, p.store_id, p.recipient_name, p.review_deadline,
-                      p.last_reminder_date, r.name, r.phone, c.product_name
+                      p.last_reminder_date, r.name, r.phone,
+                      COALESCE(NULLIF(c.campaign_name, ''), c.product_name) AS product_name
                FROM progress p
                JOIN reviewers r ON p.reviewer_id = r.id
                JOIN campaigns c ON p.campaign_id = c.id

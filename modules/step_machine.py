@@ -83,7 +83,7 @@ class StepMachine:
             )
         # 진행 중인 세션이 있으면 이어하기/새로 시작 선택
         campaign = state.temp_data.get("campaign", {})
-        product = campaign.get("상품명", "")
+        product = self._display_name(campaign)
         header = f"📌 진행 중인 신청이 있습니다.\n📦 {product}" if product else "📌 진행 중인 신청이 있습니다."
         return _resp(
             f"{header}\n\n이어서 진행하시겠습니까?",
@@ -92,6 +92,11 @@ class StepMachine:
                 {"label": "새로 시작", "value": "__cancel__", "style": "danger"},
             ]
         )
+
+    @staticmethod
+    def _display_name(campaign: dict) -> str:
+        """캠페인 표시명: 캠페인명이 있으면 캠페인명, 없으면 상품명"""
+        return (campaign.get("캠페인명", "") or campaign.get("상품명", ""))
 
     def _menu_buttons(self):
         return [
@@ -111,7 +116,7 @@ class StepMachine:
     def _build_resume_message(self, state: ReviewerState):
         """진행 중인 세션 복귀 안내"""
         campaign = state.temp_data.get("campaign", {})
-        product = campaign.get("상품명", "")
+        product = self._display_name(campaign)
         store_ids = state.temp_data.get("store_ids", [])
         submitted_ids = state.temp_data.get("submitted_ids", [])
         id_summary = ", ".join(store_ids) if store_ids else ""
@@ -289,7 +294,7 @@ class StepMachine:
             self._clear_dup_state(state)
             return _resp(
                 tpl.ASK_ACCOUNT_COUNT.format(
-                    product_name=campaign.get("상품명", ""),
+                    product_name=self._display_name(campaign),
                     store_name=campaign.get("업체명", ""),
                 ),
                 buttons=self._account_count_buttons()
@@ -451,11 +456,12 @@ class StepMachine:
             return _resp("해당 번호의 캠페인이 없습니다. 다시 선택해주세요.", cards=cards)
 
         # 구매가능시간 체크
+        display = self._display_name(campaign)
         if not campaign.get("_buy_time_active", True):
             buy_time = campaign.get("구매가능시간", "")
             cards = self.campaigns.build_campaign_cards(state.name, state.phone)
             return _resp(
-                f"'{campaign.get('상품명', '')}' 캠페인은 구매 가능 시간이 아닙니다.\n⏰ 진행시간: {buy_time}",
+                f"'{display}' 캠페인은 구매 가능 시간이 아닙니다.\n⏰ 진행시간: {buy_time}",
                 cards=cards
             )
 
@@ -463,7 +469,7 @@ class StepMachine:
         if self.campaigns.is_daily_full(campaign):
             cards = self.campaigns.build_campaign_cards(state.name, state.phone)
             return _resp(
-                f"'{campaign.get('상품명', '')}' 캠페인은 오늘 모집이 마감되었습니다.\n내일 다시 신청해주세요!",
+                f"'{display}' 캠페인은 오늘 모집이 마감되었습니다.\n내일 다시 신청해주세요!",
                 cards=cards
             )
 
@@ -489,7 +495,7 @@ class StepMachine:
 
         return _resp(
             tpl.ASK_ACCOUNT_COUNT.format(
-                product_name=campaign.get("상품명", ""),
+                product_name=self._display_name(campaign),
                 store_name=campaign.get("업체명", ""),
             ),
             buttons=self._account_count_buttons()
@@ -1069,7 +1075,7 @@ class StepMachine:
 
         response_parts.append(
             tpl.FORM_RECEIVED.format(
-                product_name=campaign.get("상품명", ""),
+                product_name=self._display_name(campaign),
                 id_list=id_list,
                 recipient_name=last_parsed.get("수취인명", state.name),
                 upload_url=upload_url,
@@ -1156,7 +1162,7 @@ class StepMachine:
         # 캠페인가이드(자유기술)가 있으면 우선 사용
         custom_guide = campaign.get("캠페인가이드", "").strip()
         if custom_guide:
-            product_name = campaign.get("상품명", "")
+            product_name = self._display_name(campaign)
             parts = []
             if image_tag:
                 parts.append(image_tag)
@@ -1178,7 +1184,7 @@ class StepMachine:
             return "\n".join(parts)
 
         # 기존 개별 필드 기반 가이드 (하위호환)
-        product_name = campaign.get("상품명", "")
+        product_name = self._display_name(campaign)
         store_name = campaign.get("업체명", "")
         entry_method = campaign.get("유입방식", "").strip()
 
@@ -1433,7 +1439,7 @@ class StepMachine:
         return {
             "reviewer_name": state.name,
             "current_step": state.step,
-            "campaign_name": campaign.get("상품명", ""),
+            "campaign_name": self._display_name(campaign),
             "in_progress_count": len(items.get("in_progress", [])),
             "learned_qa": learned_qa,
         }

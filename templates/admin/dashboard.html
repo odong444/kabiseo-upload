@@ -76,7 +76,7 @@
                         <td>{{ item.get('진행자연락처', '') }}</td>
                         <td>{{ item.get('수취인명', '') }}</td>
                         <td>{{ item.get('아이디', '') }}</td>
-                        <td>{{ item.get('상품명', item.get('제품명', '')) }}</td>
+                        <td>{{ item.get('캠페인명', '') or item.get('상품명', '') or item.get('제품명', '') }}</td>
                         <td><span class="admin-status-badge {{ item.get('상태', '')|lower }}">{{ item.get('상태', '') }}</span></td>
                         <td>{{ item.get('구매일', '') }}</td>
                         <td>

@@ -173,7 +173,7 @@ def campaign_edit_post(campaign_id):
         return redirect(url_for("admin.campaigns"))
 
     editable_fields = [
-        "상태", "상품명", "업체명", "플랫폼", "캠페인유형",
+        "상태", "캠페인명", "상품명", "업체명", "플랫폼", "캠페인유형",
         "상품금액", "리뷰비", "결제금액",
         "총수량", "일수량", "진행일수", "완료수량", "일정", "시작일",
         "구매가능시간", "중복허용",
@@ -288,7 +288,7 @@ def campaign_new_post():
     campaign_id = str(uuid.uuid4())[:8]
 
     fields = [
-        "캠페인유형", "플랫폼", "업체명", "상품명",
+        "캠페인유형", "플랫폼", "업체명", "캠페인명", "상품명",
         "총수량", "일수량", "진행일수",
         "상품금액", "리뷰비", "중복허용", "구매가능시간", "캠페인가이드",
         "상품링크", "홍보메시지",
@@ -337,7 +337,8 @@ def campaign_new_post():
 
     try:
         models.db_manager.create_campaign(data)
-        flash(f"캠페인 '{data['상품명']}' 등록 완료 (ID: {campaign_id})")
+        display_name = data.get('캠페인명', '').strip() or data['상품명']
+        flash(f"캠페인 '{display_name}' 등록 완료 (ID: {campaign_id})")
     except Exception as e:
         logger.error(f"캠페인 등록 에러: {e}")
         flash(f"등록 중 오류가 발생했습니다: {e}")
@@ -642,7 +643,8 @@ def api_campaign_preview():
     data = request.get_json(silent=True) or {}
     from modules.utils import safe_int
 
-    product_name = data.get("상품명", "")
+    campaign_name = data.get("캠페인명", "").strip()
+    product_name = campaign_name or data.get("상품명", "")
     store_name = data.get("업체명", "")
     total = safe_int(data.get("총수량", 0))
     product_price = data.get("상품금액", "") or "확인필요"
@@ -848,12 +850,12 @@ def debug_campaigns():
     if models.campaign_manager:
         all_c = models.campaign_manager.get_all_campaigns()
         result["campaigns"] = [
-            {k: v for k, v in c.items() if k in ("캠페인ID", "상품명", "상태", "총수량", "완료수량", "일수량", "공개여부", "구매가능시간")}
+            {k: v for k, v in c.items() if k in ("캠페인ID", "캠페인명", "상품명", "상태", "총수량", "완료수량", "일수량", "공개여부", "구매가능시간")}
             for c in all_c
         ]
         active = models.campaign_manager.get_active_campaigns()
         result["active"] = [
-            {k: v for k, v in c.items() if k in ("캠페인ID", "상품명", "상태", "총수량", "_남은수량", "_buy_time_active")}
+            {k: v for k, v in c.items() if k in ("캠페인ID", "캠페인명", "상품명", "상태", "총수량", "_남은수량", "_buy_time_active")}
             for c in active
         ]
         cards = models.campaign_manager.build_campaign_cards("테스트", "010-0000-0000")

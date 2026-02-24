@@ -178,7 +178,7 @@
             <select id="filterCampaign">
                 <option value="">전체</option>
                 {% for c in campaigns|default([]) %}
-                <option value="{{ c.get('캠페인ID', '') }}" {% if campaign_filter == c.get('캠페인ID', '')|string %}selected{% endif %}>{{ c.get('상품명', '') }}</option>
+                <option value="{{ c.get('캠페인ID', '') }}" {% if campaign_filter == c.get('캠페인ID', '')|string %}selected{% endif %}>{{ c.get('캠페인명', '') or c.get('상품명', '') }}</option>
                 {% endfor %}
             </select>
             <label>상태:</label>

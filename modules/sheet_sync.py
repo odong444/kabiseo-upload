@@ -32,7 +32,7 @@ _SYNC_SQL = """
         p.id,
         c.company,
         p.created_at,
-        c.product_name,
+        COALESCE(NULLIF(c.campaign_name, ''), c.product_name) AS product_name,
         p.recipient_name,
         p.phone,
         p.bank,

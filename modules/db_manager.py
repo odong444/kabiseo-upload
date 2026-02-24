@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
     updated_at      TIMESTAMPTZ DEFAULT NOW(),
     status          TEXT NOT NULL DEFAULT '모집중',
     company         TEXT NOT NULL DEFAULT '',
+    campaign_name   TEXT DEFAULT '',
     product_name    TEXT NOT NULL DEFAULT '',
     product_link    TEXT DEFAULT '',
     product_codes   JSONB DEFAULT '{}',
@@ -233,6 +234,10 @@ class DBManager:
                 except Exception:
                     pass
                 try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS campaign_name TEXT DEFAULT ''")
+                except Exception:
+                    pass
+                try:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_enabled BOOLEAN DEFAULT FALSE")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_categories TEXT DEFAULT ''")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_start TEXT DEFAULT '09:00'")
@@ -401,7 +406,7 @@ class DBManager:
         d = self._campaign_from_sheet_dict(data)
         sql = """
             INSERT INTO campaigns (
-                id, status, company, product_name, product_link, product_codes, product_image,
+                id, status, company, campaign_name, product_name, product_link, product_codes, product_image,
                 product_price, payment_amount, campaign_type, platform, options, option_list,
                 keyword, keyword_position, current_rank, entry_method,
                 total_qty, daily_qty, done_qty, max_daily, duration_days,
@@ -417,7 +422,7 @@ class DBManager:
                 promotion_message,
                 promo_enabled, promo_categories, promo_start, promo_end, promo_cooldown
             ) VALUES (
-                %(id)s, %(status)s, %(company)s, %(product_name)s, %(product_link)s,
+                %(id)s, %(status)s, %(company)s, %(campaign_name)s, %(product_name)s, %(product_link)s,
                 %(product_codes)s, %(product_image)s, %(product_price)s, %(payment_amount)s, %(campaign_type)s, %(platform)s,
                 %(options)s, %(option_list)s, %(keyword)s, %(keyword_position)s,
                 %(current_rank)s, %(entry_method)s, %(total_qty)s, %(daily_qty)s,
@@ -460,7 +465,7 @@ class DBManager:
 
     # 캠페인 시트↔DB 컬럼 매핑
     _CAMPAIGN_FIELD_MAP = {
-        "캠페인ID": "id", "상태": "status", "업체명": "company",
+        "캠페인ID": "id", "상태": "status", "업체명": "company", "캠페인명": "campaign_name",
         "상품명": "product_name", "상품링크": "product_link", "상품코드": "product_codes",
         "상품이미지": "product_image", "상품금액": "product_price",
         "캠페인유형": "campaign_type", "플랫폼": "platform",
@@ -498,7 +503,7 @@ class DBManager:
     }
 
     _CAMPAIGN_COLUMNS = {
-        "id", "status", "company", "product_name", "product_link",
+        "id", "status", "company", "campaign_name", "product_name", "product_link",
         "product_codes", "product_image", "product_price", "payment_amount",
         "campaign_type", "platform",
         "options", "option_list", "keyword", "keyword_position",
@@ -732,7 +737,7 @@ class DBManager:
             "캠페인ID": row.get("campaign_id", ""),
             "업체명": campaign.get("업체명", "") if campaign else "",
             "날짜": row["created_at"].strftime("%Y-%m-%d") if row.get("created_at") else "",
-            "제품명": campaign.get("상품명", "") if campaign else "",
+            "제품명": (campaign.get("캠페인명", "") or campaign.get("상품명", "")) if campaign else "",
             "수취인명": row.get("recipient_name", ""),
             "연락처": row.get("phone", ""),
             "은행": row.get("bank", ""),
@@ -1040,7 +1045,8 @@ class DBManager:
 
         # 같은 product_id를 가진 다른 캠페인 ID 조회
         other_campaigns = self._fetchall(
-            """SELECT id, product_name FROM campaigns
+            """SELECT id, COALESCE(NULLIF(campaign_name, ''), product_name) AS display_name
+               FROM campaigns
                WHERE id != %s AND product_codes->'codes'->>'product_id' = %s""",
             (campaign_id, product_id)
         )
@@ -1048,7 +1054,7 @@ class DBManager:
             return []
 
         other_ids = [c["id"] for c in other_campaigns]
-        name_map = {c["id"]: c["product_name"] for c in other_campaigns}
+        name_map = {c["id"]: c["display_name"] for c in other_campaigns}
 
         # 리뷰어의 해당 캠페인들 진행 이력
         reviewer = self.get_reviewer(name, phone)
