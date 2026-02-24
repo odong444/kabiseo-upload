@@ -178,7 +178,8 @@ def campaign_edit_post(campaign_id):
         "총수량", "일수량", "진행일수", "완료수량", "일정", "시작일",
         "구매가능시간", "중복허용",
         "상품링크", "키워드", "유입방식", "리뷰기한일수",
-        "공개여부", "캠페인가이드", "메모",
+        "공개여부", "캠페인가이드", "메모", "홍보메시지",
+        "홍보활성", "홍보카테고리", "홍보시작시간", "홍보종료시간", "홍보주기",
     ]
 
     update_data = {}
@@ -243,7 +244,8 @@ def campaign_new_post():
         "캠페인유형", "플랫폼", "업체명", "상품명",
         "총수량", "일수량", "진행일수",
         "상품금액", "리뷰비", "중복허용", "구매가능시간", "캠페인가이드",
-        "상품링크",
+        "상품링크", "홍보메시지",
+        "홍보활성", "홍보카테고리", "홍보시작시간", "홍보종료시간", "홍보주기",
     ]
 
     data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
@@ -828,7 +830,7 @@ def spreadsheet():
     if models.db_manager:
         items = models.db_manager.get_all_reviewers()
         try:
-            campaigns = models.campaign_manager.get_all() if models.campaign_manager else []
+            campaigns = models.campaign_manager.get_all_campaigns() if models.campaign_manager else []
         except Exception:
             campaigns = []
     campaign_filter = request.args.get("campaign", "")

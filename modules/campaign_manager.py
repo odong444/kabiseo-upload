@@ -244,14 +244,45 @@ class CampaignManager:
         ).strip()
 
     def get_needs_recruit(self, web_url: str) -> list[dict]:
-        """홍보가 필요한 캠페인 + 모집글 (구매가능시간 내만)"""
+        """홍보가 필요한 캠페인 + 모집글 (구매가능시간 내만)
+        캠페인별 홍보 설정이 있으면 그것을 우선 사용.
+        promo_enabled=False인 캠페인은 목록에서 제외.
+        """
         active = self.get_active_campaigns()
         result = []
         for c in active:
+            # 캠페인별 홍보 활성화 여부 확인
+            promo_enabled = c.get("홍보활성", "")
+            if promo_enabled == "N":
+                continue  # 홍보 비활성 캠페인 제외
+
             # 구매가능시간 외에는 홍보 대상에서 제외
             if not c.get("_buy_time_active", True):
                 continue
-            c["모집글"] = self.build_recruit_message(c, web_url)
+
+            # 캠페인별 홍보 시간대 확인 (promo_start/promo_end)
+            promo_start = (c.get("홍보시작시간") or "").strip()
+            promo_end = (c.get("홍보종료시간") or "").strip()
+            if promo_enabled == "Y" and promo_start and promo_end:
+                from modules.utils import now_kst
+                now_hm = now_kst().strftime("%H:%M")
+                if not (promo_start <= now_hm < promo_end):
+                    continue
+
+            # 커스텀 홍보메시지가 있으면 그것을 사용, 없으면 자동 생성
+            custom_msg = (c.get("홍보메시지") or "").strip()
+            if custom_msg:
+                c["모집글"] = custom_msg
+            else:
+                c["모집글"] = self.build_recruit_message(c, web_url)
+
+            # 캠페인별 홍보 설정 포함
+            c["_promo_enabled"] = promo_enabled == "Y"
+            c["_promo_categories"] = (c.get("홍보카테고리") or "").strip()
+            c["_promo_start"] = promo_start or "09:00"
+            c["_promo_end"] = promo_end or "22:00"
+            c["_promo_cooldown"] = safe_int(c.get("홍보주기", 60)) or 60
+
             result.append(c)
         return result
 

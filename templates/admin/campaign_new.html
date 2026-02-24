@@ -61,6 +61,70 @@
             background: #fee500; color: #3c1e1e; border-color: #fee500; font-weight: 600;
         }
         .admin-btn-preview:hover { background: #f5d800; }
+
+        /* 홍보 설정 */
+        .promo-toggle-wrap { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+        .toggle-switch { position: relative; display: inline-block; width: 50px; height: 26px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background: #ccc; border-radius: 26px; transition: 0.3s;
+        }
+        .toggle-slider:before {
+            position: absolute; content: ""; height: 20px; width: 20px;
+            left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider { background: #fee500; }
+        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(24px); }
+        .toggle-label { font-size: 14px; font-weight: 600; color: #888; }
+        .toggle-label.on { color: #3c1e1e; }
+        .promo-detail { transition: opacity 0.3s; }
+        .promo-detail.disabled { opacity: 0.4; pointer-events: none; }
+        .promo-categories { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 8px 0; }
+        .promo-cat-label {
+            display: flex; align-items: center; gap: 4px; font-size: 14px;
+            font-weight: 400; cursor: pointer; margin-bottom: 0;
+        }
+        .promo-cat-label input[type="checkbox"] { width: auto; margin: 0; }
+
+        .promo-message-wrap {
+            display: grid; grid-template-columns: 1fr 320px; gap: 16px;
+        }
+        @media (max-width: 768px) {
+            .promo-message-wrap { grid-template-columns: 1fr; }
+        }
+
+        /* 카카오톡 미리보기 */
+        .kakao-preview {
+            border: 1px solid #ddd; border-radius: 12px; overflow: hidden;
+            background: #b2c7d9; min-height: 280px; display: flex; flex-direction: column;
+        }
+        .kakao-preview-header {
+            background: #5b86a7; padding: 10px 14px; display: flex; align-items: center;
+        }
+        .kakao-preview-title { color: #fff; font-size: 14px; font-weight: 600; }
+        .kakao-preview-body {
+            flex: 1; padding: 14px; overflow-y: auto; display: flex; flex-direction: column;
+        }
+        .kakao-date {
+            text-align: center; font-size: 11px; color: #fff; margin-bottom: 12px;
+            background: rgba(0,0,0,0.15); border-radius: 10px; padding: 3px 10px;
+            align-self: center;
+        }
+        .kakao-msg-row { display: flex; flex-direction: column; align-items: flex-start; }
+        .kakao-profile { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+        .kakao-avatar {
+            width: 32px; height: 32px; border-radius: 10px; background: #fee500;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; color: #3c1e1e;
+        }
+        .kakao-name { font-size: 12px; color: #333; font-weight: 500; }
+        .kakao-bubble {
+            background: #fff; border-radius: 0 12px 12px 12px; padding: 10px 14px;
+            font-size: 13px; line-height: 1.6; max-width: 260px; word-break: break-word;
+            white-space: pre-wrap; box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            margin-left: 38px;
+        }
     </style>
 </head>
 <body class="admin-body">
@@ -206,6 +270,94 @@
                     <div class="form-group form-group-full">
                         <label>캠페인 가이드</label>
                         <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 홍보 설정 -->
+            <div class="form-section">
+                <h3>홍보 설정</h3>
+                <div class="form-grid">
+                    <!-- 홍보 활성화 토글 -->
+                    <div class="form-group form-group-full">
+                        <label>홍보 활성화</label>
+                        <div class="promo-toggle-wrap">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="promoEnabled" name="홍보활성" value="Y">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="toggle-label" id="promoStatusLabel">OFF</span>
+                        </div>
+                    </div>
+
+                    <!-- 대상 카테고리 -->
+                    <div class="form-group form-group-full promo-detail" id="promoDetails">
+                        <label>대상 카테고리</label>
+                        <div class="promo-categories">
+                            {% for cat in ['체험단', '맛집', '뷰티', '육아', '생활', '정보', '홍보'] %}
+                            <label class="promo-cat-label">
+                                <input type="checkbox" class="promo-cat-cb" value="{{ cat }}"> {{ cat }}
+                            </label>
+                            {% endfor %}
+                            <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+                                <label class="promo-cat-label" style="margin:0;">
+                                    <input type="checkbox" class="promo-cat-cb" id="promoCatEtc" value=""> 기타:
+                                </label>
+                                <input type="text" id="promoCatEtcInput" placeholder="직접입력" style="width:120px;padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                            </div>
+                        </div>
+                        <input type="hidden" name="홍보카테고리" id="promoCategoriesValue">
+                    </div>
+
+                    <!-- 홍보 시간대 -->
+                    <div class="form-group promo-detail">
+                        <label>홍보 시간대</label>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <select name="홍보시작시간" id="promoStartTime" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                                {% for h in range(24) %}<option value="{{ '%02d:00'|format(h) }}">{{ '%02d:00'|format(h) }}</option>{% endfor %}
+                            </select>
+                            <span>~</span>
+                            <select name="홍보종료시간" id="promoEndTime" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                                {% for h in range(24) %}<option value="{{ '%02d:00'|format(h) }}" {{ 'selected' if h == 22 }}>{{ '%02d:00'|format(h) }}</option>{% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 발송 주기 -->
+                    <div class="form-group promo-detail">
+                        <label>발송 주기</label>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <input type="number" name="홍보주기" id="promoCooldown" value="60" min="1" max="1440" style="width:100px;">
+                            <span style="color:#666;font-size:14px;">분</span>
+                        </div>
+                        <small style="color:#888;font-size:12px;">같은 카테고리에 메시지를 보내는 최소 간격</small>
+                    </div>
+
+                    <!-- 홍보 메시지 + 카톡 미리보기 -->
+                    <div class="form-group form-group-full promo-detail">
+                        <label>홍보 메시지</label>
+                        <div style="margin-bottom:8px;">
+                            <button type="button" class="admin-btn" id="autoGenerateBtn" style="padding:6px 16px;font-size:13px;background:#fee500;border-color:#fee500;color:#3c1e1e;">자동 생성</button>
+                            <small style="color:#888;margin-left:8px;">현재 입력된 캠페인 정보로 기본 템플릿을 생성합니다</small>
+                        </div>
+                        <div class="promo-message-wrap">
+                            <textarea name="홍보메시지" id="promotionMessage" rows="8" placeholder="홍보 메시지를 입력하세요. 비워두면 자동 생성됩니다."></textarea>
+                            <div class="kakao-preview">
+                                <div class="kakao-preview-header">
+                                    <span class="kakao-preview-title">카카오톡 미리보기</span>
+                                </div>
+                                <div class="kakao-preview-body" id="kakaoPreviewBody">
+                                    <div class="kakao-date">오늘</div>
+                                    <div class="kakao-msg-row">
+                                        <div class="kakao-profile">
+                                            <div class="kakao-avatar">카</div>
+                                            <span class="kakao-name">카비서</span>
+                                        </div>
+                                        <div class="kakao-bubble" id="kakaoPreviewBubble">메시지를 입력하면 미리보기가 표시됩니다.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -463,6 +615,80 @@
         previewModal.addEventListener('click', function(e) {
             if (e.target === previewModal) previewModal.classList.remove('active');
         });
+
+        // 홍보 메시지 자동 생성
+        document.getElementById('autoGenerateBtn').addEventListener('click', function() {
+            var productName = document.querySelector('[name="상품명"]').value || '(상품명)';
+            var productPrice = document.querySelector('[name="상품금액"]').value || '확인필요';
+            var campaignType = document.querySelector('[name="캠페인유형"]').value || '실배송';
+            var totalQty = document.querySelector('[name="총수량"]').value || '0';
+
+            var msg = '📢 체험단 모집\n\n'
+                + productName + '\n'
+                + '💰 결제금액: ' + productPrice + '원\n'
+                + '📦 ' + campaignType + '\n'
+                + '👥 ' + totalQty + '명 모집\n\n'
+                + '👉 신청하기';
+
+            document.getElementById('promotionMessage').value = msg;
+            updateKakaoPreview();
+        });
+
+        // 홍보 활성화 토글
+        var promoEnabled = document.getElementById('promoEnabled');
+        var promoStatusLabel = document.getElementById('promoStatusLabel');
+        var promoDetails = document.querySelectorAll('.promo-detail');
+
+        function updatePromoState() {
+            var on = promoEnabled.checked;
+            promoStatusLabel.textContent = on ? 'ON' : 'OFF';
+            promoStatusLabel.classList.toggle('on', on);
+            promoDetails.forEach(function(el) {
+                el.classList.toggle('disabled', !on);
+            });
+        }
+        promoEnabled.addEventListener('change', updatePromoState);
+        updatePromoState();
+
+        // 카테고리 체크박스 → hidden input 동기화
+        var catCheckboxes = document.querySelectorAll('.promo-cat-cb');
+        var catEtcInput = document.getElementById('promoCatEtcInput');
+        var catEtcCb = document.getElementById('promoCatEtc');
+        var catHidden = document.getElementById('promoCategoriesValue');
+
+        function updatePromoCategories() {
+            var cats = [];
+            catCheckboxes.forEach(function(cb) {
+                if (cb.checked) {
+                    if (cb.id === 'promoCatEtc') {
+                        var v = catEtcInput.value.trim();
+                        if (v) cats.push(v);
+                    } else {
+                        cats.push(cb.value);
+                    }
+                }
+            });
+            catHidden.value = cats.join(',');
+        }
+        catCheckboxes.forEach(function(cb) { cb.addEventListener('change', updatePromoCategories); });
+        catEtcInput.addEventListener('input', function() {
+            if (this.value.trim()) catEtcCb.checked = true;
+            updatePromoCategories();
+        });
+
+        // 카카오톡 미리보기
+        var promoTextarea = document.getElementById('promotionMessage');
+        var kakaoBubble = document.getElementById('kakaoPreviewBubble');
+
+        function updateKakaoPreview() {
+            var text = promoTextarea.value.trim();
+            if (text) {
+                kakaoBubble.textContent = text;
+            } else {
+                kakaoBubble.textContent = '메시지를 입력하면 미리보기가 표시됩니다.';
+            }
+        }
+        promoTextarea.addEventListener('input', updateKakaoPreview);
     })();
     </script>
 </body>

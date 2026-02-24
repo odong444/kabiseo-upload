@@ -250,6 +250,8 @@ class TaskQueue:
                     result = self._handle_test_send(data)
                 elif task_type == "promotion":
                     result = self._handle_promotion(data)
+                elif task_type == "scan_open_chatrooms":
+                    result = self._handle_scan_open_chatrooms(data)
                 else:
                     result = {"success": False, "message": "unknown type: " + task_type}
 
@@ -427,6 +429,101 @@ class TaskQueue:
             logger.info("친구추가 콜백 전송: %s %s → %s", name, phone, success)
         except Exception as e:
             logger.warning("친구추가 콜백 실패: %s", e)
+
+    def _handle_scan_open_chatrooms(self, data: dict) -> dict:
+        """열려있는 카카오톡 채팅창 타이틀을 읽어 오픈채팅 목록 갱신.
+        mode='scan': 오픈채팅 전체 교체, mode='add': 기존 목록에 추가만.
+        """
+        import ctypes
+        import ctypes.wintypes
+
+        mode = data.get("mode", "scan")  # scan or add
+        user32 = ctypes.windll.user32
+
+        # 1. 열려있는 모든 카카오톡 창 타이틀 수집
+        main_hwnd = None
+        chat_titles = []
+
+        def enum_cb(hwnd, _):
+            nonlocal main_hwnd
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            cls = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(hwnd, cls, 256)
+            if cls.value != "EVA_Window_Dblclk":
+                return True
+            buf = ctypes.create_unicode_buffer(256)
+            user32.GetWindowTextW(hwnd, buf, 256)
+            title = buf.value.strip()
+            if not title:
+                return True
+            if title == "카카오톡":
+                main_hwnd = hwnd
+            else:
+                chat_titles.append(title)
+            return True
+
+        cb_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.POINTER(ctypes.c_int))
+        user32.EnumWindows(cb_type(enum_cb), 0)
+
+        if not chat_titles:
+            return {"success": False, "message": "열려있는 채팅창이 없습니다"}
+
+        logger.info("열린 채팅창 %d개 발견: %s", len(chat_titles), chat_titles)
+
+        # 2. JSON 업데이트
+        chatrooms_path = PROJECT_ROOT / "data" / "open_chatrooms.json"
+        existing = {}
+        if chatrooms_path.exists():
+            try:
+                existing = json.loads(chatrooms_path.read_text(encoding="utf-8"))
+            except Exception:
+                existing = {}
+
+        old_rooms = existing.get("rooms", [])
+        normal_rooms = [r for r in old_rooms if r.get("type") == "normal"]
+        open_settings = {r["name"]: r for r in old_rooms if r.get("type", "open") == "open"}
+
+        if mode == "add":
+            # 추가 모드: 기존 오픈채팅 유지 + 새 것만 추가
+            existing_open = [r for r in old_rooms if r.get("type", "open") == "open"]
+            existing_names = {r["name"] for r in existing_open}
+            added = []
+            for title in chat_titles:
+                if title not in existing_names:
+                    existing_open.append({
+                        "name": title, "type": "open", "categories": [],
+                        "enabled": False, "active_hours": "09:00~22:00",
+                        "cooldown_minutes": 60, "last_sent": None,
+                    })
+                    added.append(title)
+            existing["rooms"] = normal_rooms + existing_open
+        else:
+            # 스캔 모드: 오픈채팅 전체 교체 (설정 보존)
+            new_open = []
+            for title in chat_titles:
+                if title in open_settings:
+                    new_open.append(open_settings[title])
+                else:
+                    new_open.append({
+                        "name": title, "type": "open", "categories": [],
+                        "enabled": False, "active_hours": "09:00~22:00",
+                        "cooldown_minutes": 60, "last_sent": None,
+                    })
+            existing["rooms"] = normal_rooms + new_open
+
+        existing["last_scan"] = datetime.now(KST).isoformat()
+        chatrooms_path.parent.mkdir(parents=True, exist_ok=True)
+        chatrooms_path.write_text(
+            json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+        if mode == "add":
+            logger.info("오픈채팅 추가: %d개 신규", len(added))
+            return {"success": True, "added": added, "count": len(added)}
+        else:
+            logger.info("오픈채팅 스캔: %d개 (일반 %d개 유지)", len(chat_titles), len(normal_rooms))
+            return {"success": True, "rooms": chat_titles, "count": len(chat_titles)}
 
     def _record_promotion_history(self, campaign_id: str, room_name: str):
         """홍보 이력을 promotion_history.json에 기록."""

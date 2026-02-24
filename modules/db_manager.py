@@ -99,7 +99,13 @@ CREATE TABLE IF NOT EXISTS campaigns (
     is_public       BOOLEAN DEFAULT TRUE,
     is_selected     BOOLEAN DEFAULT FALSE,
     reward          TEXT DEFAULT '',
-    memo            TEXT DEFAULT ''
+    memo            TEXT DEFAULT '',
+    promotion_message TEXT DEFAULT '',
+    promo_enabled     BOOLEAN DEFAULT FALSE,
+    promo_categories  TEXT DEFAULT '',
+    promo_start       TEXT DEFAULT '09:00',
+    promo_end         TEXT DEFAULT '22:00',
+    promo_cooldown    INTEGER DEFAULT 60
 );
 
 CREATE TABLE IF NOT EXISTS reviewers (
@@ -220,6 +226,18 @@ class DBManager:
                 try:
                     cur.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS notify_start TEXT DEFAULT '09:00'")
                     cur.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS notify_end TEXT DEFAULT '22:00'")
+                except Exception:
+                    pass
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promotion_message TEXT DEFAULT ''")
+                except Exception:
+                    pass
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_enabled BOOLEAN DEFAULT FALSE")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_categories TEXT DEFAULT ''")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_start TEXT DEFAULT '09:00'")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_end TEXT DEFAULT '22:00'")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_cooldown INTEGER DEFAULT 60")
                 except Exception:
                     pass
             conn.commit()
@@ -364,7 +382,9 @@ class DBManager:
                 no_ad_click, no_blind_account, reorder_check,
                 ship_memo_required, ship_memo_content, ship_memo_link,
                 daily_schedule, start_date,
-                deadline_date, is_public, is_selected, reward, memo
+                deadline_date, is_public, is_selected, reward, memo,
+                promotion_message,
+                promo_enabled, promo_categories, promo_start, promo_end, promo_cooldown
             ) VALUES (
                 %(id)s, %(status)s, %(company)s, %(product_name)s, %(product_link)s,
                 %(product_codes)s, %(product_image)s, %(product_price)s, %(payment_amount)s, %(campaign_type)s, %(platform)s,
@@ -381,7 +401,9 @@ class DBManager:
                 %(reorder_check)s, %(ship_memo_required)s, %(ship_memo_content)s,
                 %(ship_memo_link)s, %(daily_schedule)s, %(start_date)s,
                 %(deadline_date)s, %(is_public)s,
-                %(is_selected)s, %(reward)s, %(memo)s
+                %(is_selected)s, %(reward)s, %(memo)s,
+                %(promotion_message)s,
+                %(promo_enabled)s, %(promo_categories)s, %(promo_start)s, %(promo_end)s, %(promo_cooldown)s
             )
         """
         self._execute(sql, d)
@@ -436,6 +458,12 @@ class DBManager:
         "등록일": "created_at", "결제금액": "payment_amount",
         "리뷰가이드": "review_guide",
         "일정": "daily_schedule", "시작일": "start_date",
+        "홍보메시지": "promotion_message",
+        "홍보활성": "promo_enabled",
+        "홍보카테고리": "promo_categories",
+        "홍보시작시간": "promo_start",
+        "홍보종료시간": "promo_end",
+        "홍보주기": "promo_cooldown",
     }
 
     _CAMPAIGN_COLUMNS = {
@@ -456,6 +484,9 @@ class DBManager:
         "ship_memo_link", "daily_schedule", "start_date",
         "deadline_date", "is_public",
         "is_selected", "reward", "memo",
+        "promotion_message",
+        "promo_enabled", "promo_categories",
+        "promo_start", "promo_end", "promo_cooldown",
     }
 
     _BOOL_COLUMNS = {
@@ -463,12 +494,14 @@ class DBManager:
         "monthly_dup_ok", "bookmark_required", "alert_required",
         "no_ad_click", "no_blind_account", "reorder_check",
         "ship_memo_required", "is_public", "is_selected",
+        "promo_enabled",
     }
 
     _INT_COLUMNS = {
         "product_price", "payment_amount", "total_qty", "daily_qty",
         "done_qty", "max_daily", "duration_days", "cost_3pl",
         "review_deadline_days", "review_fee",
+        "promo_cooldown",
     }
 
     def _convert_campaign_value(self, col: str, value):
