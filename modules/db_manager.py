@@ -665,7 +665,7 @@ class DBManager:
                     except Exception:
                         result["일정"] = []
                 else:
-                    result["일정"] = value if value else []
+                    result["일정"] = value if isinstance(value, list) else []
             elif db_col == "option_list":
                 import json
                 result["옵션목록"] = json.dumps(value) if value else "[]"
