@@ -150,6 +150,7 @@
     .admin-btn-danger:hover { background: #fecaca; }
 
     .admin-status-badge.중지 { background: #fff7ed; color: #ea580c; }
+    .admin-status-badge.당일마감 { background: #fef2f2; color: #dc2626; font-size: 11px; margin-left: 4px; }
     </style>
 </head>
 <body class="admin-body">
@@ -247,7 +248,10 @@
                             </div>
                             <span class="progress-pct {{ rate_class }}">{{ active }}/{{ total }} ({{ rate }}%)</span>
                         </td>
-                        <td><span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span></td>
+                        <td>
+                            <span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span>
+                            {% if c.get('_daily_closed') %}<span class="admin-status-badge 당일마감">당일마감</span>{% endif %}
+                        </td>
                         <td>
                             <div class="campaign-actions">
                                 <a href="{{ url_for('admin.spreadsheet', campaign=c.get('캠페인ID', '')) }}"

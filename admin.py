@@ -167,6 +167,11 @@ def campaigns():
                     today_target = safe_int(daily_str)
         c["오늘목표"] = str(today_target)
 
+        # 당일마감 판단
+        today_done = safe_int(c.get("오늘수량", 0))
+        if today_target > 0 and today_done >= today_target and c.get("상태") in ("모집중", "진행중", ""):
+            c["_daily_closed"] = True
+
     return render_template("admin/campaigns.html", campaigns=campaign_list)
 
 
