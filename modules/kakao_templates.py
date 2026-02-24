@@ -146,6 +146,12 @@ ADMIN_URGENT_INQUIRY = """[카비서 긴급] 새 문의 접수
 연락처: {phone}
 내용: {message}"""
 
+ADMIN_INQUIRY = """[카비서] 새 문의 접수
+
+이름: {name}
+연락처: {phone}
+내용: {message}"""
+
 # ──────── 상태 → 템플릿 매핑 ────────
 
 STATUS_TEMPLATES = {

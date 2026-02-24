@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 설정</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .manager-card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .manager-card .info { flex: 1; }
+    .manager-card .info .name { font-weight: 700; font-size: 15px; }
+    .manager-card .info .meta { color: #6b7280; font-size: 13px; margin-top: 2px; }
+    .manager-card .info .role { color: #9ca3af; font-size: 12px; margin-top: 2px; }
+    .manager-card .actions { display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0; }
+    .toggle-wrap { position: relative; width: 44px; height: 24px; }
+    .toggle-wrap input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: #d1d5db; border-radius: 24px; cursor: pointer; transition: .2s;
+    }
+    .toggle-slider::before {
+        content: ""; position: absolute; width: 18px; height: 18px;
+        left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s;
+    }
+    .toggle-wrap input:checked + .toggle-slider { background: #3b82f6; }
+    .toggle-wrap input:checked + .toggle-slider::before { transform: translateX(20px); }
+    .btn-icon {
+        background: none; border: none; cursor: pointer; padding: 6px;
+        color: #9ca3af; font-size: 18px; border-radius: 6px;
+    }
+    .btn-icon:hover { background: #f3f4f6; color: #ef4444; }
+    .add-form {
+        background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px;
+        padding: 1.2rem; margin-bottom: 1.5rem;
+    }
+    .add-form .row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: end; }
+    .add-form label { font-size: 13px; font-weight: 600; color: #374151; display: block; margin-bottom: 4px; }
+    .add-form input, .add-form select {
+        padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 8px;
+        font-size: 14px;
+    }
+    .section-title { font-size: 14px; font-weight: 700; color: #6b7280; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kakao-badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 11px; padding: 2px 8px; border-radius: 12px;
+        font-weight: 600;
+    }
+    .kakao-badge.on { background: #dbeafe; color: #1d4ed8; }
+    .kakao-badge.off { background: #f3f4f6; color: #9ca3af; }
+    .time-input {
+        width: 80px; padding: 0.3rem 0.5rem; border: 1px solid #d1d5db;
+        border-radius: 6px; font-size: 13px; text-align: center;
+    }
+    .time-wrap {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 13px; color: #6b7280;
+    }
+    .toast {
+        position: fixed; bottom: 2rem; right: 2rem;
+        background: #1f2937; color: #fff; padding: 0.75rem 1.25rem;
+        border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .3s;
+        z-index: 999;
+    }
+    .toast.show { opacity: 1; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.settings') }}" class="active">설정</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>설정</h1>
+
+        <div class="section-title">담당자 관리</div>
+        <p style="color:#6b7280; font-size:13px; margin-bottom:1rem;">
+            문의 접수 시 카카오톡 수신이 켜진 담당자에게 알림이 발송됩니다. (발송시간 외에는 발송하지 않음)
+        </p>
+
+        <!-- 추가 폼 -->
+        <div class="add-form">
+            <div class="row">
+                <div>
+                    <label>이름</label>
+                    <input type="text" id="newName" placeholder="홍길동" style="width:120px;">
+                </div>
+                <div>
+                    <label>연락처</label>
+                    <input type="text" id="newPhone" placeholder="010-0000-0000" style="width:150px;">
+                </div>
+                <div>
+                    <label>역할</label>
+                    <select id="newRole" style="width:120px;">
+                        <option value="담당자">담당자</option>
+                        <option value="관리자">관리자</option>
+                        <option value="대표">대표</option>
+                    </select>
+                </div>
+                <div>
+                    <label>발송시간</label>
+                    <div style="display:flex; align-items:center; gap:4px;">
+                        <input type="time" id="newStart" value="09:00" class="time-input">
+                        <span style="color:#9ca3af;">~</span>
+                        <input type="time" id="newEnd" value="22:00" class="time-input">
+                    </div>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="addManager()">추가</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 담당자 목록 -->
+        <div id="managerList">
+            {% for m in managers %}
+            <div class="manager-card" data-id="{{ m.id }}">
+                <div class="info">
+                    <div class="name">
+                        {{ m.name }}
+                        <span class="kakao-badge {{ 'on' if m.receive_kakao else 'off' }}">{{ '카톡 수신' if m.receive_kakao else '수신 OFF' }}</span>
+                    </div>
+                    <div class="meta">
+                        {{ m.phone }} &middot; {{ m.role }}
+                    </div>
+                    <div class="time-wrap" style="margin-top:4px;">
+                        <input type="time" value="{{ m.notify_start or '09:00' }}" class="time-input"
+                               onchange="updateTime({{ m.id }}, 'notify_start', this.value)">
+                        <span>~</span>
+                        <input type="time" value="{{ m.notify_end or '22:00' }}" class="time-input"
+                               onchange="updateTime({{ m.id }}, 'notify_end', this.value)">
+                    </div>
+                </div>
+                <div class="actions">
+                    <label class="toggle-wrap" title="카카오톡 수신">
+                        <input type="checkbox" {{ 'checked' if m.receive_kakao }} onchange="toggleKakao({{ m.id }}, this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <button class="btn-icon" onclick="deleteManager({{ m.id }}, '{{ m.name }}')" title="삭제">&#x2715;</button>
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if not managers %}
+            <div style="text-align:center; color:#9ca3af; padding:2rem;">
+                등록된 담당자가 없습니다.
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    async function addManager() {
+        const name = document.getElementById('newName').value.trim();
+        const phone = document.getElementById('newPhone').value.trim();
+        const role = document.getElementById('newRole').value;
+        const notify_start = document.getElementById('newStart').value || '09:00';
+        const notify_end = document.getElementById('newEnd').value || '22:00';
+        if (!name || !phone) { showToast('이름과 연락처를 입력하세요'); return; }
+
+        const res = await fetch('/admin/api/managers', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, phone, role, notify_start, notify_end})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('담당자 추가됨');
+            location.reload();
+        } else {
+            showToast(data.error || '추가 실패');
+        }
+    }
+
+    async function toggleKakao(id, checked) {
+        const res = await fetch(`/admin/api/managers/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({receive_kakao: checked})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            const card = document.querySelector(`.manager-card[data-id="${id}"]`);
+            const badge = card.querySelector('.kakao-badge');
+            badge.className = `kakao-badge ${checked ? 'on' : 'off'}`;
+            badge.textContent = checked ? '카톡 수신' : '수신 OFF';
+            showToast(checked ? '카톡 수신 켜짐' : '카톡 수신 꺼짐');
+        }
+    }
+
+    async function updateTime(id, field, value) {
+        const res = await fetch(`/admin/api/managers/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({[field]: value})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            showToast('발송시간 변경됨');
+        }
+    }
+
+    async function deleteManager(id, name) {
+        if (!confirm(`${name} 담당자를 삭제하시겠습니까?`)) return;
+        const res = await fetch(`/admin/api/managers/${id}`, {method: 'DELETE'});
+        const data = await res.json();
+        if (data.ok) {
+            document.querySelector(`.manager-card[data-id="${id}"]`).remove();
+            showToast('삭제됨');
+        }
+    }
+    </script>
+</body>
+</html>

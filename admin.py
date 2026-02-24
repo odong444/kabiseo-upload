@@ -866,6 +866,94 @@ def api_progress_update():
         return jsonify({"ok": False, "message": str(e)})
 
 
+# ──────── 설정 (담당자 관리) ────────
+
+@admin_bp.route("/settings")
+@admin_required
+def settings():
+    """담당자 설정 페이지"""
+    managers = []
+    if models.db_manager:
+        managers = models.db_manager.get_managers()
+    return render_template("admin/settings.html", managers=managers)
+
+
+@admin_bp.route("/api/managers", methods=["GET"])
+@admin_required
+def api_managers_list():
+    """담당자 목록 JSON"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "DB 미설정"})
+    managers = models.db_manager.get_managers()
+    return jsonify({"ok": True, "managers": managers})
+
+
+@admin_bp.route("/api/managers", methods=["POST"])
+@admin_required
+def api_managers_add():
+    """담당자 추가"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "DB 미설정"})
+
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+    role = data.get("role", "담당자").strip()
+
+    if not name or not phone:
+        return jsonify({"ok": False, "error": "이름, 연락처 필수"})
+
+    mid = models.db_manager.add_manager(name, phone, role)
+    if not mid:
+        return jsonify({"ok": False, "error": "이미 등록된 담당자"})
+
+    # 발송시간 설정
+    notify_start = data.get("notify_start", "").strip()
+    notify_end = data.get("notify_end", "").strip()
+    if notify_start or notify_end:
+        kwargs = {}
+        if notify_start:
+            kwargs["notify_start"] = notify_start
+        if notify_end:
+            kwargs["notify_end"] = notify_end
+        models.db_manager.update_manager(mid, **kwargs)
+
+    return jsonify({"ok": True, "id": mid})
+
+
+@admin_bp.route("/api/managers/<int:mid>", methods=["PUT"])
+@admin_required
+def api_managers_update(mid):
+    """담당자 수정"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "DB 미설정"})
+
+    data = request.get_json(silent=True) or {}
+    kwargs = {}
+    if "name" in data:
+        kwargs["name"] = data["name"].strip()
+    if "phone" in data:
+        kwargs["phone"] = data["phone"].strip()
+    if "role" in data:
+        kwargs["role"] = data["role"].strip()
+    if "receive_kakao" in data:
+        kwargs["receive_kakao"] = bool(data["receive_kakao"])
+
+    models.db_manager.update_manager(mid, **kwargs)
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/api/managers/<int:mid>", methods=["DELETE"])
+@admin_required
+def api_managers_delete(mid):
+    """담당자 삭제"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "DB 미설정"})
+
+    models.db_manager.delete_manager(mid)
+    return jsonify({"ok": True})
+
+
 @admin_bp.route("/api/progress/delete", methods=["POST"])
 @admin_required
 def api_progress_delete():

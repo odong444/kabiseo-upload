@@ -1534,16 +1534,29 @@ class StepMachine:
             except Exception as e:
                 logger.error(f"문의 저장 실패: {e}")
 
-        # 긴급 건 → 관리자에게 카톡 알림
-        if is_urgent and models.kakao_notifier:
+        # 활성 담당자에게 카톡 알림 (긴급/일반 모두)
+        if models.kakao_notifier:
             try:
-                models.kakao_notifier.notify_admin_urgent_inquiry(
-                    admin_name="오동열", admin_phone="010-7210-0210",
-                    reviewer_name=state.name, reviewer_phone=state.phone,
-                    message=message,
-                )
+                managers = []
+                if models.db_manager:
+                    managers = models.db_manager.get_active_managers()
+                if not managers:
+                    managers = [{"name": "오동열", "phone": "010-7210-0210"}]
+                for mgr in managers:
+                    if is_urgent:
+                        models.kakao_notifier.notify_admin_urgent_inquiry(
+                            admin_name=mgr["name"], admin_phone=mgr["phone"],
+                            reviewer_name=state.name, reviewer_phone=state.phone,
+                            message=message,
+                        )
+                    else:
+                        models.kakao_notifier.notify_admin_inquiry(
+                            admin_name=mgr["name"], admin_phone=mgr["phone"],
+                            reviewer_name=state.name, reviewer_phone=state.phone,
+                            message=message,
+                        )
             except Exception as e:
-                logger.warning(f"긴급 문의 알림 실패: {e}")
+                logger.warning(f"문의 알림 실패: {e}")
 
         state.step = 0
         state.temp_data = {}

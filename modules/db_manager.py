@@ -171,6 +171,18 @@ CREATE TABLE IF NOT EXISTS inquiries (
 );
 CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status);
 CREATE INDEX IF NOT EXISTS idx_inquiries_created ON inquiries(created_at);
+
+CREATE TABLE IF NOT EXISTS managers (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT NOT NULL,
+    phone           TEXT NOT NULL,
+    role            TEXT DEFAULT '담당자',
+    receive_kakao   BOOLEAN DEFAULT TRUE,
+    notify_start    TEXT DEFAULT '09:00',
+    notify_end      TEXT DEFAULT '22:00',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(name, phone)
+);
 """
 
 
@@ -203,6 +215,11 @@ class DBManager:
                     pass
                 try:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS product_codes JSONB DEFAULT '{}'")
+                except Exception:
+                    pass
+                try:
+                    cur.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS notify_start TEXT DEFAULT '09:00'")
+                    cur.execute("ALTER TABLE managers ADD COLUMN IF NOT EXISTS notify_end TEXT DEFAULT '22:00'")
                 except Exception:
                     pass
             conn.commit()
@@ -1217,3 +1234,53 @@ class DBManager:
     def add_reviewer_row(self, data: dict):
         """시트의 add_reviewer_row 호환 → add_progress로 위임"""
         self.add_progress(data)
+
+    # ─────────── 담당자 관리 ───────────
+
+    def get_managers(self) -> list[dict]:
+        """전체 담당자 목록."""
+        return self._fetchall("SELECT * FROM managers ORDER BY id")
+
+    def get_active_managers(self) -> list[dict]:
+        """카톡 수신 활성 + 현재 시간이 발송시간 내인 담당자 목록."""
+        now_hm = now_kst().strftime("%H:%M")
+        return self._fetchall(
+            """SELECT * FROM managers
+               WHERE receive_kakao = TRUE
+               AND notify_start <= %s AND notify_end > %s
+               ORDER BY id""",
+            (now_hm, now_hm)
+        )
+
+    def add_manager(self, name: str, phone: str, role: str = "담당자") -> int:
+        """담당자 추가. 중복 시 무시. id 반환."""
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """INSERT INTO managers (name, phone, role)
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT (name, phone) DO NOTHING
+                       RETURNING id""",
+                    (name, phone, role)
+                )
+                row = cur.fetchone()
+            conn.commit()
+        return row["id"] if row else 0
+
+    def update_manager(self, manager_id: int, **kwargs):
+        """담당자 정보 수정. kwargs: name, phone, role, receive_kakao, notify_start, notify_end"""
+        allowed = {"name", "phone", "role", "receive_kakao", "notify_start", "notify_end"}
+        sets = []
+        vals = []
+        for k, v in kwargs.items():
+            if k in allowed:
+                sets.append(f"{k} = %s")
+                vals.append(v)
+        if not sets:
+            return
+        vals.append(manager_id)
+        self._execute(f"UPDATE managers SET {', '.join(sets)} WHERE id = %s", tuple(vals))
+
+    def delete_manager(self, manager_id: int):
+        """담당자 삭제."""
+        self._execute("DELETE FROM managers WHERE id = %s", (manager_id,))

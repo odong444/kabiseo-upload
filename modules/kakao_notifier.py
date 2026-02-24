@@ -156,6 +156,18 @@ class KakaoNotifier:
         )
         return request_reminder(admin_name, admin_phone, msg)
 
+    def notify_admin_inquiry(self, admin_name: str, admin_phone: str,
+                              reviewer_name: str, reviewer_phone: str,
+                              message: str) -> bool:
+        """일반 문의 → 관리자에게 카톡 알림"""
+        preview = message[:100] + ("..." if len(message) > 100 else "")
+        msg = ktpl.ADMIN_INQUIRY.format(
+            name=reviewer_name,
+            phone=reviewer_phone,
+            message=preview,
+        )
+        return request_notification(admin_name, admin_phone, msg)
+
     # ──────── 리뷰 기한 리마인더 (스케줄러) ────────
 
     def send_review_deadline_reminders(self) -> int:
