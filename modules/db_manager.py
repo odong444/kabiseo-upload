@@ -628,6 +628,9 @@ class DBManager:
                 if col == "product_codes":
                     result[col] = "{}"
                     continue
+                if col == "option_list":
+                    result[col] = "[]"
+                    continue
                 result[col] = ""
 
         return result
