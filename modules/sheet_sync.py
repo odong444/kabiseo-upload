@@ -2,10 +2,12 @@
 sheet_sync.py - DB → Google Sheets 자동 동기화
 
 progress(진행건) 데이터를 1분 주기로 구글 시트에 동기화.
-서비스 계정으로 스프레드시트 자동 생성 후 전체 덮어쓰기 방식.
+사용자가 직접 만든 스프레드시트(SYNC_SPREADSHEET_ID)를 열어서
+첫 번째 워크시트에 전체 덮어쓰기 방식으로 동기화.
 """
 
 import logging
+import os
 import threading
 import time
 
@@ -13,7 +15,10 @@ import gspread
 
 logger = logging.getLogger(__name__)
 
-# 시트 헤더 (메인_외부 양식과 동일)
+# 기본 동기화 대상 스프레드시트 ID (사용자 생성)
+DEFAULT_SYNC_SPREADSHEET_ID = "1NaUN2_pK-m7gR2Ywj8JvPLA2X1B7gO7SYzpvm6svz_0"
+
+# 시트 헤더 (메인_외부 양식과 동일 + 상태 컬럼)
 SHEET_HEADERS = [
     "순번", "업체명", "날짜", "제품명", "수취인명", "연락처",
     "은행", "계좌", "예금주", "결제금액", "아이디", "주문번호",
@@ -50,9 +55,6 @@ _SYNC_SQL = """
     ORDER BY p.created_at DESC
 """
 
-SPREADSHEET_TITLE = "카비서_자동동기화"
-WORKSHEET_TITLE = "진행현황"
-
 
 class SheetSync:
     """DB → Google Sheets 단방향 동기화"""
@@ -73,33 +75,20 @@ class SheetSync:
         self._init_spreadsheet()
 
     def _init_spreadsheet(self):
-        """스프레드시트 생성 또는 기존 것 열기"""
-        try:
-            # 이름으로 검색
-            self.spreadsheet = self.gc.open(SPREADSHEET_TITLE)
-            logger.info("기존 스프레드시트 열기: %s", SPREADSHEET_TITLE)
-        except gspread.SpreadsheetNotFound:
-            # 새로 생성
-            self.spreadsheet = self.gc.create(SPREADSHEET_TITLE)
-            logger.info("새 스프레드시트 생성: %s (ID: %s)",
-                        SPREADSHEET_TITLE, self.spreadsheet.id)
-            # 링크가 있는 사람 누구나 보기 가능
-            self.spreadsheet.share("", perm_type="anyone", role="reader")
-            logger.info("스프레드시트 공유 설정: anyone with link can view")
+        """환경변수 SYNC_SPREADSHEET_ID로 기존 스프레드시트 열기"""
+        spreadsheet_id = os.environ.get(
+            "SYNC_SPREADSHEET_ID", DEFAULT_SYNC_SPREADSHEET_ID
+        )
 
-        # 워크시트 확보
-        try:
-            self.worksheet = self.spreadsheet.worksheet(WORKSHEET_TITLE)
-        except gspread.WorksheetNotFound:
-            # 기본 Sheet1이 있으면 이름 변경, 없으면 새로 생성
-            sheets = self.spreadsheet.worksheets()
-            if sheets and sheets[0].title == "Sheet1":
-                sheets[0].update_title(WORKSHEET_TITLE)
-                self.worksheet = sheets[0]
-            else:
-                self.worksheet = self.spreadsheet.add_worksheet(
-                    title=WORKSHEET_TITLE, rows=1000, cols=len(SHEET_HEADERS)
-                )
+        self.spreadsheet = self.gc.open_by_key(spreadsheet_id)
+        logger.info(
+            "동기화 스프레드시트 열기: %s (ID: %s)",
+            self.spreadsheet.title,
+            spreadsheet_id,
+        )
+
+        # 첫 번째 워크시트 사용
+        self.worksheet = self.spreadsheet.sheet1
 
         logger.info("시트 동기화 준비 완료 (URL: %s)", self.spreadsheet.url)
 
