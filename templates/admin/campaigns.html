@@ -133,6 +133,23 @@
 
     /* 숫자 셀 */
     .num-cell { text-align: center; font-variant-numeric: tabular-nums; }
+
+    /* 캠페인 관리 버튼 */
+    .campaign-actions { display: flex; gap: 4px; align-items: center; }
+    .admin-btn-pause {
+        background: #fff7ed; color: #ea580c; border-color: #fdba74;
+    }
+    .admin-btn-pause:hover { background: #fed7aa; }
+    .admin-btn-resume {
+        background: #f0fdf4; color: #16a34a; border-color: #86efac;
+    }
+    .admin-btn-resume:hover { background: #bbf7d0; }
+    .admin-btn-danger {
+        background: #fef2f2; color: #dc2626; border-color: #fca5a5;
+    }
+    .admin-btn-danger:hover { background: #fecaca; }
+
+    .admin-status-badge.중지 { background: #fff7ed; color: #ea580c; }
     </style>
 </head>
 <body class="admin-body">
@@ -232,8 +249,19 @@
                         </td>
                         <td><span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span></td>
                         <td>
-                            <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
-                               class="admin-btn admin-btn-sm" onclick="event.stopPropagation();">수정</a>
+                            <div class="campaign-actions">
+                                <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
+                                   class="admin-btn admin-btn-sm" onclick="event.stopPropagation();">수정</a>
+                                {% if c.get('상태', '모집중') == '중지' %}
+                                <button type="button" class="admin-btn admin-btn-sm admin-btn-resume"
+                                        onclick="event.stopPropagation(); campaignResume('{{ c.get('캠페인ID', '') }}', this);">재개</button>
+                                {% else %}
+                                <button type="button" class="admin-btn admin-btn-sm admin-btn-pause"
+                                        onclick="event.stopPropagation(); campaignPause('{{ c.get('캠페인ID', '') }}', this);">중지</button>
+                                {% endif %}
+                                <button type="button" class="admin-btn admin-btn-sm admin-btn-danger"
+                                        onclick="event.stopPropagation(); campaignDelete('{{ c.get('캠페인ID', '') }}', '{{ c.get('상품명', '') | e }}', this);">삭제</button>
+                            </div>
                         </td>
                     </tr>
                     <!-- 상세 펼침 행 -->
@@ -318,6 +346,101 @@
             row.classList.add('open');
             btn.classList.add('open');
         }
+    }
+
+    // ──── 캠페인 중지/재개/삭제 ────
+
+    function campaignPause(campaignId, btn) {
+        if (!confirm('이 캠페인을 중지하시겠습니까?')) return;
+        btn.disabled = true;
+        fetch('/admin/api/campaigns/' + campaignId + '/pause', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                // 상태 배지 업데이트
+                var row = btn.closest('tr');
+                var badge = row.querySelector('.admin-status-badge');
+                if (badge) {
+                    badge.className = 'admin-status-badge 중지';
+                    badge.textContent = '중지';
+                }
+                // 버튼을 "재개"로 교체
+                var resumeBtn = document.createElement('button');
+                resumeBtn.type = 'button';
+                resumeBtn.className = 'admin-btn admin-btn-sm admin-btn-resume';
+                resumeBtn.textContent = '재개';
+                resumeBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    campaignResume(campaignId, resumeBtn);
+                };
+                btn.parentNode.replaceChild(resumeBtn, btn);
+            } else {
+                alert('중지 실패: ' + (data.message || ''));
+                btn.disabled = false;
+            }
+        })
+        .catch(function() { alert('요청 실패'); btn.disabled = false; });
+    }
+
+    function campaignResume(campaignId, btn) {
+        if (!confirm('이 캠페인을 재개하시겠습니까?')) return;
+        btn.disabled = true;
+        fetch('/admin/api/campaigns/' + campaignId + '/resume', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                var row = btn.closest('tr');
+                var badge = row.querySelector('.admin-status-badge');
+                if (badge) {
+                    badge.className = 'admin-status-badge 모집중';
+                    badge.textContent = '모집중';
+                }
+                // 버튼을 "중지"로 교체
+                var pauseBtn = document.createElement('button');
+                pauseBtn.type = 'button';
+                pauseBtn.className = 'admin-btn admin-btn-sm admin-btn-pause';
+                pauseBtn.textContent = '중지';
+                pauseBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    campaignPause(campaignId, pauseBtn);
+                };
+                btn.parentNode.replaceChild(pauseBtn, btn);
+            } else {
+                alert('재개 실패: ' + (data.message || ''));
+                btn.disabled = false;
+            }
+        })
+        .catch(function() { alert('요청 실패'); btn.disabled = false; });
+    }
+
+    function campaignDelete(campaignId, productName, btn) {
+        if (!confirm('캠페인 "' + productName + '"을(를) 삭제하시겠습니까?\n연결된 진행건도 모두 삭제됩니다.')) return;
+        btn.disabled = true;
+        fetch('/admin/api/campaigns/' + campaignId, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                // 행 삭제 (메인 행 + 상세 행)
+                var row = btn.closest('tr');
+                var idx = row.getAttribute('data-idx');
+                var detailRow = document.getElementById('detailRow' + idx);
+                if (detailRow) detailRow.remove();
+                row.remove();
+            } else {
+                alert('삭제 실패: ' + (data.message || ''));
+                btn.disabled = false;
+            }
+        })
+        .catch(function() { alert('요청 실패'); btn.disabled = false; });
     }
 
     // 일정 블록에 오늘 하이라이트 적용

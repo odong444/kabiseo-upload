@@ -218,6 +218,53 @@ def campaign_edit_post(campaign_id):
     return redirect(url_for("admin.campaigns"))
 
 
+# ──────── 캠페인 중지/재개/삭제 API ────────
+
+@admin_bp.route("/api/campaigns/<campaign_id>/pause", methods=["POST"])
+@admin_required
+def api_campaign_pause(campaign_id):
+    """캠페인 상태를 '중지'로 변경"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    try:
+        models.db_manager.update_campaign_status(campaign_id, "중지")
+        return jsonify({"ok": True, "status": "중지"})
+    except Exception as e:
+        logger.error(f"캠페인 중지 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/campaigns/<campaign_id>/resume", methods=["POST"])
+@admin_required
+def api_campaign_resume(campaign_id):
+    """캠페인 상태를 '모집중'으로 복원"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    try:
+        models.db_manager.update_campaign_status(campaign_id, "모집중")
+        return jsonify({"ok": True, "status": "모집중"})
+    except Exception as e:
+        logger.error(f"캠페인 재개 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/campaigns/<campaign_id>", methods=["DELETE"])
+@admin_required
+def api_campaign_delete(campaign_id):
+    """캠페인 삭제 (연결된 progress도 함께 삭제)"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    try:
+        ok = models.db_manager.delete_campaign(campaign_id)
+        if ok:
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "message": "캠페인을 찾을 수 없습니다"})
+    except Exception as e:
+        logger.error(f"캠페인 삭제 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
 # ──────── 캠페인 신규 등록 ────────
 
 @admin_bp.route("/campaigns/new", methods=["GET"])

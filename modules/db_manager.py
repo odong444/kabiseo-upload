@@ -1317,3 +1317,22 @@ class DBManager:
     def delete_manager(self, manager_id: int):
         """담당자 삭제."""
         self._execute("DELETE FROM managers WHERE id = %s", (manager_id,))
+
+    # ─────────── 캠페인 상태 변경 / 삭제 ───────────
+
+    def update_campaign_status(self, campaign_id: str, status: str):
+        """캠페인 상태 변경 (모집중/중지/마감 등)"""
+        self._execute(
+            "UPDATE campaigns SET status = %s, updated_at = NOW() WHERE id = %s",
+            (status, campaign_id)
+        )
+
+    def delete_campaign(self, campaign_id: str) -> bool:
+        """캠페인 삭제. 연결된 progress 행도 함께 삭제."""
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM progress WHERE campaign_id = %s", (campaign_id,))
+                cur.execute("DELETE FROM campaigns WHERE id = %s", (campaign_id,))
+                ok = cur.rowcount > 0
+            conn.commit()
+        return ok
