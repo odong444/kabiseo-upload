@@ -214,9 +214,11 @@
             var card = document.createElement('div');
             card.className = 'campaign-card campaign-card-collapsed';
 
-            // 뱃지 (마감임박 / 구매시간외)
+            // 뱃지 (마감 / 마감임박 / 구매시간외)
             var badgeHtml = '';
-            if (c.buy_time_closed) {
+            if (c.closed) {
+                badgeHtml = '<span class="campaign-closed">' + (c.closed_reason || '마감') + '</span>';
+            } else if (c.buy_time_closed) {
                 badgeHtml = '<span class="campaign-closed">구매시간 외</span>';
             } else if (c.urgent) {
                 badgeHtml = '<span class="campaign-urgent">마감 임박!</span>';
@@ -224,7 +226,7 @@
 
             // 남은자리 요약 (헤더에 간략 표시)
             var remainBadge = '';
-            if (!c.buy_time_closed) {
+            if (!c.closed && !c.buy_time_closed) {
                 remainBadge = '<span class="campaign-remain-badge">' + c.remaining + '자리</span>';
             }
 
@@ -286,7 +288,12 @@
             // 신청 버튼 (상세 안에 포함)
             var btn = document.createElement('button');
             btn.type = 'button';
-            if (c.buy_time_closed) {
+            if (c.closed) {
+                btn.className = 'campaign-card-btn campaign-card-btn-disabled';
+                btn.textContent = c.closed_reason || '마감';
+                btn.disabled = true;
+                card.style.opacity = '0.55';
+            } else if (c.buy_time_closed) {
                 btn.className = 'campaign-card-btn campaign-card-btn-disabled';
                 btn.textContent = '구매시간 외';
                 btn.disabled = true;

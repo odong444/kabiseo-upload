@@ -70,11 +70,22 @@ class CampaignManager:
         return self.db.get_all_campaigns()
 
     def build_campaign_cards(self, name: str = "", phone: str = "") -> list[dict]:
-        """채팅용 캠페인 카드 데이터 (chat.js에서 렌더링)"""
+        """채팅용 캠페인 카드 데이터 (chat.js에서 렌더링)
+
+        모집중 캠페인 + 마감 캠페인 모두 표시.
+        마감 캠페인은 closed=True로 표시하되 신청 불가.
+        """
         import re
-        active = self.get_active_campaigns()
-        if not active:
+        all_campaigns = self.db.get_all_campaigns()
+        if not all_campaigns:
             return []
+
+        # 실제 신청 건수
+        actual_counts = {}
+        try:
+            actual_counts = self.db.count_all_campaigns()
+        except Exception:
+            pass
 
         # 리뷰어 이력 조회
         reviewer_items = []
@@ -92,45 +103,65 @@ class CampaignManager:
             pass
 
         cards = []
-        for i, c in enumerate(active, 1):
-            total = safe_int(c.get("총수량", 0))
-            done = safe_int(c.get("완료수량", 0))
-            remaining = c.get("_남은수량", total - done)
-            campaign_id = c.get("캠페인ID", "")
-
-            # 오늘 목표 수량 결정: 일정 > 일수량 순
-            daily_target = self._get_today_target(c)
-
-            today_done = today_counts.get(campaign_id, 0)
-            daily_full = daily_target > 0 and today_done >= daily_target
-
-            # 금일 마감 캠페인은 목록에서 제외
-            if daily_full:
+        card_index = 0
+        for c in all_campaigns:
+            campaign_status = c.get("상태", "")
+            # 비공개 캠페인 제외
+            if c.get("공개여부", "").strip().upper() in ("N",):
                 continue
 
+            total = safe_int(c.get("총수량", 0))
+            campaign_id = c.get("캠페인ID", "")
+            done = actual_counts.get(campaign_id, 0) or safe_int(c.get("완료수량", 0))
+            remaining = total - done
+
+            # 마감 판단
+            is_closed = False
+            closed_reason = ""
+            if campaign_status in ("마감", "중지"):
+                is_closed = True
+                closed_reason = campaign_status
+            elif campaign_status in ("모집중", "진행중", "") and remaining <= 0:
+                is_closed = True
+                closed_reason = "마감"
+
+            # 금일 마감 체크
+            daily_target = self._get_today_target(c)
+            today_done = today_counts.get(campaign_id, 0)
+            daily_full = daily_target > 0 and today_done >= daily_target
+            if not is_closed and daily_full:
+                is_closed = True
+                closed_reason = "금일마감"
+
             buy_time_str = c.get("구매가능시간", "").strip()
-            buy_time_active = c.get("_buy_time_active", True)
+            buy_time_active = is_within_buy_time(buy_time_str)
 
             # 상세 정보
             product_price = c.get("상품금액", "") or c.get("결제금액", "")
             review_fee = c.get("리뷰비", "") or ""
             platform = c.get("플랫폼", "") or c.get("캠페인유형", "") or ""
 
+            # active 캠페인만 인덱스 부여 (get_campaign_by_index와 일치)
+            if not is_closed:
+                card_index += 1
+            card_value = f"campaign_{card_index}" if not is_closed else ""
             card = {
-                "value": f"campaign_{i}",
+                "value": card_value,
                 "name": c.get("캠페인명", "") or c.get("상품명", ""),
                 "store": c.get("업체명", ""),
                 "total": total,
-                "remaining": remaining,
+                "remaining": max(remaining, 0),
                 "daily_target": daily_target,
                 "today_done": today_done,
                 "daily_full": daily_full,
-                "urgent": remaining <= 5,
+                "urgent": not is_closed and remaining <= 5,
                 "buy_time": buy_time_str or "",
                 "buy_time_closed": not buy_time_active,
                 "product_price": str(product_price),
                 "review_fee": str(review_fee),
                 "platform": str(platform),
+                "closed": is_closed,
+                "closed_reason": closed_reason,
             }
 
             # 이 캠페인에서의 내 진행 이력
@@ -146,6 +177,9 @@ class CampaignManager:
                     card["my_history"] = my_history
 
             cards.append(card)
+
+        # 활성 캠페인 먼저, 마감 캠페인 뒤로
+        cards.sort(key=lambda x: (x["closed"], x["name"]))
         return cards
 
     def _get_today_target(self, campaign: dict) -> int:
