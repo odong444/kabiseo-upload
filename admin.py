@@ -920,6 +920,36 @@ def spreadsheet():
                            status_filter=status_filter)
 
 
+@admin_bp.route("/api/timeout-sessions")
+@admin_required
+def api_timeout_sessions():
+    """현재 타임아웃 대기 세션 목록 (인메모리 state 기반)"""
+    import time as _time
+    sessions = []
+    if models.state_store and models.timeout_manager:
+        timeout_sec = models.timeout_manager.timeout
+        for state in models.state_store.all_states():
+            if state.step < 4:
+                continue
+            elapsed = _time.time() - state.last_activity
+            remaining = max(0, int(timeout_sec - elapsed))
+            if remaining <= 0:
+                continue
+            campaign = state.temp_data.get("campaign", {})
+            product = campaign.get("캠페인명", "") or campaign.get("상품명", "")
+            store_ids = ", ".join(state.temp_data.get("store_ids", []))
+            sessions.append({
+                "name": state.name,
+                "phone": state.phone,
+                "step": state.step,
+                "remaining_sec": remaining,
+                "product": product,
+                "store_ids": store_ids,
+            })
+    sessions.sort(key=lambda x: x["remaining_sec"])
+    return jsonify({"sessions": sessions})
+
+
 @admin_bp.route("/api/progress/update", methods=["POST"])
 @admin_required
 def api_progress_update():

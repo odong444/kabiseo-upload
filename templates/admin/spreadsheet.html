@@ -6,6 +6,11 @@
     <title>카비서 관리자 - 데이터</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
+    /* 스프레드시트 전용: 전체 폭 사용 */
+    .admin-main {
+        max-width: none !important;
+        padding: 24px 16px !important;
+    }
     .filter-bar {
         display: flex;
         gap: 12px;
@@ -55,7 +60,7 @@
     .spreadsheet-table thead th {
         background: #f8f8f8;
         border-bottom: 2px solid #ddd;
-        padding: 8px 10px;
+        padding: 6px 6px;
         font-size: 11px;
         font-weight: 700;
         color: #555;
@@ -71,9 +76,9 @@
         background: #fefce8;
     }
     .spreadsheet-table tbody td {
-        padding: 5px 8px;
+        padding: 4px 6px;
         color: #333;
-        max-width: 180px;
+        max-width: 150px;
         overflow: hidden;
         text-overflow: ellipsis;
     }
@@ -121,6 +126,48 @@
         font-weight: 600;
     }
     .btn-delete:hover { background: #dc2626; }
+    .btn-kakao {
+        padding: 2px 8px;
+        border: none;
+        border-radius: 4px;
+        background: #fae100;
+        color: #3c1e1e;
+        font-size: 11px;
+        cursor: pointer;
+        font-weight: 600;
+    }
+    .btn-kakao:hover { background: #e6cf00; }
+    .bulk-bar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 12px;
+        align-items: center;
+    }
+    .timeout-panel {
+        margin-bottom: 20px;
+        border: 1px solid #fbbf24;
+        border-radius: 8px;
+        background: #fffbeb;
+        padding: 12px 16px;
+    }
+    .timeout-panel h3 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        color: #92400e;
+    }
+    .timeout-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 4px 0;
+        font-size: 13px;
+        color: #78350f;
+    }
+    .timeout-item .time-remaining {
+        font-weight: 700;
+        min-width: 50px;
+    }
+    .timeout-item .time-remaining.urgent { color: #ef4444; }
 
     @keyframes flashGreen {
         0% { background-color: #bbf7d0; }
@@ -191,7 +238,16 @@
             <button class="btn-filter" onclick="applyFilters()">필터 적용</button>
         </div>
 
-        <div class="result-count">검색 결과: <strong>{{ items|default([])|length }}</strong>건</div>
+        <!-- 타임아웃 모니터 -->
+        <div id="timeoutPanel" class="timeout-panel" style="display:none;">
+            <h3>⏰ 타임아웃 대기 세션</h3>
+            <div id="timeoutList"></div>
+        </div>
+
+        <div class="result-count" style="display:flex;align-items:center;gap:16px;">
+            <span>검색 결과: <strong>{{ items|default([])|length }}</strong>건</span>
+            <button class="btn-kakao" style="font-size:13px;padding:6px 16px;" onclick="bulkKakao()">선택 카톡 발송</button>
+        </div>
 
         <!-- Table -->
         {% if items %}
@@ -199,10 +255,11 @@
             <table class="spreadsheet-table" id="spreadsheetTable">
                 <thead>
                     <tr>
+                        <th style="width:30px;"><input type="checkbox" id="checkAll"></th>
                         <th>ID</th>
                         <th>날짜</th>
                         <th>제품명</th>
-                        <th>진행자이름</th>
+                        <th>진행자</th>
                         <th>수취인명</th>
                         <th>연락처</th>
                         <th>은행</th>
@@ -217,15 +274,16 @@
                         <th>리뷰비</th>
                         <th>입금금액</th>
                         <th>비고</th>
-                        <th>삭제</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in items %}
                     <tr data-id="{{ item.get('_row_idx', '') }}">
+                        <td><input type="checkbox" class="row-check" value="{{ item.get('_row_idx', '') }}"></td>
                         <td class="readonly">{{ item.get('_row_idx', '') }}</td>
                         <td class="readonly">{{ item.get('날짜', '') }}</td>
-                        <td class="readonly">{{ item.get('제품명', '') }}</td>
+                        <td class="readonly" style="max-width:100px;">{{ item.get('제품명', '') }}</td>
                         <td class="readonly">{{ item.get('진행자이름', '') }}</td>
                         <td class="editable" data-field="수취인명">{{ item.get('수취인명', '') }}</td>
                         <td class="editable" data-field="연락처">{{ item.get('연락처', '') }}</td>
@@ -247,7 +305,8 @@
                         <td class="editable" data-field="리뷰비">{{ item.get('리뷰비', '') }}</td>
                         <td class="editable" data-field="입금금액">{{ item.get('입금금액', '') }}</td>
                         <td class="editable" data-field="비고">{{ item.get('비고', '') }}</td>
-                        <td>
+                        <td style="white-space:nowrap;">
+                            <button class="btn-kakao" onclick="sendKakao({{ item.get('_row_idx', 0) }})">카톡</button>
                             <button class="btn-delete" onclick="deleteRow(this, '{{ item.get('_row_idx', '') }}')">삭제</button>
                         </td>
                     </tr>
@@ -260,7 +319,108 @@
         {% endif %}
     </main>
 
+    <!-- 카톡 발송 모달 -->
+    <div id="kakaoModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+        <div style="background:#fff;border-radius:12px;padding:24px;max-width:420px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="margin:0;">카카오톡 발송</h3>
+                <button onclick="closeKakaoModal()" style="border:none;background:none;font-size:20px;cursor:pointer;">&times;</button>
+            </div>
+            <p id="kakaoTarget" style="color:#666;margin-bottom:12px;">대상: 1건</p>
+            <textarea id="kakaoMessage" placeholder="커스텀 메시지 (비우면 상태별 기본 메시지)" rows="3" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;box-sizing:border-box;"></textarea>
+            <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                <button onclick="closeKakaoModal()" style="padding:8px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">취소</button>
+                <button onclick="confirmKakaoSend()" style="padding:8px 16px;border:none;border-radius:6px;background:#fae100;color:#3c1e1e;cursor:pointer;font-weight:600;">발송</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+    // --- Kakao Send ---
+    var _kakaoIds = [];
+
+    function sendKakao(progressId) {
+        _kakaoIds = [progressId];
+        document.getElementById('kakaoTarget').textContent = '대상: 1건';
+        document.getElementById('kakaoMessage').value = '';
+        document.getElementById('kakaoModal').style.display = 'flex';
+    }
+
+    function bulkKakao() {
+        var checked = document.querySelectorAll('.row-check:checked');
+        if (checked.length === 0) { alert('발송할 항목을 선택해주세요.'); return; }
+        _kakaoIds = [];
+        checked.forEach(function(cb) { _kakaoIds.push(parseInt(cb.value)); });
+        document.getElementById('kakaoTarget').textContent = '대상: ' + _kakaoIds.length + '건';
+        document.getElementById('kakaoMessage').value = '';
+        document.getElementById('kakaoModal').style.display = 'flex';
+    }
+
+    function closeKakaoModal() {
+        document.getElementById('kakaoModal').style.display = 'none';
+    }
+
+    function confirmKakaoSend() {
+        var msg = document.getElementById('kakaoMessage').value.trim();
+        var url = _kakaoIds.length === 1 ? '/admin/api/kakao/send' : '/admin/api/kakao/bulk';
+        var body = _kakaoIds.length === 1
+            ? { progress_id: _kakaoIds[0], message: msg }
+            : { progress_ids: _kakaoIds, message: msg };
+        fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            closeKakaoModal();
+            if (d.ok) {
+                alert('카톡 발송 완료: ' + (d.sent || 1) + '건');
+            } else {
+                alert('발송 실패: ' + (d.message || '알 수 없는 오류'));
+            }
+        })
+        .catch(function(e) { closeKakaoModal(); alert('발송 에러: ' + e.message); });
+    }
+
+    // --- Check All ---
+    document.getElementById('checkAll').addEventListener('change', function() {
+        var checked = this.checked;
+        document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = checked; });
+    });
+
+    // --- Timeout Monitor ---
+    function loadTimeouts() {
+        fetch('/admin/api/timeout-sessions')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var panel = document.getElementById('timeoutPanel');
+            var list = document.getElementById('timeoutList');
+            if (!d.sessions || d.sessions.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            panel.style.display = 'block';
+            list.innerHTML = '';
+            d.sessions.forEach(function(s) {
+                var urgentCls = s.remaining_sec < 300 ? ' urgent' : '';
+                var min = Math.floor(s.remaining_sec / 60);
+                var sec = s.remaining_sec % 60;
+                var timeStr = min + '분 ' + sec + '초';
+                var div = document.createElement('div');
+                div.className = 'timeout-item';
+                div.innerHTML = '<span class="time-remaining' + urgentCls + '">' + timeStr + '</span>'
+                    + '<span>' + s.name + ' (' + s.phone + ')</span>'
+                    + '<span style="color:#a78bfa;">' + (s.store_ids || '') + '</span>'
+                    + '<span style="color:#9ca3af;font-size:12px;">' + (s.product || '') + '</span>';
+                list.appendChild(div);
+            });
+        })
+        .catch(function() {});
+    }
+    loadTimeouts();
+    setInterval(loadTimeouts, 15000);
+
     // --- Filter ---
     function applyFilters() {
         var campaign = document.getElementById('filterCampaign').value;
