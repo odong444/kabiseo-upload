@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS reviewers (
 
 CREATE TABLE IF NOT EXISTS progress (
     id              SERIAL PRIMARY KEY,
-    campaign_id     TEXT NOT NULL REFERENCES campaigns(id),
+    campaign_id     TEXT REFERENCES campaigns(id) ON DELETE SET NULL,
     reviewer_id     INTEGER NOT NULL REFERENCES reviewers(id),
     store_id        TEXT NOT NULL DEFAULT '',
     status          TEXT NOT NULL DEFAULT '신청',
@@ -238,6 +238,37 @@ class DBManager:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_start TEXT DEFAULT '09:00'")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_end TEXT DEFAULT '22:00'")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_cooldown INTEGER DEFAULT 60")
+                except Exception:
+                    pass
+                # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
+                try:
+                    cur.execute("""
+                        DO $$
+                        BEGIN
+                            -- NOT NULL 제약 해제
+                            ALTER TABLE progress ALTER COLUMN campaign_id DROP NOT NULL;
+                            -- 기존 FK 제약조건 찾아서 삭제 후 재생성
+                            IF EXISTS (
+                                SELECT 1 FROM information_schema.table_constraints
+                                WHERE table_name = 'progress' AND constraint_type = 'FOREIGN KEY'
+                                AND constraint_name IN (
+                                    SELECT constraint_name FROM information_schema.constraint_column_usage
+                                    WHERE table_name = 'campaigns' AND column_name = 'id'
+                                )
+                            ) THEN
+                                EXECUTE (
+                                    SELECT 'ALTER TABLE progress DROP CONSTRAINT ' || constraint_name
+                                    FROM information_schema.table_constraints tc
+                                    JOIN information_schema.constraint_column_usage ccu USING (constraint_name, constraint_schema)
+                                    WHERE tc.table_name = 'progress' AND tc.constraint_type = 'FOREIGN KEY'
+                                    AND ccu.table_name = 'campaigns' AND ccu.column_name = 'id'
+                                    LIMIT 1
+                                );
+                                ALTER TABLE progress ADD CONSTRAINT progress_campaign_id_fkey
+                                    FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE SET NULL;
+                            END IF;
+                        END $$;
+                    """)
                 except Exception:
                     pass
             conn.commit()
@@ -1328,7 +1359,7 @@ class DBManager:
         )
 
     def delete_campaign(self, campaign_id: str) -> bool:
-        """캠페인 삭제. 진행건(progress)은 유지."""
+        """캠페인 삭제. 연결된 progress의 campaign_id는 NULL로 설정됨 (ON DELETE SET NULL)."""
         with self._conn() as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM campaigns WHERE id = %s", (campaign_id,))
