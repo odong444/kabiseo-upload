@@ -374,7 +374,11 @@ def campaign_new_post():
 @admin_required
 def chat_viewer(reviewer_id):
     history = models.chat_logger.get_history(reviewer_id)
-    return render_template("admin/chat_viewer.html", reviewer_id=reviewer_id, history=history)
+    reviewer_ids = models.chat_logger.get_all_reviewer_ids()
+    q = request.args.get("q", "").strip()
+    if q:
+        reviewer_ids = [r for r in reviewer_ids if q.lower() in r.lower()]
+    return render_template("admin/chat_viewer.html", reviewer_id=reviewer_id, history=history, reviewer_ids=reviewer_ids, q=q)
 
 
 @admin_bp.route("/chat")
