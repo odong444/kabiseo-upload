@@ -1408,9 +1408,9 @@ class DBManager:
         )
 
     def get_chat_reviewer_ids(self) -> list[str]:
-        """대화 기록이 있는 리뷰어 ID 목록"""
+        """대화 기록이 있는 리뷰어 ID 목록 (최근 대화순)"""
         rows = self._fetchall(
-            "SELECT DISTINCT reviewer_id FROM chat_messages ORDER BY reviewer_id"
+            "SELECT reviewer_id, MAX(created_at) as last_msg FROM chat_messages GROUP BY reviewer_id ORDER BY last_msg DESC"
         )
         return [r["reviewer_id"] for r in rows]
 
