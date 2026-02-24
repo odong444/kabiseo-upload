@@ -38,6 +38,11 @@
         color: #9ca3af; font-size: 18px; border-radius: 6px;
     }
     .btn-icon:hover { background: #f3f4f6; color: #ef4444; }
+    .btn-test {
+        padding: 4px 10px; font-size: 12px; border: 1px solid #d1d5db;
+        border-radius: 6px; background: #fff; cursor: pointer; color: #374151;
+    }
+    .btn-test:hover { background: #f3f4f6; border-color: #3b82f6; color: #3b82f6; }
     .add-form {
         background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px;
         padding: 1.2rem; margin-bottom: 1.5rem;
@@ -156,6 +161,7 @@
                     </div>
                 </div>
                 <div class="actions">
+                    <button class="btn-test" onclick="testNotify({{ m.id }}, '{{ m.name }}', '{{ m.phone }}')" title="테스트 알림">테스트</button>
                     <label class="toggle-wrap" title="카카오톡 수신">
                         <input type="checkbox" {{ 'checked' if m.receive_kakao }} onchange="toggleKakao({{ m.id }}, this.checked)">
                         <span class="toggle-slider"></span>
@@ -255,6 +261,20 @@
         const data = await res.json();
         if (data.ok) {
             showToast('발송시간 변경됨');
+        }
+    }
+
+    async function testNotify(id, name, phone) {
+        const res = await fetch('/admin/api/managers/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name, phone})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            showToast(`${name}에게 테스트 알림 전송됨`);
+        } else {
+            showToast(data.error || '전송 실패');
         }
     }
 

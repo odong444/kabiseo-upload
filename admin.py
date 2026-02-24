@@ -943,6 +943,23 @@ def api_managers_update(mid):
     return jsonify({"ok": True})
 
 
+@admin_bp.route("/api/managers/test", methods=["POST"])
+@admin_required
+def api_managers_test():
+    """담당자에게 테스트 카톡 발송"""
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+    if not name or not phone:
+        return jsonify({"ok": False, "error": "name, phone 필수"})
+
+    from modules.signal_sender import request_notification
+    ok = request_notification(name, phone, "[카비서] 테스트 알림입니다.")
+    if ok:
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "서버PC 연결 실패"})
+
+
 @admin_bp.route("/api/managers/<int:mid>", methods=["DELETE"])
 @admin_required
 def api_managers_delete(mid):
