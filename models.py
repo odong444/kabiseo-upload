@@ -31,6 +31,7 @@ timeout_manager = None
 step_machine = None
 ai_handler = None
 kakao_notifier = None
+sheet_sync = None
 
 # 하위 호환 (기존 코드에서 sheets_manager 참조하는 곳 대비)
 sheets_manager = None
@@ -40,6 +41,7 @@ def init_app(web_url: str = "", socketio=None):
     """앱 시작 시 매니저 초기화"""
     global db_manager, drive_uploader, campaign_manager, sheets_manager
     global reviewer_manager, reviewer_grader, timeout_manager, step_machine, ai_handler, kakao_notifier
+    global sheet_sync
 
     # ── PostgreSQL 초기화 ──
     database_url = os.environ.get("DATABASE_URL", "")
@@ -113,3 +115,18 @@ def init_app(web_url: str = "", socketio=None):
     if socketio:
         timeout_manager.set_socketio(socketio)
     timeout_manager.start()
+
+    # ── 시트 동기화 (DB → Google Sheets) ──
+    if db_manager and os.environ.get("SHEET_SYNC_ENABLED", "").lower() == "true":
+        try:
+            from google_client import get_gspread_client
+            from modules.sheet_sync import SheetSync
+            gc = get_gspread_client()
+            sheet_sync = SheetSync(db_manager, gc)
+            sheet_sync.start_background_sync(interval=60)
+            logging.info("시트 동기화 시작 (URL: %s)", sheet_sync.spreadsheet_url)
+        except Exception as e:
+            logging.error("시트 동기화 초기화 실패: %s", e)
+            sheet_sync = None
+    else:
+        sheet_sync = None
