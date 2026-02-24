@@ -250,6 +250,8 @@
                         <td><span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span></td>
                         <td>
                             <div class="campaign-actions">
+                                <a href="{{ url_for('admin.spreadsheet', campaign=c.get('캠페인ID', '')) }}"
+                                   class="admin-btn admin-btn-sm" onclick="event.stopPropagation();" style="background:#e3f2fd;color:#1565c0;">진행현황</a>
                                 <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
                                    class="admin-btn admin-btn-sm" onclick="event.stopPropagation();">수정</a>
                                 {% if c.get('상태', '모집중') == '중지' %}
