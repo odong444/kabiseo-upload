@@ -1328,10 +1328,9 @@ class DBManager:
         )
 
     def delete_campaign(self, campaign_id: str) -> bool:
-        """캠페인 삭제. 연결된 progress 행도 함께 삭제."""
+        """캠페인 삭제. 진행건(progress)은 유지."""
         with self._conn() as conn:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM progress WHERE campaign_id = %s", (campaign_id,))
                 cur.execute("DELETE FROM campaigns WHERE id = %s", (campaign_id,))
                 ok = cur.rowcount > 0
             conn.commit()
