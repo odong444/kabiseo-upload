@@ -58,6 +58,10 @@ class StepMachine:
         state = self.states.get(name, phone)
         state.touch()  # 타임아웃 타이머 갱신
 
+        # 서버 재시작 후 DB에서 세션 자동 복구
+        if state.step == 0 and not state.temp_data:
+            self._try_recover_session(state)
+
         self.chat_logger.log(state.reviewer_id, "user", message)
 
         try:
@@ -78,6 +82,18 @@ class StepMachine:
         """접속 시 환영 메시지"""
         state = self.states.get(name, phone)
         if state.step == 0:
+            # 서버 재시작 후 DB에서 세션 복구 시도
+            if self._try_recover_session(state):
+                campaign = state.temp_data.get("campaign", {})
+                product = self._display_name(campaign)
+                header = f"📌 진행 중인 신청이 있습니다.\n📦 {product}" if product else "📌 진행 중인 신청이 있습니다."
+                return _resp(
+                    f"{header}\n\n이어서 진행하시겠습니까?",
+                    buttons=[
+                        {"label": "이어하기", "value": "__resume__"},
+                        {"label": "새로 시작", "value": "__cancel__", "style": "danger"},
+                    ]
+                )
             return _resp(
                 tpl.WELCOME_BACK.format(name=name),
                 buttons=self._menu_buttons()
@@ -93,6 +109,72 @@ class StepMachine:
                 {"label": "새로 시작", "value": "__cancel__", "style": "danger"},
             ]
         )
+
+    def _try_recover_session(self, state: ReviewerState) -> bool:
+        """서버 재시작 후 DB에서 세션 복구 시도.
+        가이드전달/구매캡쳐대기/리뷰대기 상태의 진행건이 있으면 세션 복원."""
+        try:
+            if not self.reviewers or not self.reviewers.db:
+                return False
+
+            items = self.reviewers.db.search_by_name_phone(state.name, state.phone)
+            # 활성 상태 필터
+            recoverable = ("가이드전달", "구매캡쳐대기", "리뷰대기")
+            active = [
+                item for item in items
+                if item.get("상태") in recoverable
+            ]
+            if not active:
+                return False
+
+            # 가장 최근 캠페인 기준
+            campaign_id = active[0].get("캠페인ID", "")
+            if not campaign_id:
+                return False
+
+            campaign = self.campaigns.get_campaign_by_id(campaign_id)
+            if not campaign:
+                return False
+
+            # 같은 캠페인의 아이디들
+            same_campaign = [
+                item for item in active
+                if item.get("캠페인ID") == campaign_id
+            ]
+            store_ids = [item.get("아이디", "") for item in same_campaign if item.get("아이디")]
+            statuses = {item.get("상태", "") for item in same_campaign}
+
+            state.selected_campaign_id = campaign_id
+            state.temp_data = {
+                "campaign": campaign,
+                "store_ids": store_ids,
+                "submitted_ids": [],
+                "account_count": len(store_ids),
+            }
+
+            if "구매캡쳐대기" in statuses or "리뷰대기" in statuses:
+                # 양식 제출 완료된 아이디
+                submitted = [
+                    item.get("아이디") for item in same_campaign
+                    if item.get("상태") in ("구매캡쳐대기", "리뷰대기")
+                ]
+                state.temp_data["submitted_ids"] = submitted
+                pending = [sid for sid in store_ids if sid not in submitted]
+                if pending:
+                    state.step = 4  # 아직 양식 미제출 건 있음
+                elif "리뷰대기" in statuses:
+                    state.step = 7
+                else:
+                    state.step = 6
+            else:
+                # 전부 가이드전달 → 양식 입력 단계
+                state.step = 4
+
+            logger.info(f"세션 복구: {state.name} step={state.step} ids={store_ids}")
+            return True
+        except Exception as e:
+            logger.error(f"세션 복구 실패: {e}")
+            return False
 
     @staticmethod
     def _display_name(campaign: dict) -> str:
