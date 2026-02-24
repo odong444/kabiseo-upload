@@ -923,13 +923,19 @@ def spreadsheet():
 @admin_bp.route("/api/timeout-sessions")
 @admin_required
 def api_timeout_sessions():
-    """현재 타임아웃 대기 세션 목록 (인메모리 state 기반)"""
+    """가이드전달 후 양식 미제출 타임아웃 대기 세션 목록"""
     import time as _time
     sessions = []
     if models.state_store and models.timeout_manager:
         timeout_sec = models.timeout_manager.timeout
         for state in models.state_store.all_states():
-            if state.step < 4:
+            # step 4~5만 (가이드전달 후 양식 미제출 상태)
+            if state.step not in (4, 5):
+                continue
+            # 양식 전부 제출된 건은 제외
+            submitted = state.temp_data.get("submitted_ids", [])
+            store_ids = state.temp_data.get("store_ids", [])
+            if store_ids and set(submitted) >= set(store_ids):
                 continue
             elapsed = _time.time() - state.last_activity
             remaining = max(0, int(timeout_sec - elapsed))
@@ -937,14 +943,13 @@ def api_timeout_sessions():
                 continue
             campaign = state.temp_data.get("campaign", {})
             product = campaign.get("캠페인명", "") or campaign.get("상품명", "")
-            store_ids = ", ".join(state.temp_data.get("store_ids", []))
+            pending = [s for s in store_ids if s not in submitted]
             sessions.append({
                 "name": state.name,
                 "phone": state.phone,
-                "step": state.step,
                 "remaining_sec": remaining,
                 "product": product,
-                "store_ids": store_ids,
+                "store_ids": ", ".join(pending),
             })
     sessions.sort(key=lambda x: x["remaining_sec"])
     return jsonify({"sessions": sessions})
