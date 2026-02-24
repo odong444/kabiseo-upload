@@ -140,12 +140,18 @@ class SheetSync:
             data.append(self._build_row(r))
 
         needed_rows = len(data) + 10
-        if self.worksheet.row_count < needed_rows:
+        current_rows = self.worksheet.row_count
+        if current_rows < needed_rows:
             self.worksheet.resize(rows=needed_rows, cols=_NUM_COLS)
 
-        self.worksheet.clear()
+        # clear 없이 덮어쓰기 (깜빡임 방지)
         if data:
             self.worksheet.update(data, "A1")
+
+        # 기존 데이터가 더 많았으면 남은 행 삭제
+        extra_start = len(data) + 1
+        if current_rows >= extra_start + 1:
+            self.worksheet.batch_clear([f"A{extra_start}:{_LAST_COL}{current_rows}"])
 
         self.worksheet.format(f"A1:{_LAST_COL}1", {
             "textFormat": {"bold": True},
