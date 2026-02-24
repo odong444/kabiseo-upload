@@ -293,12 +293,25 @@ class CampaignManager:
         promo_enabled=False인 캠페인은 목록에서 제외.
         """
         active = self.get_active_campaigns()
+        # 오늘 캠페인별 진행 건수
+        today_counts = {}
+        try:
+            today_counts = self.db.count_today_all_campaigns()
+        except Exception:
+            pass
+
         result = []
         for c in active:
             # 캠페인별 홍보 활성화 여부 확인
             promo_enabled = c.get("홍보활성", "")
             if promo_enabled == "N":
                 continue  # 홍보 비활성 캠페인 제외
+
+            # 금일 마감 캠페인은 홍보 제외
+            daily_target = self._get_today_target(c)
+            campaign_id = c.get("캠페인ID", "")
+            if daily_target > 0 and today_counts.get(campaign_id, 0) >= daily_target:
+                continue
 
             # 구매가능시간 외에는 홍보 대상에서 제외
             if not c.get("_buy_time_active", True):
