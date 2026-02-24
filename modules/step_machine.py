@@ -1058,7 +1058,7 @@ class StepMachine:
 
         if not forms:
             parsed = parse_full_form(message)
-            required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
+            required = ["수취인명", "연락처", "은행", "계좌", "예금주", "주소"]
             missing = [f for f in required if not parsed.get(f)]
 
             if len(missing) == len(required):
@@ -1087,7 +1087,7 @@ class StepMachine:
         errors = []
 
         for parsed in forms:
-            required = ["수취인명", "연락처", "은행", "계좌", "예금주"]
+            required = ["수취인명", "연락처", "은행", "계좌", "예금주", "주소"]
             missing = [f for f in required if not parsed.get(f)]
 
             if missing:
