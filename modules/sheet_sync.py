@@ -23,7 +23,7 @@ SHEET_HEADERS = [
     "순번", "업체명", "날짜", "제품명", "수취인명", "연락처",
     "은행", "계좌", "예금주", "결제금액", "아이디", "주문번호",
     "주소", "닉네임", "회수이름", "회수연락처", "리뷰작성",
-    "리뷰비", "입금금액", "상태",
+    "리뷰비", "입금금액", "상태", "구매캡쳐", "리뷰캡쳐",
 ]
 
 # progress + campaign + reviewer JOIN 쿼리
@@ -48,7 +48,9 @@ _SYNC_SQL = """
         p.review_submit_date,
         p.review_fee,
         p.payment_total,
-        p.status
+        p.status,
+        p.purchase_capture_url,
+        p.review_capture_url
     FROM progress p
     LEFT JOIN campaigns c ON p.campaign_id = c.id
     LEFT JOIN reviewers r ON p.reviewer_id = r.id
@@ -127,6 +129,8 @@ class SheetSync:
                     str(r.get("review_fee") or 0),                          # 리뷰비
                     str(r.get("payment_total") or 0),                       # 입금금액
                     r.get("status") or "",                                  # 상태
+                    r.get("purchase_capture_url") or "",                     # 구매캡쳐
+                    r.get("review_capture_url") or "",                       # 리뷰캡쳐
                 ]
                 data.append(row)
 
@@ -142,7 +146,7 @@ class SheetSync:
                 self.worksheet.update(data, "A1")
 
             # 헤더 행 굵게 표시
-            self.worksheet.format("A1:T1", {
+            self.worksheet.format("A1:V1", {
                 "textFormat": {"bold": True},
                 "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9},
             })
