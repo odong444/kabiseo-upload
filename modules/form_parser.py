@@ -140,7 +140,7 @@ def parse_multiple_forms(text: str) -> list[dict]:
 
 def count_form_fields(parsed: dict) -> int:
     """파싱된 양식 필드 수 (필수 필드 기준)"""
-    required = ["수취인명", "연락처", "은행", "계좌", "예금주", "주소", "주문번호"]
+    required = ["수취인명", "연락처", "은행", "계좌", "예금주", "주소", "주문번호", "결제금액"]
     return sum(1 for f in required if parsed.get(f))
 
 
