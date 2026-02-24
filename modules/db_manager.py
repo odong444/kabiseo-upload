@@ -179,6 +179,17 @@ CREATE TABLE IF NOT EXISTS inquiries (
 CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status);
 CREATE INDEX IF NOT EXISTS idx_inquiries_created ON inquiries(created_at);
 
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id              SERIAL PRIMARY KEY,
+    reviewer_id     TEXT NOT NULL,
+    sender          TEXT NOT NULL DEFAULT 'user',
+    message         TEXT NOT NULL DEFAULT '',
+    rating          TEXT DEFAULT '',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_chat_reviewer ON chat_messages(reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_chat_created ON chat_messages(created_at);
+
 CREATE TABLE IF NOT EXISTS managers (
     id              SERIAL PRIMARY KEY,
     name            TEXT NOT NULL,
@@ -1375,3 +1386,80 @@ class DBManager:
                 ok = cur.rowcount > 0
             conn.commit()
         return ok
+
+    # ──────── 대화이력 (chat_messages) ────────
+
+    def save_chat_message(self, reviewer_id: str, sender: str, message: str, rating: str = ""):
+        """대화 메시지 DB 저장 (즉시)"""
+        self._execute(
+            """INSERT INTO chat_messages (reviewer_id, sender, message, rating)
+               VALUES (%s, %s, %s, %s)""",
+            (reviewer_id, sender, message, rating)
+        )
+
+    def get_chat_history(self, reviewer_id: str) -> list[dict]:
+        """특정 리뷰어 대화 이력 (최근 90일)"""
+        return self._fetchall(
+            """SELECT sender, message, EXTRACT(EPOCH FROM created_at) as timestamp, rating
+               FROM chat_messages
+               WHERE reviewer_id = %s AND created_at > NOW() - INTERVAL '90 days'
+               ORDER BY created_at""",
+            (reviewer_id,)
+        )
+
+    def get_chat_reviewer_ids(self) -> list[str]:
+        """대화 기록이 있는 리뷰어 ID 목록"""
+        rows = self._fetchall(
+            "SELECT DISTINCT reviewer_id FROM chat_messages ORDER BY reviewer_id"
+        )
+        return [r["reviewer_id"] for r in rows]
+
+    def get_recent_chat_messages(self, limit: int = 20) -> list[dict]:
+        """최근 대화 메시지 (관리자 대시보드용)"""
+        return self._fetchall(
+            """SELECT reviewer_id, sender, message,
+                      EXTRACT(EPOCH FROM created_at) as timestamp
+               FROM chat_messages ORDER BY created_at DESC LIMIT %s""",
+            (limit,)
+        )
+
+    def search_chat_messages(self, keyword: str) -> list[dict]:
+        """대화 메시지 검색"""
+        return self._fetchall(
+            """SELECT reviewer_id, sender, message,
+                      EXTRACT(EPOCH FROM created_at) as timestamp
+               FROM chat_messages
+               WHERE message ILIKE %s OR reviewer_id ILIKE %s
+               ORDER BY created_at DESC LIMIT 200""",
+            (f"%{keyword}%", f"%{keyword}%")
+        )
+
+    def rate_chat_message(self, reviewer_id: str, timestamp: float, rating: str) -> bool:
+        """대화 메시지 평가"""
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE chat_messages SET rating = %s
+                       WHERE id = (
+                           SELECT id FROM chat_messages
+                           WHERE reviewer_id = %s
+                           AND ABS(EXTRACT(EPOCH FROM created_at) - %s) < 1
+                           LIMIT 1
+                       )""",
+                    (rating, reviewer_id, timestamp)
+                )
+                ok = cur.rowcount > 0
+            conn.commit()
+        return ok
+
+    def cleanup_old_chat(self, days: int = 90) -> int:
+        """오래된 대화 삭제"""
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM chat_messages WHERE created_at < NOW() - make_interval(days => %s)",
+                    (days,)
+                )
+                count = cur.rowcount
+            conn.commit()
+        return count

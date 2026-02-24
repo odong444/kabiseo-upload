@@ -72,8 +72,7 @@ def init_app(web_url: str = "", socketio=None):
         campaign_manager = CampaignManager(db_manager)
         reviewer_manager = ReviewerManager(db_manager)
         reviewer_grader = ReviewerGrader(db_manager)
-        # chat_logger, activity_logger는 메모리 기반으로 동작
-        # (구글시트 제거로 영구 보관 없음 — 향후 DB 로깅 추가 가능)
+        chat_logger.set_db_manager(db_manager)
     else:
         campaign_manager = None
         reviewer_manager = None

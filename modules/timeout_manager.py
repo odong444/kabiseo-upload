@@ -3,11 +3,17 @@ timeout_manager.py - 20분 타임아웃 관리
 
 신청 후 양식+구매캡쳐 미제출 시 타임아웃 취소.
 15분 경고, 20분 취소.
+
+이중 타임아웃:
+  1) DB progress.created_at 기준 (서버 재시작 무관)
+  2) 인메모리 last_activity 기준 (재접속 시 리셋)
+  → 둘 중 더 나중 시간 기준으로 타임아웃 체크
 """
 
 import time
 import logging
 import threading
+from datetime import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -89,13 +95,37 @@ class TimeoutManager:
 
             time.sleep(15)  # 15초마다 체크
 
+    def _get_db_created_epoch(self, state) -> float:
+        """DB에서 progress.created_at을 가져와 epoch 반환 (캠페인 신청 시점)"""
+        if not self._db_manager:
+            return 0.0
+        try:
+            campaign_id = state.temp_data.get("campaign", {}).get("캠페인ID", "")
+            store_ids = state.temp_data.get("store_ids", [])
+            if not campaign_id or not store_ids:
+                return 0.0
+            rows = self._db_manager._fetchall(
+                """SELECT MIN(created_at) as min_created FROM progress
+                   WHERE campaign_id = %s AND store_id = ANY(%s)
+                   AND status IN ('가이드전달', '구매캡쳐대기', '리뷰대기')""",
+                (campaign_id, store_ids)
+            )
+            if rows and rows[0].get("min_created"):
+                dt = rows[0]["min_created"]
+                return dt.replace(tzinfo=timezone.utc).timestamp() if dt.tzinfo is None else dt.timestamp()
+        except Exception as e:
+            logger.debug(f"DB created_at 조회 실패: {e}")
+        return 0.0
+
     def _check_all(self):
         for state in self.state_store.all_states():
             if state.step < 4:
-                # step 4 이상(가이드 전달 후)부터 타임아웃 적용
                 continue
 
-            elapsed = time.time() - state.last_activity
+            # 이중 타임아웃: DB created_at vs 인메모리 last_activity 중 더 나중 기준
+            db_created = self._get_db_created_epoch(state)
+            baseline = max(state.last_activity, db_created) if db_created else state.last_activity
+            elapsed = time.time() - baseline
             rid = state.reviewer_id
 
             # 20분 초과 → 취소
@@ -184,12 +214,39 @@ class TimeoutManager:
             logger.info(f"리뷰 기한 리마인더 발송: {sent}건")
 
     def _check_db_stale(self):
-        """DB에서 오래된 건 처리: 타임아웃 취소 + 취소 행 삭제"""
+        """DB에서 오래된 건 처리: 20분 초과 타임아웃 취소 + 취소 행 삭제
+
+        인메모리 세션 없는 경우(서버 재시작 등)에도
+        DB created_at 기준 20분 초과 시 자동 취소.
+        """
         if not self._db_manager:
             return
-        cancelled = self._db_manager.cancel_stale_rows(hours=1)
-        if cancelled:
-            logger.info(f"DB 기반 자동 취소: {cancelled}건")
+        # 20분(=1200초) 기준으로 DB 타임아웃 (기존 1시간 → timeout 설정값 사용)
+        from datetime import timedelta
+        from modules.utils import now_kst
+        cutoff = now_kst() - timedelta(seconds=self.timeout)
+        # 인메모리 세션이 있는 건은 _check_all()에서 처리하므로 제외
+        active_keys = set()
+        for state in self.state_store.all_states():
+            if state.step >= 4:
+                campaign_id = state.temp_data.get("campaign", {}).get("캠페인ID", "")
+                for sid in state.temp_data.get("store_ids", []):
+                    active_keys.add((campaign_id, sid))
+
+        rows = self._db_manager._fetchall(
+            """SELECT id, campaign_id, store_id FROM progress
+               WHERE status IN ('신청', '가이드전달') AND created_at < %s""",
+            (cutoff,)
+        )
+        to_cancel = [r for r in rows if (r["campaign_id"], r["store_id"]) not in active_keys]
+        if to_cancel:
+            ids = [r["id"] for r in to_cancel]
+            self._db_manager._execute(
+                """UPDATE progress SET status = '타임아웃취소', updated_at = NOW()
+                   WHERE id = ANY(%s)""",
+                (ids,)
+            )
+            logger.info(f"DB 기반 자동 취소: {len(ids)}건 (created_at + {self.timeout}초 초과)")
 
         deleted = self._db_manager.delete_old_cancelled_rows()
         if deleted:

@@ -923,21 +923,26 @@ def spreadsheet():
 @admin_bp.route("/api/timeout-sessions")
 @admin_required
 def api_timeout_sessions():
-    """가이드전달 후 양식 미제출 타임아웃 대기 세션 목록"""
+    """가이드전달 후 양식 미제출 타임아웃 대기 세션 목록 (이중 타임아웃)"""
     import time as _time
+    from datetime import timezone as _tz
     sessions = []
+    timeout_sec = models.timeout_manager.timeout if models.timeout_manager else 1200
+
+    # 1) 인메모리 세션 기반
+    seen_keys = set()
     if models.state_store and models.timeout_manager:
-        timeout_sec = models.timeout_manager.timeout
         for state in models.state_store.all_states():
-            # step 4~5만 (가이드전달 후 양식 미제출 상태)
             if state.step not in (4, 5):
                 continue
-            # 양식 전부 제출된 건은 제외
             submitted = state.temp_data.get("submitted_ids", [])
             store_ids = state.temp_data.get("store_ids", [])
             if store_ids and set(submitted) >= set(store_ids):
                 continue
-            elapsed = _time.time() - state.last_activity
+            # 이중 타임아웃: DB created_at vs last_activity 중 더 나중
+            db_created = models.timeout_manager._get_db_created_epoch(state)
+            baseline = max(state.last_activity, db_created) if db_created else state.last_activity
+            elapsed = _time.time() - baseline
             remaining = max(0, int(timeout_sec - elapsed))
             if remaining <= 0:
                 continue
@@ -951,6 +956,41 @@ def api_timeout_sessions():
                 "product": product,
                 "store_ids": ", ".join(pending),
             })
+            seen_keys.add((state.name, state.phone))
+
+    # 2) DB 기반 (인메모리 세션 없는 건 = 서버 재시작 후)
+    if models.db_manager:
+        try:
+            rows = models.db_manager._fetchall(
+                """SELECT p.created_at, r.name, r.phone, p.store_id,
+                          COALESCE(NULLIF(c.campaign_name,''), c.product_name) as product
+                   FROM progress p
+                   LEFT JOIN reviewers r ON p.reviewer_id = r.id
+                   LEFT JOIN campaigns c ON p.campaign_id = c.id
+                   WHERE p.status = '가이드전달'"""
+            )
+            for r in rows:
+                key = (r["name"], r["phone"])
+                if key in seen_keys:
+                    continue
+                dt = r["created_at"]
+                if dt:
+                    epoch = dt.replace(tzinfo=_tz.utc).timestamp() if dt.tzinfo is None else dt.timestamp()
+                    elapsed = _time.time() - epoch
+                    remaining = max(0, int(timeout_sec - elapsed))
+                    if remaining <= 0:
+                        continue
+                    sessions.append({
+                        "name": r["name"] or "",
+                        "phone": r["phone"] or "",
+                        "remaining_sec": remaining,
+                        "product": r["product"] or "",
+                        "store_ids": r["store_id"] or "",
+                    })
+                    seen_keys.add(key)
+        except Exception:
+            pass
+
     sessions.sort(key=lambda x: x["remaining_sec"])
     return jsonify({"sessions": sessions})
 
