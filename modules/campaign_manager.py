@@ -115,13 +115,14 @@ class CampaignManager:
             done = actual_counts.get(campaign_id, 0) or safe_int(c.get("완료수량", 0))
             remaining = total - done
 
-            # 마감 판단
+            # 모집중이 아닌 캠페인(중지/마감 등)은 목록에서 제외
+            if campaign_status not in ("모집중", "진행중", ""):
+                continue
+
+            # 마감 판단 (모집중이지만 잔여수량 0)
             is_closed = False
             closed_reason = ""
-            if campaign_status in ("마감", "중지"):
-                is_closed = True
-                closed_reason = campaign_status
-            elif campaign_status in ("모집중", "진행중", "") and remaining <= 0:
+            if remaining <= 0:
                 is_closed = True
                 closed_reason = "마감"
 
