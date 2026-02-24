@@ -56,12 +56,12 @@
     }
     .kakao-badge.on { background: #dbeafe; color: #1d4ed8; }
     .kakao-badge.off { background: #f3f4f6; color: #9ca3af; }
-    .time-input {
-        width: 80px; padding: 0.3rem 0.5rem; border: 1px solid #d1d5db;
-        border-radius: 6px; font-size: 13px; text-align: center;
+    .time-select {
+        padding: 0.35rem 0.5rem; border: 1px solid #d1d5db;
+        border-radius: 6px; font-size: 13px; background: #fff;
     }
     .time-wrap {
-        display: inline-flex; align-items: center; gap: 4px;
+        display: inline-flex; align-items: center; gap: 6px;
         font-size: 13px; color: #6b7280;
     }
     .toast {
@@ -124,9 +124,9 @@
                 <div>
                     <label>발송시간</label>
                     <div style="display:flex; align-items:center; gap:4px;">
-                        <input type="time" id="newStart" value="09:00" class="time-input">
+                        <select id="newStart" class="time-select"></select>
                         <span style="color:#9ca3af;">~</span>
-                        <input type="time" id="newEnd" value="22:00" class="time-input">
+                        <select id="newEnd" class="time-select"></select>
                     </div>
                 </div>
                 <div>
@@ -148,11 +148,11 @@
                         {{ m.phone }} &middot; {{ m.role }}
                     </div>
                     <div class="time-wrap" style="margin-top:4px;">
-                        <input type="time" value="{{ m.notify_start or '09:00' }}" class="time-input"
-                               onchange="updateTime({{ m.id }}, 'notify_start', this.value)">
+                        <select class="time-select time-sel-start" data-id="{{ m.id }}" data-val="{{ m.notify_start or '09:00' }}"
+                                onchange="updateTime({{ m.id }}, 'notify_start', this.value)"></select>
                         <span>~</span>
-                        <input type="time" value="{{ m.notify_end or '22:00' }}" class="time-input"
-                               onchange="updateTime({{ m.id }}, 'notify_end', this.value)">
+                        <select class="time-select time-sel-end" data-id="{{ m.id }}" data-val="{{ m.notify_end or '22:00' }}"
+                                onchange="updateTime({{ m.id }}, 'notify_end', this.value)"></select>
                     </div>
                 </div>
                 <div class="actions">
@@ -176,6 +176,31 @@
     <div class="toast" id="toast"></div>
 
     <script>
+    // 시간 옵션 생성 (00:00 ~ 23:00)
+    function buildTimeOptions(selectEl, selectedVal) {
+        for (let h = 0; h < 24; h++) {
+            const val = String(h).padStart(2, '0') + ':00';
+            const label = h === 0 ? '오전 12시 (자정)' : h < 12 ? `오전 ${h}시` : h === 12 ? '오후 12시' : `오후 ${h - 12}시`;
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = label;
+            if (val === selectedVal) opt.selected = true;
+            selectEl.appendChild(opt);
+        }
+    }
+
+    // 추가 폼 시간 초기화
+    buildTimeOptions(document.getElementById('newStart'), '09:00');
+    buildTimeOptions(document.getElementById('newEnd'), '22:00');
+
+    // 기존 담당자 카드 시간 초기화
+    document.querySelectorAll('.time-sel-start').forEach(el => {
+        buildTimeOptions(el, el.dataset.val);
+    });
+    document.querySelectorAll('.time-sel-end').forEach(el => {
+        buildTimeOptions(el, el.dataset.val);
+    });
+
     function showToast(msg) {
         const t = document.getElementById('toast');
         t.textContent = msg;
