@@ -111,6 +111,11 @@ class CampaignManager:
             buy_time_str = c.get("구매가능시간", "").strip()
             buy_time_active = c.get("_buy_time_active", True)
 
+            # 상세 정보
+            product_price = c.get("상품금액", "") or c.get("결제금액", "")
+            review_fee = c.get("리뷰비", "") or ""
+            platform = c.get("플랫폼", "") or c.get("캠페인유형", "") or ""
+
             card = {
                 "value": f"campaign_{i}",
                 "name": c.get("캠페인명", "") or c.get("상품명", ""),
@@ -123,6 +128,9 @@ class CampaignManager:
                 "urgent": remaining <= 5,
                 "buy_time": buy_time_str or "",
                 "buy_time_closed": not buy_time_active,
+                "product_price": str(product_price),
+                "review_fee": str(review_fee),
+                "platform": str(platform),
             }
 
             # 이 캠페인에서의 내 진행 이력

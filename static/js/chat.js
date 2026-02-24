@@ -165,6 +165,9 @@
                 b.style.pointerEvents = 'none';
                 b.style.opacity = '0.5';
             });
+            g.querySelectorAll('.campaign-card-toggle').forEach(function(h) {
+                h.style.pointerEvents = 'none';
+            });
         });
         // 다중선택 비활성화
         var msList = chatMessages.querySelectorAll('.ms-wrap:not(.disabled)');
@@ -209,47 +212,78 @@
 
         campaigns.forEach(function(c) {
             var card = document.createElement('div');
-            card.className = 'campaign-card';
+            card.className = 'campaign-card campaign-card-collapsed';
 
-            var urgentHtml = '';
+            // 뱃지 (마감임박 / 구매시간외)
+            var badgeHtml = '';
             if (c.buy_time_closed) {
-                urgentHtml = '<span class="campaign-closed">구매시간 외</span>';
+                badgeHtml = '<span class="campaign-closed">구매시간 외</span>';
             } else if (c.urgent) {
-                urgentHtml = '<span class="campaign-urgent">마감 임박!</span>';
+                badgeHtml = '<span class="campaign-urgent">마감 임박!</span>';
             }
 
-            var historyHtml = '';
-            if (c.my_history && c.my_history.length) {
-                var statusEmojis = {'입금완료':'✅','리뷰제출':'🟢','입금대기':'💰','구매내역제출':'🔵','가이드전달':'🟡','신청':'⚪','타임아웃취소':'⏰','취소':'⛔'};
-                historyHtml = '<div style="border-top:1px solid #eee;padding-top:8px;margin-top:8px;font-size:13px;">' +
-                    '<div style="font-weight:600;color:#555;margin-bottom:4px;">📌 내 진행 이력:</div>';
-                c.my_history.forEach(function(h) {
-                    var emoji = statusEmojis[h.status] || '';
-                    historyHtml += '<div style="color:#666;padding-left:8px;">' + escapeText(h.id) + ' - ' + escapeText(h.status) + ' ' + emoji + '</div>';
-                });
-                historyHtml += '</div>';
+            // 남은자리 요약 (헤더에 간략 표시)
+            var remainBadge = '';
+            if (!c.buy_time_closed) {
+                remainBadge = '<span class="campaign-remain-badge">' + c.remaining + '자리</span>';
             }
 
-            var recruitHtml = '<div class="campaign-card-row"><span class="campaign-card-icon">👥</span> 총 모집인원 : ' + (c.total || c.remaining) + '명</div>';
+            // ── 헤더 (항상 표시) ──
+            var header = document.createElement('div');
+            header.className = 'campaign-card-header campaign-card-toggle';
+            header.innerHTML =
+                '<div class="campaign-card-title-row">' +
+                    '<span class="campaign-card-name">' + escapeText(c.name) + '</span>' +
+                    badgeHtml + remainBadge +
+                '</div>' +
+                '<span class="campaign-card-arrow">&#9660;</span>';
+
+            card.appendChild(header);
+
+            // ── 상세 영역 (접혀있음) ──
+            var detail = document.createElement('div');
+            detail.className = 'campaign-card-detail';
+
+            // 상세 정보 행들
+            var detailRows = '';
+            detailRows += '<div class="campaign-card-row"><span class="campaign-card-icon">🏪</span> ' + escapeText(c.store) + '</div>';
+
+            if (c.product_price) {
+                detailRows += '<div class="campaign-card-row"><span class="campaign-card-icon">💰</span> 상품금액: ' + escapeText(c.product_price) + '</div>';
+            }
+            if (c.review_fee) {
+                detailRows += '<div class="campaign-card-row"><span class="campaign-card-icon">💵</span> 리뷰비: ' + escapeText(c.review_fee) + '</div>';
+            }
+            if (c.platform) {
+                detailRows += '<div class="campaign-card-row"><span class="campaign-card-icon">📦</span> ' + escapeText(c.platform) + '</div>';
+            }
+
+            detailRows += '<div class="campaign-card-row"><span class="campaign-card-icon">👥</span> 남은자리: ' + c.remaining + ' / ' + (c.total || c.remaining) + '</div>';
+
             if (c.daily_target && c.daily_target > 0) {
                 var todayDone = c.today_done || 0;
-                recruitHtml += '<div class="campaign-card-row"><span class="campaign-card-icon">📊</span> 금일 모집 : ' + todayDone + ' / ' + c.daily_target + '</div>';
+                detailRows += '<div class="campaign-card-row"><span class="campaign-card-icon">📊</span> 금일 모집: ' + todayDone + ' / ' + c.daily_target + '</div>';
             }
 
-            var buyTimeHtml = '';
             if (c.buy_time) {
-                buyTimeHtml = '<div class="campaign-card-row"><span class="campaign-card-icon">⏰</span> ' + escapeText(c.buy_time) + '</div>';
+                detailRows += '<div class="campaign-card-row"><span class="campaign-card-icon">⏰</span> ' + escapeText(c.buy_time) + '</div>';
             }
 
-            card.innerHTML =
-                '<div class="campaign-card-header">' + escapeText(c.name) + urgentHtml + '</div>' +
-                '<div class="campaign-card-body">' +
-                '<div class="campaign-card-row"><span class="campaign-card-icon">🏪</span> ' + escapeText(c.store) + '</div>' +
-                recruitHtml +
-                buyTimeHtml +
-                historyHtml +
-                '</div>';
+            // 내 진행 이력
+            if (c.my_history && c.my_history.length) {
+                var statusEmojis = {'입금완료':'✅','리뷰제출':'🟢','입금대기':'💰','구매내역제출':'🔵','가이드전달':'🟡','신청':'⚪','타임아웃취소':'⏰','취소':'⛔'};
+                detailRows += '<div class="campaign-card-history">' +
+                    '<div class="campaign-card-history-title">📌 내 진행 이력:</div>';
+                c.my_history.forEach(function(h) {
+                    var emoji = statusEmojis[h.status] || '';
+                    detailRows += '<div class="campaign-card-history-item">' + escapeText(h.id) + ' - ' + escapeText(h.status) + ' ' + emoji + '</div>';
+                });
+                detailRows += '</div>';
+            }
 
+            detail.innerHTML = '<div class="campaign-card-body">' + detailRows + '</div>';
+
+            // 신청 버튼 (상세 안에 포함)
             var btn = document.createElement('button');
             btn.type = 'button';
             if (c.buy_time_closed) {
@@ -266,7 +300,31 @@
                     sendQuickMessage(c.value, c.name);
                 });
             }
-            card.appendChild(btn);
+            detail.appendChild(btn);
+
+            card.appendChild(detail);
+
+            // ── 토글 이벤트 ──
+            header.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var isOpen = card.classList.contains('campaign-card-expanded');
+                // 다른 카드 모두 닫기
+                wrap.querySelectorAll('.campaign-card-expanded').forEach(function(other) {
+                    if (other !== card) {
+                        other.classList.remove('campaign-card-expanded');
+                        other.classList.add('campaign-card-collapsed');
+                    }
+                });
+                if (isOpen) {
+                    card.classList.remove('campaign-card-expanded');
+                    card.classList.add('campaign-card-collapsed');
+                } else {
+                    card.classList.remove('campaign-card-collapsed');
+                    card.classList.add('campaign-card-expanded');
+                    setTimeout(scrollToBottom, 200);
+                }
+            });
 
             wrap.appendChild(card);
         });

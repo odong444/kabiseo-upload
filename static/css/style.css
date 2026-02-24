@@ -1089,11 +1089,11 @@ body {
 }
 .inline-btn-secondary:active { background: #f0f0f0; }
 
-/* ──────── 캠페인 카드 ──────── */
+/* ──────── 캠페인 카드 (아코디언) ──────── */
 .campaign-cards {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     padding: 8px 0;
     margin-left: 38px;
     max-width: calc(100% - 38px);
@@ -1102,19 +1102,62 @@ body {
 .campaign-card {
     background: #fff;
     border-radius: 14px;
-    padding: 14px 16px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     border: 1px solid #eee;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
 }
-.campaign-card-header {
-    font-size: 16px;
-    font-weight: 700;
-    color: #3c1e1e;
-    margin-bottom: 8px;
+.campaign-card.campaign-card-expanded {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    border-color: #fee500;
+}
+
+/* 헤더 (항상 표시, 클릭으로 토글) */
+.campaign-card-header.campaign-card-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+.campaign-card-title-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
 }
+.campaign-card-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: #3c1e1e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.campaign-remain-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+    background: #6366f1;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.campaign-card-arrow {
+    font-size: 12px;
+    color: #999;
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+.campaign-card-expanded .campaign-card-arrow {
+    transform: rotate(180deg);
+}
+
 .campaign-urgent {
     font-size: 11px;
     font-weight: 700;
@@ -1122,6 +1165,8 @@ body {
     background: #e74c3c;
     padding: 2px 8px;
     border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 .campaign-closed {
     font-size: 11px;
@@ -1130,17 +1175,29 @@ body {
     background: #888;
     padding: 2px 8px;
     border-radius: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
-.campaign-card-btn-disabled {
-    background: #ccc !important;
-    color: #888 !important;
-    cursor: not-allowed;
+
+/* 상세 영역 (접힘/펼침) */
+.campaign-card-detail {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 16px;
 }
+.campaign-card-expanded .campaign-card-detail {
+    max-height: 500px;
+    padding: 0 16px 14px;
+}
+
 .campaign-card-body {
     display: flex;
     flex-direction: column;
     gap: 4px;
     margin-bottom: 10px;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 10px;
 }
 .campaign-card-row {
     font-size: 13px;
@@ -1149,6 +1206,30 @@ body {
 .campaign-card-row.remaining { font-weight: 600; color: #333; }
 .campaign-card-row.remaining.urgent { color: #e74c3c; }
 .campaign-card-icon { margin-right: 4px; }
+
+/* 내 진행 이력 */
+.campaign-card-history {
+    border-top: 1px solid #eee;
+    padding-top: 8px;
+    margin-top: 8px;
+    font-size: 13px;
+}
+.campaign-card-history-title {
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 4px;
+}
+.campaign-card-history-item {
+    color: #666;
+    padding-left: 8px;
+}
+
+/* 신청 버튼 */
+.campaign-card-btn-disabled {
+    background: #ccc !important;
+    color: #888 !important;
+    cursor: not-allowed;
+}
 .campaign-card-btn {
     display: block;
     width: 100%;
@@ -1161,6 +1242,7 @@ body {
     color: #3c1e1e;
     cursor: pointer;
     transition: all 0.15s;
+    margin-top: 4px;
 }
 .campaign-card-btn:active { background: #f5d800; transform: scale(0.98); }
 
