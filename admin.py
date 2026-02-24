@@ -6,6 +6,7 @@ import os
 import io
 import csv
 import logging
+import requests as _requests
 from functools import wraps
 from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify, flash, Response
 
@@ -35,6 +36,25 @@ def _generate_schedule(total: int, lo: int, hi: int, days: int) -> list[int]:
             schedule.append(val)
             remaining -= val
     return schedule
+
+SERVER_PC_URL = "http://222.122.194.202:5050"
+SERVER_PC_API_KEY = "_fNmY5SeHyigMgkR5LIngpxBB1gDoZLF"
+
+
+def _fetch_server_categories() -> list[str]:
+    """서버PC에서 채팅방 카테고리 목록 가져오기"""
+    try:
+        resp = _requests.get(
+            f"{SERVER_PC_URL}/api/categories",
+            headers={"X-API-Key": SERVER_PC_API_KEY},
+            timeout=3,
+        )
+        if resp.ok:
+            return resp.json().get("categories", [])
+    except Exception:
+        pass
+    return ["체험단", "리뷰-실", "리뷰-빈", "마케팅홍보"]  # fallback
+
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin1234")
 
@@ -162,7 +182,8 @@ def campaign_edit(campaign_id):
         flash("캠페인을 찾을 수 없습니다.")
         return redirect(url_for("admin.campaigns"))
 
-    return render_template("admin/campaign_edit.html", campaign=campaign, row=campaign_id)
+    categories = _fetch_server_categories()
+    return render_template("admin/campaign_edit.html", campaign=campaign, row=campaign_id, promo_category_list=categories)
 
 
 @admin_bp.route("/campaigns/<campaign_id>/edit", methods=["POST"])
@@ -270,7 +291,8 @@ def api_campaign_delete(campaign_id):
 @admin_bp.route("/campaigns/new", methods=["GET"])
 @admin_required
 def campaign_new():
-    return render_template("admin/campaign_new.html")
+    categories = _fetch_server_categories()
+    return render_template("admin/campaign_new.html", promo_category_list=categories)
 
 
 @admin_bp.route("/campaigns/new", methods=["POST"])
