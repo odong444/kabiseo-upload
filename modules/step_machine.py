@@ -56,6 +56,7 @@ class StepMachine:
     def process_message(self, name: str, phone: str, message: str):
         """메시지 처리 → 응답 반환 (str 또는 dict)"""
         state = self.states.get(name, phone)
+        state.touch()  # 타임아웃 타이머 갱신
 
         self.chat_logger.log(state.reviewer_id, "user", message)
 
