@@ -23,7 +23,7 @@ SHEET_HEADERS = [
     "ID", "업체명", "날짜", "제품명", "수취인명", "연락처",
     "은행", "계좌", "예금주", "결제금액", "아이디", "주문번호",
     "주소", "닉네임", "회수이름", "회수연락처", "리뷰작성",
-    "리뷰비", "입금금액", "상태", "구매캡쳐", "리뷰캡쳐",
+    "리뷰비", "입금금액", "구매캡쳐", "리뷰캡쳐", "상태",
 ]
 
 _NUM_COLS = len(SHEET_HEADERS)  # 22
@@ -119,9 +119,9 @@ class SheetSync:
             review_status,                                                 # 리뷰작성
             str(r.get("review_fee") or 0),                                 # 리뷰비
             str(r.get("payment_total") or 0),                              # 입금금액
-            r.get("status") or "",                                         # 상태
             r.get("purchase_capture_url") or "",                           # 구매캡쳐
             r.get("review_capture_url") or "",                             # 리뷰캡쳐
+            r.get("status") or "",                                         # 상태
         ]
 
     # ──────── 전체 동기화 ────────
