@@ -390,10 +390,31 @@ def chat_viewer(reviewer_id):
 @admin_required
 def chat_list():
     reviewer_ids = models.chat_logger.get_all_reviewer_ids()
+    return render_template("admin/chat_viewer.html", reviewer_ids=reviewer_ids, reviewer_id=None, history=[], q="")
+
+
+@admin_bp.route("/api/chat/search")
+@admin_required
+def api_chat_search():
+    """대화이력 실시간 검색 API"""
     q = request.args.get("q", "").strip()
-    if q:
-        reviewer_ids = [r for r in reviewer_ids if q.lower() in r.lower()]
-    return render_template("admin/chat_viewer.html", reviewer_ids=reviewer_ids, reviewer_id=None, history=[], q=q)
+    if not q or len(q) < 1:
+        # 검색어 없으면 전체 리뷰어 목록
+        reviewer_ids = models.chat_logger.get_all_reviewer_ids()
+        return jsonify({"reviewer_ids": reviewer_ids, "messages": []})
+
+    # 리뷰어 ID 필터
+    all_ids = models.chat_logger.get_all_reviewer_ids()
+    matched_ids = [r for r in all_ids if q.lower() in r.lower()]
+
+    # 메시지 내용 검색
+    messages = models.chat_logger.search(q)[:50]
+
+    # 메시지에서 발견된 리뷰어 ID도 추가
+    msg_rids = list(dict.fromkeys(m["reviewer_id"] for m in messages))
+    combined_ids = list(dict.fromkeys(matched_ids + msg_rids))
+
+    return jsonify({"reviewer_ids": combined_ids, "messages": messages})
 
 
 # ──────── 리뷰 검수 ────────

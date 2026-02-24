@@ -5,6 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>카비서 관리자 - 대화이력</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .search-wrap { position: relative; margin-bottom: 1rem; }
+    .search-wrap input {
+        width: 100%; padding: 10px 14px; border: 1px solid #d1d5db;
+        border-radius: 8px; font-size: 14px; box-sizing: border-box;
+    }
+    .search-wrap input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .search-results {
+        display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+        background: #fff; border: 1px solid #d1d5db; border-top: none; border-radius: 0 0 8px 8px;
+        max-height: 400px; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .search-results.active { display: block; }
+    .search-section-title {
+        padding: 6px 14px; font-size: 11px; font-weight: 700; color: #6b7280;
+        background: #f9fafb; border-bottom: 1px solid #e5e7eb; text-transform: uppercase;
+    }
+    .search-item {
+        padding: 8px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6;
+        font-size: 13px; transition: background 0.1s;
+    }
+    .search-item:hover { background: #eff6ff; }
+    .search-item .rid { font-weight: 600; color: #1e40af; }
+    .search-item .msg-preview { color: #6b7280; font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .search-item .msg-sender { font-size: 11px; padding: 1px 5px; border-radius: 3px; margin-right: 4px; }
+    .search-item .msg-sender.user { background: #dbeafe; color: #1e40af; }
+    .search-item .msg-sender.bot { background: #f3f4f6; color: #6b7280; }
+    mark { background: #fef08a; padding: 0; border-radius: 2px; }
+    </style>
 </head>
 <body class="admin-body">
     <header class="admin-header">
@@ -30,14 +59,13 @@
     <main class="admin-main">
         <h1>대화 이력</h1>
 
-        <form class="admin-search" method="GET" action="{{ url_for('admin.chat_list') }}">
-            <input type="text" name="q" placeholder="이름/연락처/키워드 검색" value="{{ q|default('') }}">
-            <button type="submit" class="btn btn-primary">검색</button>
-        </form>
+        <div class="search-wrap">
+            <input type="text" id="searchInput" placeholder="이름/연락처/키워드 검색" autocomplete="off">
+            <div class="search-results" id="searchResults"></div>
+        </div>
 
         <div class="chat-viewer-layout">
-            <!-- 리뷰어 목록 -->
-            <div class="reviewer-list-panel">
+            <div class="reviewer-list-panel" id="reviewerList">
                 <h3>리뷰어 목록</h3>
                 {% for rid in reviewer_ids|default([]) %}
                 <a href="{{ url_for('admin.chat_viewer', reviewer_id=rid) }}"
@@ -50,7 +78,6 @@
                 {% endif %}
             </div>
 
-            <!-- 대화 내용 -->
             <div class="chat-view-panel">
                 {% if reviewer_id %}
                 <h3>{{ reviewer_id }}</h3>
@@ -70,7 +97,7 @@
                     </div>
                     {% endfor %}
                     {% if not history %}
-                    <p class="admin-empty">대화 내용이 없습니다.</p>
+                    <p class="admin-empty">왼쪽에서 리뷰어를 선택해주세요.</p>
                     {% endif %}
                 </div>
                 {% else %}
@@ -86,10 +113,88 @@
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({reviewer_id: reviewerId, timestamp: timestamp, rating: rating})
-        }).then(r => r.json()).then(d => {
+        }).then(function(r) { return r.json(); }).then(function(d) {
             if (d.ok) alert('평가 저장됨');
         });
     }
+
+    (function() {
+        var input = document.getElementById('searchInput');
+        var results = document.getElementById('searchResults');
+        var timer = null;
+
+        function escapeHtml(s) {
+            var d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        function highlight(text, query) {
+            if (!query) return escapeHtml(text);
+            var escaped = escapeHtml(text);
+            var re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+            return escaped.replace(re, '<mark>$1</mark>');
+        }
+
+        function doSearch(q) {
+            if (!q) {
+                results.classList.remove('active');
+                return;
+            }
+            fetch('/admin/api/chat/search?q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var html = '';
+
+                // 리뷰어 ID 매칭
+                if (data.reviewer_ids && data.reviewer_ids.length) {
+                    html += '<div class="search-section-title">리뷰어 (' + data.reviewer_ids.length + ')</div>';
+                    data.reviewer_ids.slice(0, 10).forEach(function(rid) {
+                        html += '<div class="search-item" onclick="location.href=\'/admin/chat/' + encodeURIComponent(rid) + '\'">' +
+                            '<div class="rid">' + highlight(rid, q) + '</div></div>';
+                    });
+                    if (data.reviewer_ids.length > 10) {
+                        html += '<div class="search-item" style="color:#6b7280;text-align:center;">... 외 ' + (data.reviewer_ids.length - 10) + '건</div>';
+                    }
+                }
+
+                // 메시지 매칭
+                if (data.messages && data.messages.length) {
+                    html += '<div class="search-section-title">메시지 (' + data.messages.length + ')</div>';
+                    data.messages.slice(0, 20).forEach(function(m) {
+                        var preview = m.message.length > 80 ? m.message.substring(0, 80) + '...' : m.message;
+                        html += '<div class="search-item" onclick="location.href=\'/admin/chat/' + encodeURIComponent(m.reviewer_id) + '\'">' +
+                            '<div class="rid">' + escapeHtml(m.reviewer_id) + '</div>' +
+                            '<div class="msg-preview"><span class="msg-sender ' + m.sender + '">' + m.sender + '</span>' +
+                            highlight(preview, q) + '</div></div>';
+                    });
+                }
+
+                if (!html) {
+                    html = '<div class="search-item" style="color:#9ca3af;text-align:center;">검색 결과 없음</div>';
+                }
+
+                results.innerHTML = html;
+                results.classList.add('active');
+            });
+        }
+
+        input.addEventListener('input', function() {
+            clearTimeout(timer);
+            var q = this.value.trim();
+            timer = setTimeout(function() { doSearch(q); }, 300);
+        });
+
+        input.addEventListener('focus', function() {
+            if (this.value.trim()) doSearch(this.value.trim());
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-wrap')) {
+                results.classList.remove('active');
+            }
+        });
+    })();
     </script>
 </body>
 </html>
