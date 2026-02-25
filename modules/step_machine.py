@@ -849,6 +849,22 @@ class StepMachine:
                 buttons=self._menu_buttons()
             )
 
+        # 일일 모집한도 체크
+        daily_remaining = self.campaigns.check_daily_remaining(campaign_id)
+        if daily_remaining != -1 and daily_remaining < len(ids):
+            state.step = 0
+            state.temp_data = {}
+            if daily_remaining == 0:
+                return _resp(
+                    "😥 죄송합니다, 오늘 모집이 마감되었습니다.\n내일 다시 신청해주세요!",
+                    buttons=self._menu_buttons()
+                )
+            return _resp(
+                f"😥 죄송합니다, 오늘 남은 자리가 {daily_remaining}자리뿐입니다.\n"
+                f"{len(ids)}개 아이디로 신청하실 수 없습니다. 다시 시도해주세요.",
+                buttons=self._menu_buttons()
+            )
+
         # 시트에 등록
         for sid in ids:
             self.reviewers.register(state.name, state.phone, campaign, sid)

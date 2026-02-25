@@ -366,6 +366,21 @@ class CampaignManager:
         reserved = self.db.count_reserved_campaign(campaign_id)
         return max(0, total - reserved)
 
+    def check_daily_remaining(self, campaign_id: str) -> int:
+        """일일 모집 잔여 슬롯 수 반환. 일일 제한 없으면 -1 (무제한)."""
+        campaign = self.get_campaign_by_id(campaign_id)
+        if not campaign:
+            return 0
+        daily_target = self._get_today_target(campaign)
+        if daily_target <= 0:
+            return -1  # 일일 제한 없음
+        try:
+            counts = self.db.count_today_all_campaigns()
+            today_count = counts.get(campaign_id, 0)
+            return max(0, daily_target - today_count)
+        except Exception:
+            return -1
+
     def get_campaign_stats(self, campaign_id: str) -> dict:
         """캠페인 달성률"""
         campaign = self.get_campaign_by_id(campaign_id)
