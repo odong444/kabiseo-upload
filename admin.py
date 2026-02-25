@@ -249,12 +249,26 @@ def campaign_edit_post(campaign_id):
 @admin_bp.route("/api/campaigns/<campaign_id>/pause", methods=["POST"])
 @admin_required
 def api_campaign_pause(campaign_id):
-    """캠페인 상태를 '중지'로 변경"""
+    """캠페인 상태를 '중지'로 변경 + 서버PC 대기 홍보 태스크 취소"""
     if not models.db_manager:
         return jsonify({"ok": False, "message": "시스템 초기화 중"})
     try:
         models.db_manager.update_campaign_status(campaign_id, "중지")
-        return jsonify({"ok": True, "status": "중지"})
+        # 서버PC의 대기 중 홍보 태스크 취소
+        cancelled = 0
+        try:
+            import requests
+            resp = requests.post(
+                f"{SERVER_PC_URL}/api/task/cancel-campaign",
+                json={"campaign_id": campaign_id},
+                headers={"X-API-Key": SERVER_PC_API_KEY},
+                timeout=5,
+            )
+            if resp.ok:
+                cancelled = resp.json().get("cancelled", 0)
+        except Exception as ce:
+            logger.warning(f"서버PC 태스크 취소 요청 실패: {ce}")
+        return jsonify({"ok": True, "status": "중지", "cancelled_tasks": cancelled})
     except Exception as e:
         logger.error(f"캠페인 중지 에러: {e}")
         return jsonify({"ok": False, "message": str(e)})
