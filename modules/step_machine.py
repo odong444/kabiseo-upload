@@ -885,15 +885,18 @@ class StepMachine:
         except Exception:
             pass
 
-        # 모집 완료 자동 처리: 총수량 꽉 차면 상태 변경 + 홍보 태스크 취소
+        # 모집 완료 자동 처리: 총수량 or 일일한도 꽉 차면 홍보 태스크 취소
         try:
+            from modules.signal_sender import cancel_campaign_tasks
             remaining = self.campaigns.check_capacity(campaign_id)
             if remaining <= 0:
                 import models as _models
                 if _models.db_manager:
                     _models.db_manager.update_campaign_status(campaign_id, "모집마감")
                     logger.info("캠페인 [%s] 모집마감 자동 전환", campaign_id)
-                from modules.signal_sender import cancel_campaign_tasks
+                cancel_campaign_tasks(campaign_id)
+            elif self.campaigns.check_daily_remaining(campaign_id) == 0:
+                logger.info("캠페인 [%s] 일일모집 마감 → 홍보 태스크 취소", campaign_id)
                 cancel_campaign_tasks(campaign_id)
         except Exception as e:
             logger.warning("모집마감 자동처리 실패: %s", e)
