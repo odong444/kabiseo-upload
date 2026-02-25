@@ -75,3 +75,22 @@ def request_notification(name: str, phone: str, message: str) -> bool:
     phone = _format_phone(phone)
     friend_name = f"{name} {phone}"
     return send_task("notification", {"name": friend_name, "message": message}, priority=2)
+
+
+def cancel_campaign_tasks(campaign_id: str) -> int:
+    """서버PC의 해당 캠페인 대기 홍보 태스크 일괄 취소. 취소된 건수 반환."""
+    try:
+        r = requests.post(
+            f"{TASK_API_URL}/api/task/cancel-campaign",
+            json={"campaign_id": campaign_id},
+            headers={"X-API-Key": TASK_API_KEY},
+            timeout=5,
+        )
+        if r.ok:
+            count = r.json().get("cancelled", 0)
+            if count:
+                logger.info("캠페인 [%s] 홍보 태스크 %d건 취소", campaign_id, count)
+            return count
+    except Exception as e:
+        logger.warning("캠페인 태스크 취소 요청 실패: %s", e)
+    return 0
