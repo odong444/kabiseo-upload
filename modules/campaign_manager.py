@@ -37,6 +37,13 @@ class CampaignManager:
         except Exception:
             pass
 
+        # 오늘 신청 건수
+        today_counts = {}
+        try:
+            today_counts = self.db.count_today_all_campaigns()
+        except Exception:
+            pass
+
         active = []
         for c in all_campaigns:
             status = c.get("상태", "")
@@ -48,8 +55,17 @@ class CampaignManager:
                 campaign_id = c.get("캠페인ID", "")
                 # 실제 신청 건수 우선, 없으면 완료수량
                 done = actual_counts.get(campaign_id, 0) or safe_int(c.get("완료수량", 0))
-                remaining = total - done
-                if remaining > 0:
+                total_remaining = total - done
+                if total_remaining > 0:
+                    # 일일 목표가 있으면 일일 잔여 기준
+                    daily_target = self._get_today_target(c)
+                    if daily_target > 0:
+                        today_done = today_counts.get(campaign_id, 0)
+                        remaining = min(total_remaining, daily_target - today_done)
+                    else:
+                        remaining = total_remaining
+                    if remaining <= 0:
+                        continue
                     c["_남은수량"] = remaining
                     c["_완료수량"] = done
                     c["_buy_time_active"] = is_within_buy_time(c.get("구매가능시간", ""))
@@ -113,7 +129,7 @@ class CampaignManager:
             total = safe_int(c.get("총수량", 0))
             campaign_id = c.get("캠페인ID", "")
             done = actual_counts.get(campaign_id, 0) or safe_int(c.get("완료수량", 0))
-            remaining = total - done
+            total_remaining = total - done
 
             # 모집중이 아닌 캠페인(중지/마감 등)은 목록에서 제외
             if campaign_status not in ("모집중", "진행중", ""):
@@ -122,7 +138,7 @@ class CampaignManager:
             # 마감 판단 (모집중이지만 잔여수량 0)
             is_closed = False
             closed_reason = ""
-            if remaining <= 0:
+            if total_remaining <= 0:
                 is_closed = True
                 closed_reason = "마감"
 
@@ -146,6 +162,13 @@ class CampaignManager:
             if not is_closed:
                 card_index += 1
             card_value = f"campaign_{card_index}" if not is_closed else ""
+            # 실효 잔여: 일일목표가 있으면 일일 잔여와 총 잔여 중 작은 값
+            if daily_target > 0:
+                daily_remaining = daily_target - today_done
+                remaining = min(total_remaining, daily_remaining)
+            else:
+                remaining = total_remaining
+
             card = {
                 "value": card_value,
                 "name": c.get("캠페인명", "") or c.get("상품명", ""),
