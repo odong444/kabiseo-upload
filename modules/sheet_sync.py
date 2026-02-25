@@ -61,7 +61,13 @@ _SYNC_SQL = """
     ORDER BY p.id
 """
 
-FULL_SYNC_EVERY = 30  # 30 사이클(=30분)마다 전체 재동기화
+FULL_SYNC_EVERY = 360  # 360 사이클(=6시간)마다 전체 재동기화
+
+# 변경분만 가져오는 쿼리
+_SYNC_CHANGED_SQL = _SYNC_SQL.replace("ORDER BY p.id", "WHERE (p.updated_at > %s OR p.created_at > %s) ORDER BY p.id")
+
+# ID만 가져오는 경량 쿼리 (삭제 감지용)
+_SYNC_IDS_SQL = "SELECT id FROM progress ORDER BY id"
 
 
 class SheetSync:
@@ -164,29 +170,24 @@ class SheetSync:
     # ──────── 증분 동기화 ────────
 
     def _incremental_sync(self):
-        """변경분만 반영 (추가/수정/삭제)"""
-        all_rows = self.db._fetchall(_SYNC_SQL)
-        db_map = {r["id"]: r for r in all_rows}
-        db_ids = set(db_map.keys())
+        """변경분만 DB에서 가져와서 부분 수정"""
         sheet_ids = set(self._id_row_map.keys())
 
-        new_ids = db_ids - sheet_ids
+        # 1) 삭제 감지: ID만 경량 조회
+        current_ids_rows = self.db._fetchall(_SYNC_IDS_SQL)
+        db_ids = {r["id"] for r in current_ids_rows}
         deleted_ids = sheet_ids - db_ids
 
-        # 수정된 행: updated_at > last_sync
-        updated_ids = set()
+        # 2) 변경/추가분: updated_at > last_sync 인 것만 조회
+        changed_rows = []
         if self._last_sync_utc:
-            for r in all_rows:
-                pid = r["id"]
-                if pid not in sheet_ids or pid in new_ids:
-                    continue
-                ut = r.get("updated_at")
-                if ut:
-                    # timezone-aware 비교
-                    if ut.tzinfo is None:
-                        ut = ut.replace(tzinfo=timezone.utc)
-                    if ut > self._last_sync_utc:
-                        updated_ids.add(pid)
+            changed_rows = self.db._fetchall(
+                _SYNC_CHANGED_SQL, (self._last_sync_utc, self._last_sync_utc)
+            )
+        changed_map = {r["id"]: r for r in changed_rows}
+
+        new_ids = {pid for pid in changed_map if pid not in sheet_ids}
+        updated_ids = {pid for pid in changed_map if pid in sheet_ids}
 
         if not new_ids and not deleted_ids and not updated_ids:
             return
@@ -195,7 +196,6 @@ class SheetSync:
         if deleted_ids:
             del_rows_asc = sorted([self._id_row_map[pid] for pid in deleted_ids])
 
-            # Sheets API batch delete (역순)
             requests = []
             for row_num in reversed(del_rows_asc):
                 requests.append({
@@ -203,7 +203,7 @@ class SheetSync:
                         "range": {
                             "sheetId": self.worksheet.id,
                             "dimension": "ROWS",
-                            "startIndex": row_num - 1,  # 0-indexed
+                            "startIndex": row_num - 1,
                             "endIndex": row_num,
                         }
                     }
@@ -211,7 +211,6 @@ class SheetSync:
             if requests:
                 self.spreadsheet.batch_update({"requests": requests})
 
-            # map 재계산: 삭제된 행보다 아래 행들 올림
             for pid in deleted_ids:
                 del self._id_row_map[pid]
             for pid in list(self._id_row_map):
@@ -225,7 +224,7 @@ class SheetSync:
             for pid in updated_ids:
                 if pid in self._id_row_map:
                     row_num = self._id_row_map[pid]
-                    row_data = self._build_row(db_map[pid])
+                    row_data = self._build_row(changed_map[pid])
                     batch.append({
                         "range": f"A{row_num}:{_LAST_COL}{row_num}",
                         "values": [row_data],
@@ -238,11 +237,10 @@ class SheetSync:
             next_row = max(self._id_row_map.values(), default=1) + 1
             new_data = []
             for pid in sorted(new_ids):
-                new_data.append(self._build_row(db_map[pid]))
+                new_data.append(self._build_row(changed_map[pid]))
                 self._id_row_map[pid] = next_row
                 next_row += 1
 
-            # 시트 크기 확장
             needed = next_row + 10
             if self.worksheet.row_count < needed:
                 self.worksheet.resize(rows=needed, cols=_NUM_COLS)
