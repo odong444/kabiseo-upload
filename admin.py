@@ -578,7 +578,7 @@ def api_ai_override():
 @admin_bp.route("/api/ai-verify/recheck", methods=["POST"])
 @admin_required
 def api_ai_recheck():
-    """AI 검수 재실행"""
+    """AI 검수 재실행 (단건)"""
     if not models.db_manager:
         return jsonify({"ok": False, "message": "시스템 초기화 중"})
     data = request.get_json(silent=True) or {}
@@ -602,6 +602,55 @@ def api_ai_recheck():
         return jsonify({"ok": True, "message": "AI 검수 재실행 중"})
     except Exception as e:
         logger.error(f"AI 재검수 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/ai-verify/batch", methods=["POST"])
+@admin_required
+def api_ai_batch():
+    """기존 건 AI 검수 일괄 실행 (캡쳐 URL이 있고 AI 결과가 없는 건)"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    limit = int(data.get("limit", 50))
+
+    try:
+        from modules.capture_verifier import verify_capture_async
+
+        # 구매캡쳐 URL이 있지만 AI 검수 안 된 건
+        rows = models.db_manager._fetchall("""
+            SELECT id, campaign_id, purchase_capture_url, review_capture_url
+            FROM progress
+            WHERE (
+                (purchase_capture_url != '' AND purchase_capture_url IS NOT NULL AND (ai_purchase_result = '' OR ai_purchase_result IS NULL))
+                OR
+                (review_capture_url != '' AND review_capture_url IS NOT NULL AND (ai_review_result = '' OR ai_review_result IS NULL))
+            )
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (limit,))
+
+        triggered = 0
+        for row in rows:
+            progress_id = row["id"]
+            campaign_id = row.get("campaign_id", "")
+            ai_instructions = ""
+            if campaign_id:
+                campaign = models.db_manager.get_campaign_by_id(campaign_id)
+                if campaign:
+                    ai_instructions = campaign.get("AI검수지침", "")
+
+            if row.get("purchase_capture_url"):
+                verify_capture_async(row["purchase_capture_url"], "purchase", progress_id, models.db_manager, ai_instructions)
+                triggered += 1
+
+            if row.get("review_capture_url"):
+                verify_capture_async(row["review_capture_url"], "review", progress_id, models.db_manager, ai_instructions)
+                triggered += 1
+
+        return jsonify({"ok": True, "message": f"{triggered}건 AI 검수 시작", "count": triggered})
+    except Exception as e:
+        logger.error(f"AI 일괄검수 에러: {e}")
         return jsonify({"ok": False, "message": str(e)})
 
 

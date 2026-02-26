@@ -334,9 +334,11 @@
             <div id="timeoutList"></div>
         </div>
 
-        <div class="result-count" style="display:flex;align-items:center;gap:16px;">
+        <div class="result-count" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
             <span>검색 결과: <strong>{{ items|default([])|length }}</strong>건</span>
             <button class="btn-kakao" style="font-size:13px;padding:6px 16px;" onclick="bulkKakao()">선택 카톡 발송</button>
+            <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:600;cursor:pointer;" onclick="runAiBatch()">AI 일괄검수</button>
+            <span id="aiBatchResult" style="font-size:13px;color:#888;"></span>
         </div>
 
         <!-- Table -->
@@ -515,6 +517,32 @@
         document.getElementById('kakaoTarget').textContent = '대상: 1건';
         document.getElementById('kakaoMessage').value = '';
         document.getElementById('kakaoModal').style.display = 'flex';
+    }
+
+    function runAiBatch() {
+        if (!confirm('캡쳐 URL이 있고 AI 검수가 안 된 건을 일괄 검수합니다.\n진행하시겠습니까?')) return;
+        var el = document.getElementById('aiBatchResult');
+        el.textContent = '검수 실행 중...';
+        el.style.color = '#1d4ed8';
+        fetch('/admin/api/ai-verify/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ limit: 100 })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                el.textContent = data.message + ' (백그라운드 처리 중, 잠시 후 새로고침)';
+                el.style.color = '#16a34a';
+            } else {
+                el.textContent = '오류: ' + (data.message || '');
+                el.style.color = '#dc2626';
+            }
+        })
+        .catch(function() {
+            el.textContent = '네트워크 오류';
+            el.style.color = '#dc2626';
+        });
     }
 
     function bulkKakao() {
