@@ -13,7 +13,7 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
-from modules.utils import today_str, now_kst
+from modules.utils import today_str, now_kst, KST
 
 logger = logging.getLogger(__name__)
 
@@ -783,7 +783,7 @@ class DBManager:
             "id": row["id"],
             "캠페인ID": row.get("campaign_id", ""),
             "업체명": campaign.get("업체명", "") if campaign else "",
-            "날짜": row["created_at"].strftime("%Y-%m-%d %H:%M") if row.get("created_at") else "",
+            "날짜": row["created_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("created_at") else "",
             "제품명": (campaign.get("캠페인명", "") or campaign.get("상품명", "")) if campaign else "",
             "수취인명": row.get("recipient_name", ""),
             "연락처": row.get("phone", ""),
