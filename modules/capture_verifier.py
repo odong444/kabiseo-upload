@@ -8,6 +8,7 @@ Google Drive 이미지를 다운로드 → Gemini 2.0 Flash로 분석.
 import io
 import json
 import logging
+import os
 import re
 import threading
 
@@ -15,11 +16,11 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-# Gemini API
-_GEMINI_API_KEY = "AIzaSyDDpgXPLCq-ZfOPq9tgyScD6Y1pBMC9Cf4"
-_GEMINI_URL = (
-    f"https://generativelanguage.googleapis.com/v1beta/models/"
-    f"gemini-2.0-flash:generateContent?key={_GEMINI_API_KEY}"
+# Gemini API (환경변수에서 로드)
+_GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+_GEMINI_BASE_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "gemini-2.0-flash:generateContent"
 )
 
 # ── 기본 프롬프트 ──
@@ -107,6 +108,11 @@ def _download_drive_image(file_id: str) -> tuple[bytes, str] | None:
 
 def _call_gemini(image_bytes: bytes, mime_type: str, prompt: str) -> dict | None:
     """Gemini Vision API 호출"""
+    api_key = _GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        logger.error("GEMINI_API_KEY 환경변수가 설정되지 않았습니다")
+        return None
+
     import base64
     b64 = base64.b64encode(image_bytes).decode("utf-8")
 
@@ -131,8 +137,9 @@ def _call_gemini(image_bytes: bytes, mime_type: str, prompt: str) -> dict | None
         },
     }
 
+    url = f"{_GEMINI_BASE_URL}?key={api_key}"
     try:
-        resp = requests.post(_GEMINI_URL, json=payload, timeout=60)
+        resp = requests.post(url, json=payload, timeout=60)
         if resp.status_code != 200:
             logger.error("Gemini API 에러: %s %s", resp.status_code, resp.text[:300])
             return None
