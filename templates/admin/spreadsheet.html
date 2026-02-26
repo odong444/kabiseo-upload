@@ -439,13 +439,8 @@
                 <button class="capture-modal-close" onclick="closeCapture()">&times;</button>
             </div>
             <div class="capture-modal-body">
-                <div class="img-col">
-                    <div class="img-label">구매내역 캡쳐</div>
-                    <div id="capturePurchaseImg"></div>
-                </div>
-                <div class="img-col">
-                    <div class="img-label">리뷰 캡쳐</div>
-                    <div id="captureReviewImg"></div>
+                <div class="img-col" style="flex:1;">
+                    <div id="captureImg"></div>
                 </div>
             </div>
         </div>
@@ -483,16 +478,15 @@
         var data = CAPTURE_DATA[progressId];
         if (!data) return;
         var title = type === 'purchase' ? '구매내역 캡쳐' : '리뷰 캡쳐';
+        var link = type === 'purchase' ? data.purchase : data.review;
         document.getElementById('captureModalTitle').textContent = title + ' (ID: ' + progressId + ')';
-        renderCaptureFrame('capturePurchaseImg', data.purchase);
-        renderCaptureFrame('captureReviewImg', data.review);
+        renderCaptureFrame('captureImg', link);
         document.getElementById('captureModal').classList.add('open');
     }
 
     function closeCapture() {
         document.getElementById('captureModal').classList.remove('open');
-        document.getElementById('capturePurchaseImg').innerHTML = '';
-        document.getElementById('captureReviewImg').innerHTML = '';
+        document.getElementById('captureImg').innerHTML = '';
     }
 
     document.getElementById('captureModal').addEventListener('click', function(e) {
