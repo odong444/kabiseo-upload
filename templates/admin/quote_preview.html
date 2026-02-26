@@ -3,151 +3,218 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>견적서 #{{ quote.id }} - 미리보기</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>견적서 #{{ quote.id }}</title>
     <style>
+    @page { size: A4; margin: 15mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; background: #f0f0f0; color: #333; font-size: 13px; }
+    .page { width: 210mm; min-height: 297mm; margin: 20px auto; background: #fff; padding: 20mm; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
     @media print {
-        .admin-header, .no-print { display: none !important; }
-        .admin-main { padding: 0 !important; }
-        .quote-doc { box-shadow: none !important; }
+        body { background: #fff; }
+        .page { margin: 0; padding: 15mm; box-shadow: none; width: 100%; min-height: auto; }
+        .no-print { display: none !important; }
     }
-    .quote-doc {
-        max-width: 800px; margin: 0 auto; background: #fff; border-radius: 12px;
-        padding: 40px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    }
-    .quote-header {
-        text-align: center; border-bottom: 3px solid #3c1e1e; padding-bottom: 20px;
-        margin-bottom: 30px;
-    }
-    .quote-header h2 { font-size: 24px; color: #3c1e1e; margin: 0 0 6px 0; }
-    .quote-header .subtitle { font-size: 14px; color: #888; }
-    .quote-table {
-        width: 100%; border-collapse: collapse; margin-bottom: 24px;
-    }
-    .quote-table th {
-        text-align: left; padding: 10px 14px; background: #f8f5f0;
-        border: 1px solid #e0dcd5; font-size: 13px; color: #555;
-        width: 140px; font-weight: 600;
-    }
-    .quote-table td {
-        padding: 10px 14px; border: 1px solid #e0dcd5; font-size: 14px;
-        color: #333;
-    }
-    .section-title {
-        font-size: 16px; font-weight: 700; color: #3c1e1e; margin: 28px 0 12px 0;
-        padding-left: 10px; border-left: 4px solid #fee500;
-    }
-    .btn-toolbar {
-        display: flex; gap: 10px; justify-content: center; margin-top: 30px;
-    }
-    .btn-toolbar a, .btn-toolbar button {
-        padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;
-        cursor: pointer; text-decoration: none; border: 1px solid #ddd;
-    }
-    .btn-print { background: #3c1e1e; color: #fff; border-color: #3c1e1e; }
-    .btn-print:hover { background: #5a3030; }
-    .btn-back { background: #fff; color: #555; }
-    .btn-back:hover { background: #f5f5f5; }
-    .status-badge {
-        display: inline-block; padding: 4px 14px; border-radius: 20px;
-        font-size: 13px; font-weight: 700;
-    }
-    .status-badge.작성중 { background: #f3f4f6; color: #6b7280; }
-    .status-badge.확인대기 { background: #fef3c7; color: #92400e; }
-    .status-badge.승인 { background: #d1fae5; color: #065f46; }
-    .status-badge.거절 { background: #fee2e2; color: #991b1b; }
+
+    .title { text-align: center; font-size: 28px; font-weight: 700; letter-spacing: 20px; margin-bottom: 24px; border-bottom: 3px double #333; padding-bottom: 12px; }
+
+    .header-area { display: flex; gap: 20px; margin-bottom: 20px; }
+    .header-left { flex: 1; }
+    .header-right { flex: 1.2; }
+
+    .recipient { font-size: 16px; margin-bottom: 12px; }
+    .recipient strong { font-size: 18px; border-bottom: 1px solid #333; padding-bottom: 2px; }
+    .date { font-size: 13px; color: #555; margin-bottom: 16px; }
+    .greeting { font-size: 14px; margin-bottom: 8px; }
+
+    .supplier-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .supplier-table th, .supplier-table td { border: 1px solid #999; padding: 5px 8px; }
+    .supplier-table th { background: #f0f0f0; font-weight: 600; width: 70px; text-align: center; }
+    .supplier-table .header-th { background: #ddd; text-align: center; font-weight: 700; width: 30px; writing-mode: vertical-rl; letter-spacing: 4px; }
+
+    .total-line { display: flex; align-items: center; border: 2px solid #333; padding: 10px 16px; margin: 20px 0; font-size: 14px; }
+    .total-line .lbl { font-weight: 700; margin-right: 20px; white-space: nowrap; }
+    .total-line .korean { flex: 1; }
+    .total-line .number { font-weight: 700; font-size: 16px; white-space: nowrap; }
+    .total-line .vat { font-size: 12px; color: #555; margin-left: 12px; }
+
+    .items-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+    .items-table th { background: #f0f0f0; border: 1px solid #999; padding: 7px 6px; font-weight: 600; text-align: center; }
+    .items-table td { border: 1px solid #999; padding: 6px; text-align: right; }
+    .items-table td.left { text-align: left; }
+    .items-table td.center { text-align: center; }
+    .items-table .subtotal td { font-weight: 700; background: #f8f8f8; }
+
+    .notes-section { margin-top: 20px; }
+    .notes-title { font-size: 13px; font-weight: 700; text-align: center; border: 1px solid #999; background: #f0f0f0; padding: 5px; }
+    .notes-body { border: 1px solid #999; border-top: none; padding: 12px; font-size: 12px; line-height: 1.8; white-space: pre-wrap; min-height: 60px; }
+
+    .toolbar { text-align: center; margin: 20px 0; }
+    .toolbar a, .toolbar button { padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; border: 1px solid #ddd; margin: 0 4px; }
+    .toolbar .btn-print { background: #3c1e1e; color: #fff; border-color: #3c1e1e; }
+    .toolbar .btn-back { background: #fff; color: #555; }
     </style>
 </head>
-<body class="admin-body">
-    <header class="admin-header">
-        <div class="admin-header-inner">
-            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
-            <nav class="admin-nav">
-                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
-                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
-                <a href="{{ url_for('admin.quotes') }}" class="active">견적서</a>
-                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
-                <a href="{{ url_for('admin.reviews') }}">검수</a>
-                <a href="{{ url_for('admin.settlement') }}">정산</a>
-                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
-                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
-                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
-                <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
-                <a href="{{ url_for('admin.guide') }}">가이드</a>
-                <a href="{{ url_for('admin.settings') }}">설정</a>
-                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
-            </nav>
-        </div>
-    </header>
+<body>
+    <div class="toolbar no-print">
+        <a href="{{ url_for('admin.quotes') }}" class="btn-back">목록</a>
+        <a href="{{ url_for('admin.quote_edit', quote_id=quote.id) }}" class="btn-back">수정</a>
+        <button class="btn-print" onclick="window.print()">인쇄</button>
+    </div>
 
-    <main class="admin-main">
-        {% set p = quote.parsed_data if quote.parsed_data is mapping else {} %}
+    {% set s = supplier or {} %}
+    {% set items = quote.items if quote.items is iterable and quote.items is not string else [] %}
 
-        <div class="quote-doc">
-            <div class="quote-header">
-                <h2>견 적 서</h2>
-                <div class="subtitle">
-                    #{{ quote.id }} | {{ quote.created_at.strftime('%Y-%m-%d') if quote.created_at else '-' }}
-                    | <span class="status-badge {{ quote.status }}">{{ quote.status }}</span>
-                </div>
+    <div class="page">
+        <div class="title">견 적 서</div>
+
+        <div class="header-area">
+            <div class="header-left">
+                <div class="recipient"><strong>{{ quote.recipient or '-' }}</strong> &nbsp; 귀하</div>
+                <div class="date">{{ quote.created_at.strftime('%Y년 %m월 %d일') if quote.created_at else '-' }}</div>
+                <div class="greeting">아래와 같이 견적합니다.</div>
             </div>
-
-            <div class="section-title">상품 정보</div>
-            <table class="quote-table">
-                <tr><th>업체명</th><td>{{ p.get('업체명', '-') }}</td></tr>
-                <tr><th>상품명</th><td>{{ p.get('상품명', '-') }}</td></tr>
-                <tr><th>상품링크</th><td>{% if p.get('상품링크') %}<a href="{{ p.상품링크 }}" target="_blank">{{ p.상품링크 }}</a>{% else %}-{% endif %}</td></tr>
-                <tr><th>플랫폼</th><td>{{ p.get('플랫폼', '-') }}</td></tr>
-                <tr><th>캠페인유형</th><td>{{ p.get('캠페인유형', '-') }}</td></tr>
-                <tr><th>상품금액</th><td>{{ p.get('상품금액', '-') }}</td></tr>
-                <tr><th>리뷰비</th><td>{{ p.get('리뷰비', '-') }}</td></tr>
-                <tr><th>옵션</th><td>{{ p.get('옵션', '-') }}</td></tr>
-            </table>
-
-            <div class="section-title">수량 / 일정</div>
-            <table class="quote-table">
-                <tr><th>총수량</th><td>{{ p.get('총수량', '-') }}</td></tr>
-                <tr><th>일수량</th><td>{{ p.get('일수량', '-') }}</td></tr>
-                <tr><th>진행일수</th><td>{{ p.get('진행일수', '-') }}</td></tr>
-            </table>
-
-            <div class="section-title">유입 / 검색</div>
-            <table class="quote-table">
-                <tr><th>유입방식</th><td>{{ p.get('유입방식', '-') }}</td></tr>
-                <tr><th>키워드</th><td>{{ p.get('키워드', '-') }}</td></tr>
-                <tr><th>키워드 위치</th><td>{{ p.get('키워드위치', '-') }}</td></tr>
-            </table>
-
-            <div class="section-title">배송 / 운영</div>
-            <table class="quote-table">
-                <tr><th>당일발송</th><td>{{ p.get('당일발송', '-') }}</td></tr>
-                <tr><th>발송마감시간</th><td>{{ p.get('발송마감', '-') }}</td></tr>
-                <tr><th>택배사</th><td>{{ p.get('택배사', '-') }}</td></tr>
-                <tr><th>배송대행(3PL)</th><td>{{ p.get('3PL사용', '-') }}</td></tr>
-                <tr><th>주말작업</th><td>{{ p.get('주말작업', '-') }}</td></tr>
-                <tr><th>중복허용</th><td>{{ p.get('중복허용', '-') }}</td></tr>
-                <tr><th>구매가능시간</th><td>{{ p.get('구매가능시간', '-') }}</td></tr>
-            </table>
-
-            <div class="section-title">리뷰</div>
-            <table class="quote-table">
-                <tr><th>리뷰 방식</th><td>{{ p.get('리뷰제공', '-') }}</td></tr>
-                <tr><th>리뷰 원고 수</th><td>{{ p.get('리뷰원고수', '-') }}</td></tr>
-            </table>
-
-            {% if p.get('메모') or quote.memo %}
-            <div class="section-title">메모</div>
-            <table class="quote-table">
-                <tr><th>특이사항</th><td>{{ p.get('메모', '') }}{{ (' / ' + quote.memo) if quote.memo else '' }}</td></tr>
-            </table>
-            {% endif %}
-
-            <div class="btn-toolbar no-print">
-                <a href="{{ url_for('admin.quotes') }}" class="btn-back">목록</a>
-                <a href="{{ url_for('admin.quote_edit', quote_id=quote.id) }}" class="btn-back">수정</a>
-                <button class="btn-print" onclick="window.print()">인쇄</button>
+            <div class="header-right">
+                {% if s %}
+                <table class="supplier-table">
+                    <tr>
+                        <th rowspan="5" class="header-th">공<br>급<br>자</th>
+                        <th>사업자<br>등록번호</th>
+                        <td colspan="3">{{ s.get('biz_number','') }}</td>
+                    </tr>
+                    <tr>
+                        <th>상호</th>
+                        <td>{{ s.get('company_name','') }}</td>
+                        <th>대표자</th>
+                        <td>{{ s.get('ceo_name','') }} (인)</td>
+                    </tr>
+                    <tr>
+                        <th>사업장<br>소재지</th>
+                        <td colspan="3">{{ s.get('address','') }}</td>
+                    </tr>
+                    <tr>
+                        <th>업태</th>
+                        <td>{{ s.get('biz_type','') }}</td>
+                        <th>업종</th>
+                        <td>{{ s.get('biz_category','') }}</td>
+                    </tr>
+                    <tr>
+                        <th>계좌번호</th>
+                        <td colspan="3">{{ s.get('bank_account','') }}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="border:none;"></td>
+                        <th>담당자</th>
+                        <td>{{ s.get('manager_name','') }}</td>
+                        <th>연락처</th>
+                        <td>{{ s.get('manager_phone','') }}</td>
+                    </tr>
+                </table>
+                {% endif %}
             </div>
         </div>
-    </main>
+
+        <div class="total-line" id="totalLine">
+            <span class="lbl">합계금액</span>
+            <span class="korean" id="totalKorean"></span>
+            <span class="number">( ₩ <span id="totalNum">0</span> )</span>
+            <span class="vat">부가세 포함</span>
+        </div>
+
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width:100px;">품목</th>
+                    <th style="width:90px;">규격</th>
+                    <th style="width:60px;">수량</th>
+                    <th style="width:90px;">단가</th>
+                    <th style="width:110px;">공급가액</th>
+                    <th style="width:80px;">세액</th>
+                    <th style="width:110px;">비고</th>
+                </tr>
+            </thead>
+            <tbody id="itemsBody">
+                {% for item in items %}
+                <tr>
+                    <td class="left">{{ item.get('품목','') }}</td>
+                    <td class="center">{{ item.get('규격','') }}</td>
+                    <td class="center item-qty">{{ item.get('수량','') }}</td>
+                    <td class="item-price">{{ item.get('단가','') }}</td>
+                    <td class="item-supply"></td>
+                    <td class="item-tax"></td>
+                    <td class="item-bigo"></td>
+                </tr>
+                {% endfor %}
+                <!-- 빈 행 채우기 (최소 10행) -->
+            </tbody>
+            <tfoot>
+                <tr class="subtotal">
+                    <td class="left" colspan="4" style="text-align:right;padding-right:10px;font-weight:700;">합계</td>
+                    <td id="footSupply"></td>
+                    <td id="footTax"></td>
+                    <td id="footTotal"></td>
+                </tr>
+            </tfoot>
+        </table>
+
+        {% if quote.notes %}
+        <div class="notes-section">
+            <div class="notes-title">특 이 사 항</div>
+            <div class="notes-body">{{ quote.notes }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+    function fmt(n) { return n.toLocaleString('ko-KR'); }
+    function numToKorean(n) {
+        if (n===0) return '영';
+        var units=['','만','억','조'], digits=['','일','이','삼','사','오','육','칠','팔','구'], smalls=['','십','백','천'];
+        var result='', ui=0;
+        while(n>0){var part=n%10000;if(part>0){var ps='',pi=0,p=part;while(p>0){var d=p%10;if(d>0)ps=digits[d]+smalls[pi]+ps;p=Math.floor(p/10);pi++;}result=ps+units[ui]+result;}n=Math.floor(n/10000);ui++;}
+        return result;
+    }
+
+    // 계산
+    var rows = document.querySelectorAll('#itemsBody tr');
+    var totalSupply = 0, totalTax = 0, totalAmount = 0;
+    rows.forEach(function(tr) {
+        var qtyEl = tr.querySelector('.item-qty');
+        var priceEl = tr.querySelector('.item-price');
+        var supplyEl = tr.querySelector('.item-supply');
+        var taxEl = tr.querySelector('.item-tax');
+        var bigoEl = tr.querySelector('.item-bigo');
+        if (!qtyEl || !priceEl) return;
+
+        var qty = parseInt(String(qtyEl.textContent).replace(/,/g,'')) || 0;
+        var price = parseInt(String(priceEl.textContent).replace(/,/g,'')) || 0;
+        var supply = qty * price;
+        var tax = Math.round(supply * 0.1);
+        var bigo = supply + tax;
+
+        priceEl.textContent = fmt(price);
+        supplyEl.textContent = fmt(supply);
+        taxEl.textContent = fmt(tax);
+        bigoEl.textContent = fmt(bigo);
+
+        totalSupply += supply;
+        totalTax += tax;
+        totalAmount += bigo;
+    });
+
+    document.getElementById('footSupply').textContent = fmt(totalSupply);
+    document.getElementById('footTax').textContent = fmt(totalTax);
+    document.getElementById('footTotal').textContent = fmt(totalAmount);
+    document.getElementById('totalNum').textContent = fmt(totalAmount);
+    document.getElementById('totalKorean').textContent = numToKorean(totalAmount) + ' 원';
+
+    // 빈 행 채우기 (최소 10행)
+    var tbody = document.getElementById('itemsBody');
+    var currentRows = tbody.children.length;
+    for (var i = currentRows; i < 10; i++) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td>';
+        tbody.appendChild(tr);
+    }
+    </script>
 </body>
 </html>

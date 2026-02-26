@@ -97,10 +97,9 @@
                 <thead>
                     <tr>
                         <th style="width:60px;">#</th>
-                        <th>업체명</th>
-                        <th>상품명</th>
-                        <th>플랫폼</th>
-                        <th>총수량</th>
+                        <th>받는곳</th>
+                        <th>품목수</th>
+                        <th>합계금액</th>
                         <th>상태</th>
                         <th>캠페인ID</th>
                         <th>등록일</th>
@@ -109,13 +108,12 @@
                 </thead>
                 <tbody>
                 {% for item in items %}
-                {% set p = item.parsed_data if item.parsed_data is mapping else {} %}
+                {% set q_items = item.items if item.items is iterable and item.items is not string else [] %}
                 <tr>
                     <td>{{ item.id }}</td>
-                    <td>{{ p.get('업체명', '-') if p else '-' }}</td>
-                    <td>{{ p.get('상품명', '-') if p else '-' }}</td>
-                    <td>{{ p.get('플랫폼', '-') if p else '-' }}</td>
-                    <td>{{ p.get('총수량', '-') if p else '-' }}</td>
+                    <td>{{ item.recipient or '-' }}</td>
+                    <td>{{ q_items|length }}건</td>
+                    <td class="quote-total" data-items='{{ q_items|tojson }}'></td>
                     <td><span class="admin-status-badge {{ item.status }}">{{ item.status }}</span></td>
                     <td>{{ item.campaign_id or '-' }}</td>
                     <td>{{ item.created_at.strftime('%m/%d %H:%M') if item.created_at else '-' }}</td>
@@ -143,6 +141,23 @@
             .then(r => r.json())
             .then(d => { if (d.ok) location.reload(); else alert(d.message || '삭제 실패'); });
     }
+
+    // 합계금액 계산
+    document.querySelectorAll('.quote-total').forEach(function(td) {
+        try {
+            var items = JSON.parse(td.dataset.items || '[]');
+            var total = 0;
+            items.forEach(function(it) {
+                var qty = parseInt(String(it['수량'] || 0).replace(/,/g, '')) || 0;
+                var price = parseInt(String(it['단가'] || 0).replace(/,/g, '')) || 0;
+                var supply = qty * price;
+                total += supply + Math.round(supply * 0.1);
+            });
+            td.textContent = total > 0 ? '₩' + total.toLocaleString('ko-KR') : '-';
+        } catch(e) {
+            td.textContent = '-';
+        }
+    });
     </script>
 </body>
 </html>

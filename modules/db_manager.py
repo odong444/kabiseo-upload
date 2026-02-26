@@ -202,11 +202,31 @@ CREATE TABLE IF NOT EXISTS managers (
     UNIQUE(name, phone)
 );
 
+CREATE TABLE IF NOT EXISTS suppliers (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT NOT NULL DEFAULT '',
+    biz_number      TEXT DEFAULT '',
+    company_name    TEXT DEFAULT '',
+    ceo_name        TEXT DEFAULT '',
+    address         TEXT DEFAULT '',
+    biz_type        TEXT DEFAULT '',
+    biz_category    TEXT DEFAULT '',
+    bank_account    TEXT DEFAULT '',
+    manager_name    TEXT DEFAULT '',
+    manager_phone   TEXT DEFAULT '',
+    is_default      BOOLEAN DEFAULT FALSE,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS quotes (
     id              SERIAL PRIMARY KEY,
     status          TEXT DEFAULT '작성중',
     raw_text        TEXT NOT NULL DEFAULT '',
     parsed_data     JSONB DEFAULT '{}',
+    supplier_id     INTEGER,
+    recipient       TEXT DEFAULT '',
+    items           JSONB DEFAULT '[]',
+    notes           TEXT DEFAULT '',
     campaign_id     TEXT,
     memo            TEXT DEFAULT '',
     created_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -1477,18 +1497,74 @@ class DBManager:
             conn.commit()
         return count
 
+    # ─────────── suppliers (공급자 프리셋) ───────────
+
+    def create_supplier(self, data: dict) -> int:
+        return self._execute_returning(
+            """INSERT INTO suppliers (name, biz_number, company_name, ceo_name, address,
+               biz_type, biz_category, bank_account, manager_name, manager_phone, is_default)
+               VALUES (%(name)s, %(biz_number)s, %(company_name)s, %(ceo_name)s, %(address)s,
+               %(biz_type)s, %(biz_category)s, %(bank_account)s, %(manager_name)s, %(manager_phone)s,
+               %(is_default)s) RETURNING id""",
+            {
+                "name": data.get("name", ""),
+                "biz_number": data.get("biz_number", ""),
+                "company_name": data.get("company_name", ""),
+                "ceo_name": data.get("ceo_name", ""),
+                "address": data.get("address", ""),
+                "biz_type": data.get("biz_type", ""),
+                "biz_category": data.get("biz_category", ""),
+                "bank_account": data.get("bank_account", ""),
+                "manager_name": data.get("manager_name", ""),
+                "manager_phone": data.get("manager_phone", ""),
+                "is_default": data.get("is_default", False),
+            },
+        )
+
+    def get_suppliers(self) -> list[dict]:
+        return self._fetchall("SELECT * FROM suppliers ORDER BY is_default DESC, id")
+
+    def get_supplier(self, sid: int) -> dict | None:
+        return self._fetchone("SELECT * FROM suppliers WHERE id = %s", (sid,))
+
+    def get_default_supplier(self) -> dict | None:
+        return self._fetchone("SELECT * FROM suppliers WHERE is_default = TRUE LIMIT 1")
+
+    def update_supplier(self, sid: int, data: dict):
+        cols = ["name", "biz_number", "company_name", "ceo_name", "address",
+                "biz_type", "biz_category", "bank_account", "manager_name", "manager_phone"]
+        sets, params = [], []
+        for c in cols:
+            if c in data:
+                sets.append(f"{c} = %s")
+                params.append(data[c])
+        if not sets:
+            return
+        params.append(sid)
+        self._execute(f"UPDATE suppliers SET {', '.join(sets)} WHERE id = %s", params)
+
+    def set_default_supplier(self, sid: int):
+        self._execute("UPDATE suppliers SET is_default = FALSE WHERE is_default = TRUE")
+        self._execute("UPDATE suppliers SET is_default = TRUE WHERE id = %s", (sid,))
+
+    def delete_supplier(self, sid: int):
+        self._execute("DELETE FROM suppliers WHERE id = %s", (sid,))
+
     # ─────────── quotes (견적서) ───────────
 
-    def create_quote(self, raw_text: str, parsed_data: dict, status: str = "확인대기") -> int:
-        """견적서 생성, 생성된 id 반환"""
+    def create_quote(self, raw_text: str, parsed_data: dict, status: str = "확인대기",
+                     supplier_id: int | None = None, recipient: str = "",
+                     items: list | None = None, notes: str = "") -> int:
         import json
         return self._execute_returning(
-            "INSERT INTO quotes (raw_text, parsed_data, status) VALUES (%s, %s, %s) RETURNING id",
-            (raw_text, json.dumps(parsed_data, ensure_ascii=False), status),
+            """INSERT INTO quotes (raw_text, parsed_data, status, supplier_id, recipient, items, notes)
+               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+            (raw_text, json.dumps(parsed_data, ensure_ascii=False), status,
+             supplier_id, recipient,
+             json.dumps(items or [], ensure_ascii=False), notes),
         )
 
     def get_quotes(self, status: str | None = None) -> list[dict]:
-        """견적서 목록 조회 (최신순)"""
         if status:
             return self._fetchall(
                 "SELECT * FROM quotes WHERE status = %s ORDER BY created_at DESC", (status,)
@@ -1496,23 +1572,24 @@ class DBManager:
         return self._fetchall("SELECT * FROM quotes ORDER BY created_at DESC")
 
     def get_quote(self, quote_id: int) -> dict | None:
-        """견적서 단건 조회"""
         return self._fetchone("SELECT * FROM quotes WHERE id = %s", (quote_id,))
 
-    def update_quote(self, quote_id: int, parsed_data: dict | None = None,
-                     status: str | None = None, memo: str | None = None):
-        """견적서 수정"""
+    def update_quote(self, quote_id: int, **kwargs):
         import json
         sets, params = [], []
-        if parsed_data is not None:
+        for key in ("status", "memo", "recipient", "notes"):
+            if key in kwargs and kwargs[key] is not None:
+                sets.append(f"{key} = %s")
+                params.append(kwargs[key])
+        if "parsed_data" in kwargs and kwargs["parsed_data"] is not None:
             sets.append("parsed_data = %s")
-            params.append(json.dumps(parsed_data, ensure_ascii=False))
-        if status is not None:
-            sets.append("status = %s")
-            params.append(status)
-        if memo is not None:
-            sets.append("memo = %s")
-            params.append(memo)
+            params.append(json.dumps(kwargs["parsed_data"], ensure_ascii=False))
+        if "items" in kwargs and kwargs["items"] is not None:
+            sets.append("items = %s")
+            params.append(json.dumps(kwargs["items"], ensure_ascii=False))
+        if "supplier_id" in kwargs:
+            sets.append("supplier_id = %s")
+            params.append(kwargs["supplier_id"])
         if not sets:
             return
         sets.append("updated_at = NOW()")
@@ -1520,12 +1597,10 @@ class DBManager:
         self._execute(f"UPDATE quotes SET {', '.join(sets)} WHERE id = %s", params)
 
     def approve_quote(self, quote_id: int, campaign_id: str):
-        """견적서 승인 + 캠페인 ID 연결"""
         self._execute(
             "UPDATE quotes SET status = '승인', campaign_id = %s, updated_at = NOW() WHERE id = %s",
             (campaign_id, quote_id),
         )
 
     def delete_quote(self, quote_id: int):
-        """견적서 삭제"""
         self._execute("DELETE FROM quotes WHERE id = %s", (quote_id,))

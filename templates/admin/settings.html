@@ -76,6 +76,53 @@
         z-index: 999;
     }
     .toast.show { opacity: 1; }
+
+    /* 공급자 프리셋 */
+    .supplier-card {
+        background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+        padding: 1.2rem; margin-bottom: 0.75rem; position: relative;
+    }
+    .supplier-card.is-default { border-color: #3b82f6; border-width: 2px; }
+    .supplier-card .sup-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+    .supplier-card .sup-name { font-weight: 700; font-size: 15px; }
+    .supplier-card .default-badge {
+        font-size: 11px; padding: 2px 8px; border-radius: 12px;
+        background: #dbeafe; color: #1d4ed8; font-weight: 600;
+    }
+    .supplier-card .sup-detail { color: #6b7280; font-size: 13px; line-height: 1.6; }
+    .supplier-card .sup-actions {
+        position: absolute; top: 1rem; right: 1rem;
+        display: flex; gap: 0.5rem; align-items: center;
+    }
+    .btn-sm {
+        padding: 4px 10px; font-size: 12px; border: 1px solid #d1d5db;
+        border-radius: 6px; background: #fff; cursor: pointer; color: #374151;
+    }
+    .btn-sm:hover { background: #f3f4f6; border-color: #3b82f6; color: #3b82f6; }
+    .btn-sm.danger:hover { border-color: #ef4444; color: #ef4444; }
+
+    .sup-form-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+    }
+    .sup-form-grid .full { grid-column: 1 / -1; }
+    .sup-form-grid label { font-size: 13px; font-weight: 600; color: #374151; display: block; margin-bottom: 4px; }
+    .sup-form-grid input {
+        width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db;
+        border-radius: 8px; font-size: 14px;
+    }
+
+    .modal-overlay {
+        display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4); z-index: 1000;
+        justify-content: center; align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+        background: #fff; border-radius: 16px; padding: 2rem; width: 520px;
+        max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .modal-box h3 { margin-bottom: 1.25rem; font-size: 18px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem; }
     </style>
 </head>
 <body class="admin-body">
@@ -178,7 +225,105 @@
             </div>
             {% endif %}
         </div>
+
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin:2.5rem 0;">
+
+        <div class="section-title">공급자 프리셋</div>
+        <p style="color:#6b7280; font-size:13px; margin-bottom:1rem;">
+            견적서 작성 시 공급자 정보를 빠르게 선택할 수 있습니다. 기본 프리셋은 새 견적서에 자동 적용됩니다.
+        </p>
+
+        <div style="margin-bottom:1rem;">
+            <button class="btn btn-primary" onclick="openSupplierModal()">+ 공급자 추가</button>
+        </div>
+
+        <div id="supplierList">
+            {% for s in suppliers %}
+            <div class="supplier-card {{ 'is-default' if s.is_default }}" data-id="{{ s.id }}">
+                <div class="sup-header">
+                    <span class="sup-name">{{ s.name or s.company_name or '이름없음' }}</span>
+                    {% if s.is_default %}<span class="default-badge">기본</span>{% endif %}
+                </div>
+                <div class="sup-detail">
+                    {% if s.company_name %}상호: {{ s.company_name }}{% endif %}
+                    {% if s.ceo_name %} · 대표: {{ s.ceo_name }}{% endif %}
+                    {% if s.biz_number %}<br>사업자등록번호: {{ s.biz_number }}{% endif %}
+                    {% if s.address %}<br>소재지: {{ s.address }}{% endif %}
+                    {% if s.biz_type or s.biz_category %}<br>업태: {{ s.biz_type or '-' }} · 업종: {{ s.biz_category or '-' }}{% endif %}
+                    {% if s.bank_account %}<br>계좌: {{ s.bank_account }}{% endif %}
+                    {% if s.manager_name or s.manager_phone %}<br>담당: {{ s.manager_name or '-' }} {{ s.manager_phone or '' }}{% endif %}
+                </div>
+                <div class="sup-actions">
+                    {% if not s.is_default %}
+                    <button class="btn-sm" onclick="setDefaultSupplier({{ s.id }})">기본설정</button>
+                    {% endif %}
+                    <button class="btn-sm" onclick="editSupplier({{ s.id }})">수정</button>
+                    <button class="btn-sm danger" onclick="deleteSupplier({{ s.id }}, '{{ s.name or s.company_name }}')">삭제</button>
+                </div>
+            </div>
+            {% endfor %}
+
+            {% if not suppliers %}
+            <div style="text-align:center; color:#9ca3af; padding:2rem;">
+                등록된 공급자 프리셋이 없습니다.
+            </div>
+            {% endif %}
+        </div>
     </main>
+
+    <!-- 공급자 추가/수정 모달 -->
+    <div class="modal-overlay" id="supplierModal">
+        <div class="modal-box">
+            <h3 id="supModalTitle">공급자 추가</h3>
+            <input type="hidden" id="supEditId" value="">
+            <div class="sup-form-grid">
+                <div class="full">
+                    <label>프리셋 이름</label>
+                    <input type="text" id="supName" placeholder="예: 우리회사">
+                </div>
+                <div>
+                    <label>상호</label>
+                    <input type="text" id="supCompany" placeholder="회사명">
+                </div>
+                <div>
+                    <label>대표자</label>
+                    <input type="text" id="supCeo" placeholder="대표자명">
+                </div>
+                <div class="full">
+                    <label>사업자등록번호</label>
+                    <input type="text" id="supBizNum" placeholder="000-00-00000">
+                </div>
+                <div class="full">
+                    <label>사업장 소재지</label>
+                    <input type="text" id="supAddress" placeholder="주소">
+                </div>
+                <div>
+                    <label>업태</label>
+                    <input type="text" id="supBizType" placeholder="업태">
+                </div>
+                <div>
+                    <label>업종</label>
+                    <input type="text" id="supBizCategory" placeholder="업종">
+                </div>
+                <div class="full">
+                    <label>계좌번호</label>
+                    <input type="text" id="supBankAccount" placeholder="은행 계좌번호">
+                </div>
+                <div>
+                    <label>담당자</label>
+                    <input type="text" id="supManager" placeholder="담당자명">
+                </div>
+                <div>
+                    <label>연락처</label>
+                    <input type="text" id="supPhone" placeholder="010-0000-0000">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" style="background:#f3f4f6;color:#374151;" onclick="closeSupplierModal()">취소</button>
+                <button class="btn btn-primary" onclick="saveSupplier()">저장</button>
+            </div>
+        </div>
+    </div>
 
     <div class="toast" id="toast"></div>
 
@@ -288,6 +433,99 @@
             showToast('삭제됨');
         }
     }
+
+    // ── 공급자 프리셋 ──
+    function openSupplierModal() {
+        document.getElementById('supModalTitle').textContent = '공급자 추가';
+        document.getElementById('supEditId').value = '';
+        ['supName','supCompany','supCeo','supBizNum','supAddress','supBizType','supBizCategory','supBankAccount','supManager','supPhone']
+            .forEach(id => document.getElementById(id).value = '');
+        document.getElementById('supplierModal').classList.add('active');
+    }
+
+    function closeSupplierModal() {
+        document.getElementById('supplierModal').classList.remove('active');
+    }
+
+    async function editSupplier(id) {
+        const res = await fetch(`/admin/api/suppliers`);
+        const data = await res.json();
+        const s = data.find(x => x.id === id);
+        if (!s) return;
+
+        document.getElementById('supModalTitle').textContent = '공급자 수정';
+        document.getElementById('supEditId').value = id;
+        document.getElementById('supName').value = s.name || '';
+        document.getElementById('supCompany').value = s.company_name || '';
+        document.getElementById('supCeo').value = s.ceo_name || '';
+        document.getElementById('supBizNum').value = s.biz_number || '';
+        document.getElementById('supAddress').value = s.address || '';
+        document.getElementById('supBizType').value = s.biz_type || '';
+        document.getElementById('supBizCategory').value = s.biz_category || '';
+        document.getElementById('supBankAccount').value = s.bank_account || '';
+        document.getElementById('supManager').value = s.manager_name || '';
+        document.getElementById('supPhone').value = s.manager_phone || '';
+        document.getElementById('supplierModal').classList.add('active');
+    }
+
+    async function saveSupplier() {
+        const editId = document.getElementById('supEditId').value;
+        const body = {
+            name: document.getElementById('supName').value.trim(),
+            company_name: document.getElementById('supCompany').value.trim(),
+            ceo_name: document.getElementById('supCeo').value.trim(),
+            biz_number: document.getElementById('supBizNum').value.trim(),
+            address: document.getElementById('supAddress').value.trim(),
+            biz_type: document.getElementById('supBizType').value.trim(),
+            biz_category: document.getElementById('supBizCategory').value.trim(),
+            bank_account: document.getElementById('supBankAccount').value.trim(),
+            manager_name: document.getElementById('supManager').value.trim(),
+            manager_phone: document.getElementById('supPhone').value.trim()
+        };
+        if (!body.name && !body.company_name) {
+            showToast('프리셋 이름 또는 상호를 입력하세요');
+            return;
+        }
+
+        const url = editId ? `/admin/api/suppliers/${editId}` : '/admin/api/suppliers';
+        const method = editId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method, headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.ok || data.id) {
+            showToast(editId ? '수정됨' : '추가됨');
+            closeSupplierModal();
+            location.reload();
+        } else {
+            showToast(data.error || '저장 실패');
+        }
+    }
+
+    async function setDefaultSupplier(id) {
+        const res = await fetch(`/admin/api/suppliers/${id}/default`, {method: 'POST'});
+        const data = await res.json();
+        if (data.ok) {
+            showToast('기본 프리셋 설정됨');
+            location.reload();
+        }
+    }
+
+    async function deleteSupplier(id, name) {
+        if (!confirm(`"${name}" 공급자 프리셋을 삭제하시겠습니까?`)) return;
+        const res = await fetch(`/admin/api/suppliers/${id}`, {method: 'DELETE'});
+        const data = await res.json();
+        if (data.ok) {
+            document.querySelector(`.supplier-card[data-id="${id}"]`).remove();
+            showToast('삭제됨');
+        }
+    }
+
+    // 모달 외부 클릭 시 닫기
+    document.getElementById('supplierModal').addEventListener('click', function(e) {
+        if (e.target === this) closeSupplierModal();
+    });
     </script>
 </body>
 </html>

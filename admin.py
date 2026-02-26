@@ -1065,9 +1065,11 @@ def api_progress_update():
 def settings():
     """담당자 설정 페이지"""
     managers = []
+    suppliers = []
     if models.db_manager:
         managers = models.db_manager.get_managers()
-    return render_template("admin/settings.html", managers=managers)
+        suppliers = models.db_manager.get_suppliers()
+    return render_template("admin/settings.html", managers=managers, suppliers=suppliers)
 
 
 @admin_bp.route("/api/managers", methods=["GET"])
@@ -1184,40 +1186,106 @@ def api_progress_delete():
 
 
 # ═══════════════════════════════════════════
+#  공급자 프리셋 (Suppliers)
+# ═══════════════════════════════════════════
+
+@admin_bp.route("/api/suppliers", methods=["GET"])
+@admin_required
+def api_suppliers_list():
+    if not models.db_manager:
+        return jsonify({"ok": False})
+    return jsonify({"ok": True, "suppliers": models.db_manager.get_suppliers()})
+
+
+@admin_bp.route("/api/suppliers", methods=["POST"])
+@admin_required
+def api_suppliers_create():
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    data = request.get_json(silent=True) or {}
+    sid = models.db_manager.create_supplier(data)
+    return jsonify({"ok": True, "id": sid})
+
+
+@admin_bp.route("/api/suppliers/<int:sid>", methods=["PUT"])
+@admin_required
+def api_suppliers_update(sid):
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    data = request.get_json(silent=True) or {}
+    models.db_manager.update_supplier(sid, data)
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/api/suppliers/<int:sid>", methods=["DELETE"])
+@admin_required
+def api_suppliers_delete(sid):
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    models.db_manager.delete_supplier(sid)
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/api/suppliers/<int:sid>/default", methods=["POST"])
+@admin_required
+def api_suppliers_set_default(sid):
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    models.db_manager.set_default_supplier(sid)
+    return jsonify({"ok": True})
+
+
+# ═══════════════════════════════════════════
 #  견적서 (Quotes)
 # ═══════════════════════════════════════════
 
-QUOTE_PARSE_PROMPT = """아래 요청서 텍스트에서 캠페인 등록에 필요한 정보를 JSON으로 추출해줘.
+QUOTE_PARSE_PROMPT = """아래 요청서 텍스트에서 캠페인 등록 + 견적서 작성에 필요한 정보를 JSON으로 추출해줘.
 없는 항목은 빈 문자열(""), 불확실하면 빈 문자열로 둬.
 JSON만 출력해. 설명이나 코드블록 없이 순수 JSON만.
 
-[추출 필드 - 정확히 이 키를 사용]
-{
-  "상품링크": "",
-  "플랫폼": "(스마트스토어/쿠팡/오늘의집/11번가/지마켓/올리브영/기타)",
-  "업체명": "",
-  "상품명": "",
-  "캠페인유형": "(실배송/빈박스)",
-  "총수량": "",
-  "일수량": "",
-  "진행일수": "",
-  "상품금액": "",
-  "리뷰비": "",
-  "옵션": "(쉼표 구분)",
-  "유입방식": "(링크유입/키워드유입)",
-  "키워드": "",
-  "키워드위치": "(예: 1페이지 8위)",
-  "당일발송": "(Y/N)",
-  "발송마감": "(예: 오후 6시 30분)",
-  "택배사": "",
-  "3PL사용": "(Y/N)",
-  "주말작업": "(Y/N)",
-  "리뷰제공": "(자체작성/텍스트제공/사진제공)",
-  "리뷰원고수": "",
-  "중복허용": "(Y/N)",
-  "구매가능시간": "",
-  "메모": "(기타 특이사항)"
-}
+[추출 필드]
+{{
+  "campaign": {{
+    "상품링크": "",
+    "플랫폼": "(스마트스토어/쿠팡/오늘의집/11번가/지마켓/올리브영/기타)",
+    "업체명": "",
+    "상품명": "",
+    "캠페인유형": "(실배송/빈박스)",
+    "총수량": "",
+    "일수량": "",
+    "진행일수": "",
+    "상품금액": "(숫자만, 쉼표없이)",
+    "리뷰비": "(숫자만)",
+    "옵션": "(쉼표 구분)",
+    "유입방식": "(링크유입/키워드유입)",
+    "키워드": "",
+    "키워드위치": "(예: 1페이지 8위)",
+    "당일발송": "(Y/N)",
+    "발송마감": "(예: 오후 6시 30분)",
+    "택배사": "",
+    "3PL사용": "(Y/N)",
+    "3PL비용": "(숫자만, 건당 비용)",
+    "주말작업": "(Y/N)",
+    "리뷰제공": "(자체작성/텍스트제공/사진제공)",
+    "리뷰원고수": "",
+    "중복허용": "(Y/N)",
+    "구매가능시간": "",
+    "메모": "(기타 특이사항)"
+  }},
+  "quote": {{
+    "recipient": "(업체명)",
+    "items": [
+      {{"품목": "구매비", "규격": "(상품명 또는 옵션)", "수량": "(숫자)", "단가": "(상품금액 숫자)"}},
+      {{"품목": "작업비", "규격": "", "수량": "(총수량)", "단가": "(리뷰비 또는 작업비 숫자)"}}
+    ],
+    "notes": "1. 구매평 진행 시, 구매 진행 후 취소하시더라도 취소가 어려운 점 참고 부탁드립니다\\n2. 구매가 진행되지 않은 건수에 한해서는 전액 환불이 가능합니다\\n3. 포토리뷰 시 포토와 리뷰가이드는 미리 준비하시면 원활한 진행이 가능합니다\\n4. 택배 분실 시 재발송을 해주셔야 하며, 택배대행시에는 저희가 무상으로 재발송 합니다\\n5. 리뷰는 배송완료일로부터 7일이내 작성되지만, 개인작업자들이다 보니 조금 더 늦을 수 있음을 양해 부탁드립니다"
+  }}
+}}
+
+규칙:
+- 동일 상품이지만 수량/단가가 다른 경우(예: 8건 290,000 + 6건 400,000) 별도 행으로 분리
+- 3PL 사용 시 items에 배송대행비 행 추가
+- 수량과 단가는 숫자만(쉼표 없이)
 
 [요청서]
 {raw_text}
@@ -1239,7 +1307,8 @@ def quotes():
 @admin_bp.route("/quotes/new", methods=["GET"])
 @admin_required
 def quote_new():
-    return render_template("admin/quote_new.html")
+    suppliers = models.db_manager.get_suppliers() if models.db_manager else []
+    return render_template("admin/quote_new.html", suppliers=suppliers)
 
 
 @admin_bp.route("/quotes/new", methods=["POST"])
@@ -1251,13 +1320,25 @@ def quote_new_post():
 
     import json
     raw_text = request.form.get("raw_text", "").strip()
-    parsed_json = request.form.get("parsed_data", "{}")
     try:
-        parsed_data = json.loads(parsed_json)
+        parsed_data = json.loads(request.form.get("parsed_data", "{}"))
     except Exception:
         parsed_data = {}
+    try:
+        items = json.loads(request.form.get("items", "[]"))
+    except Exception:
+        items = []
 
-    quote_id = models.db_manager.create_quote(raw_text, parsed_data, status="확인대기")
+    supplier_id = request.form.get("supplier_id", "") or None
+    if supplier_id:
+        supplier_id = int(supplier_id)
+    recipient = request.form.get("recipient", "").strip()
+    notes = request.form.get("notes", "").strip()
+
+    quote_id = models.db_manager.create_quote(
+        raw_text, parsed_data, status="확인대기",
+        supplier_id=supplier_id, recipient=recipient, items=items, notes=notes,
+    )
     flash(f"견적서 #{quote_id} 저장 완료")
     return redirect(url_for("admin.quote_edit", quote_id=quote_id))
 
@@ -1272,7 +1353,11 @@ def quote_edit(quote_id):
     if not quote:
         flash("견적서를 찾을 수 없습니다.")
         return redirect(url_for("admin.quotes"))
-    return render_template("admin/quote_edit.html", quote=quote)
+    suppliers = models.db_manager.get_suppliers()
+    supplier = None
+    if quote.get("supplier_id"):
+        supplier = models.db_manager.get_supplier(quote["supplier_id"])
+    return render_template("admin/quote_edit.html", quote=quote, suppliers=suppliers, supplier=supplier)
 
 
 @admin_bp.route("/quotes/<int:quote_id>/edit", methods=["POST"])
@@ -1283,14 +1368,28 @@ def quote_edit_post(quote_id):
         return redirect(url_for("admin.quotes"))
 
     import json
-    parsed_json = request.form.get("parsed_data", "{}")
-    memo = request.form.get("memo", "")
     try:
-        parsed_data = json.loads(parsed_json)
+        parsed_data = json.loads(request.form.get("parsed_data", "{}"))
     except Exception:
         parsed_data = {}
+    try:
+        items = json.loads(request.form.get("items", "[]"))
+    except Exception:
+        items = []
 
-    models.db_manager.update_quote(quote_id, parsed_data=parsed_data, memo=memo)
+    supplier_id = request.form.get("supplier_id", "") or None
+    if supplier_id:
+        supplier_id = int(supplier_id)
+
+    models.db_manager.update_quote(
+        quote_id,
+        parsed_data=parsed_data,
+        items=items,
+        supplier_id=supplier_id,
+        recipient=request.form.get("recipient", "").strip(),
+        notes=request.form.get("notes", "").strip(),
+        memo=request.form.get("memo", ""),
+    )
     flash("견적서 수정 완료")
     return redirect(url_for("admin.quote_edit", quote_id=quote_id))
 
@@ -1318,16 +1417,9 @@ def quote_approve(quote_id):
         except Exception:
             parsed = {}
 
-    # 캠페인 데이터 구성
     campaign_id = str(uuid.uuid4())[:8]
-    data = {
-        "캠페인ID": campaign_id,
-        "등록일": today_str(),
-        "상태": "모집중",
-        "완료수량": "0",
-    }
+    data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
 
-    # 파싱 데이터에서 캠페인 필드 매핑
     direct_fields = [
         "상품링크", "플랫폼", "업체명", "상품명", "캠페인유형",
         "총수량", "일수량", "진행일수", "상품금액", "리뷰비",
@@ -1340,7 +1432,6 @@ def quote_approve(quote_id):
         if val:
             data[f] = str(val)
 
-    # 상품링크에서 상품코드 자동 추출
     from modules.utils import extract_product_codes
     product_link = data.get("상품링크", "")
     if product_link:
@@ -1348,7 +1439,6 @@ def quote_approve(quote_id):
         if codes:
             data["상품코드"] = codes
 
-    # 일정 자동 생성
     total = safe_int(data.get("총수량", 0))
     daily_str = data.get("일수량", "").strip()
     days = safe_int(data.get("진행일수", 0))
@@ -1421,7 +1511,6 @@ def api_quote_parse():
         resp.raise_for_status()
         ai_response = resp.json().get("response", "")
 
-        # JSON 추출 (코드블록 제거)
         cleaned = ai_response.strip()
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[-1]
@@ -1433,7 +1522,7 @@ def api_quote_parse():
         return jsonify({"ok": True, "parsed": parsed})
 
     except json.JSONDecodeError:
-        logger.error(f"AI 파싱 JSON 실패: {ai_response[:200] if 'ai_response' in dir() else 'N/A'}")
+        logger.error(f"AI 파싱 JSON 실패: {ai_response[:200] if 'ai_response' in locals() else 'N/A'}")
         return jsonify({"ok": False, "message": "AI 응답을 JSON으로 변환할 수 없습니다.", "raw": ai_response if 'ai_response' in locals() else ""})
     except _requests.Timeout:
         return jsonify({"ok": False, "message": "AI 릴레이 타임아웃 (90초)"})
@@ -1452,4 +1541,7 @@ def quote_preview(quote_id):
     if not quote:
         flash("견적서를 찾을 수 없습니다.")
         return redirect(url_for("admin.quotes"))
-    return render_template("admin/quote_preview.html", quote=quote)
+    supplier = None
+    if quote.get("supplier_id"):
+        supplier = models.db_manager.get_supplier(quote["supplier_id"])
+    return render_template("admin/quote_preview.html", quote=quote, supplier=supplier)
