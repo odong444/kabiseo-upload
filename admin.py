@@ -311,7 +311,17 @@ def api_campaign_delete(campaign_id):
 @admin_required
 def campaign_new():
     categories = _fetch_server_categories()
-    return render_template("admin/campaign_new.html", promo_category_list=categories)
+
+    # 견적서에서 캠페인 등록 시 자동 채우기
+    quote_data = None
+    from_quote = request.args.get("from_quote")
+    if from_quote and models.db_manager:
+        try:
+            quote_data = models.db_manager.get_quote(int(from_quote))
+        except Exception:
+            pass
+
+    return render_template("admin/campaign_new.html", promo_category_list=categories, quote_data=quote_data)
 
 
 @admin_bp.route("/campaigns/new", methods=["POST"])
@@ -380,6 +390,17 @@ def campaign_new_post():
         models.db_manager.create_campaign(data)
         display_name = data.get('캠페인명', '').strip() or data['상품명']
         flash(f"캠페인 '{display_name}' 등록 완료 (ID: {campaign_id})")
+
+        # 견적서에서 온 경우, 견적서에 캠페인ID 연결 + 상태 변경
+        from_quote = request.form.get("from_quote", "").strip()
+        if from_quote:
+            try:
+                models.db_manager.update_quote(int(from_quote), {
+                    "status": "캠페인등록",
+                    "campaign_id": campaign_id,
+                })
+            except Exception:
+                pass
     except Exception as e:
         logger.error(f"캠페인 등록 에러: {e}")
         flash(f"등록 중 오류가 발생했습니다: {e}")
@@ -1161,6 +1182,192 @@ def api_managers_delete(mid):
 
     models.db_manager.delete_manager(mid)
     return jsonify({"ok": True})
+
+
+# ──────── 견적서 관리 ────────
+
+@admin_bp.route("/quotes")
+@admin_required
+def quotes():
+    """견적서 목록"""
+    status_filter = request.args.get("status", "")
+    items = []
+    if models.db_manager:
+        items = models.db_manager.get_quotes(status_filter or "")
+    return render_template("admin/quotes.html", quotes=items, status_filter=status_filter)
+
+
+@admin_bp.route("/quotes/new", methods=["GET"])
+@admin_required
+def quote_new():
+    """견적서 신규 작성 - 텍스트 붙여넣기"""
+    return render_template("admin/quote_new.html")
+
+
+@admin_bp.route("/quotes/new", methods=["POST"])
+@admin_required
+def quote_new_post():
+    """요청서 텍스트 파싱 → 견적서 생성 → 수정 페이지로 이동"""
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+
+    raw_text = request.form.get("raw_request", "").strip()
+    company = request.form.get("company", "").strip()
+    recipient = request.form.get("recipient", "").strip()
+
+    from modules.quote_parser import parse_request_text
+    parsed = parse_request_text(raw_text)
+    parsed["raw_request"] = raw_text
+    parsed["company"] = company
+    parsed["recipient"] = recipient
+    parsed["status"] = "작성중"
+
+    # 기본 항목 생성 (구매비 + 작업비)
+    import json
+    default_items = [
+        {"name": "구매비", "spec": parsed.get("product_name", ""), "qty": parsed.get("total_qty", 0), "unit_price": 0},
+        {"name": "작업비", "spec": "", "qty": parsed.get("total_qty", 0), "unit_price": 0},
+    ]
+    parsed["items"] = json.dumps(default_items)
+
+    try:
+        quote_id = models.db_manager.create_quote(parsed)
+        flash(f"견적서 #{quote_id} 생성 완료. 내용을 확인하고 금액을 입력해주세요.")
+        return redirect(url_for("admin.quote_edit", quote_id=quote_id))
+    except Exception as e:
+        logger.error(f"견적서 생성 에러: {e}")
+        flash(f"견적서 생성 중 오류: {e}")
+        return redirect(url_for("admin.quotes"))
+
+
+@admin_bp.route("/quotes/<int:quote_id>/edit", methods=["GET"])
+@admin_required
+def quote_edit(quote_id):
+    """견적서 상세/수정"""
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+
+    quote = models.db_manager.get_quote(quote_id)
+    if not quote:
+        flash("견적서를 찾을 수 없습니다.")
+        return redirect(url_for("admin.quotes"))
+
+    return render_template("admin/quote_edit.html", quote=quote)
+
+
+@admin_bp.route("/quotes/<int:quote_id>/edit", methods=["POST"])
+@admin_required
+def quote_edit_post(quote_id):
+    """견적서 수정 저장"""
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+
+    import json
+    from modules.utils import safe_int
+
+    update = {}
+    text_fields = [
+        "company", "recipient", "product_link", "product_name",
+        "same_day_ship", "ship_deadline", "entry_method", "keyword",
+        "keyword_position", "current_rank", "options", "courier",
+        "review_text_deadline", "platform", "campaign_type", "memo",
+    ]
+    for f in text_fields:
+        val = request.form.get(f, "").strip()
+        update[f] = val
+
+    int_fields = [
+        "total_qty", "daily_qty", "product_price", "review_fee",
+        "unit_price", "total_price", "duration_days", "cost_3pl", "review_qty",
+    ]
+    for f in int_fields:
+        update[f] = safe_int(request.form.get(f, "0"))
+
+    bool_fields = ["use_3pl", "weekend_work", "review_provided", "review_text_provided"]
+    for f in bool_fields:
+        update[f] = request.form.get(f) in ("Y", "on", "true", "1")
+
+    # 견적 항목 (동적 행)
+    items_json = request.form.get("items_json", "[]")
+    try:
+        items = json.loads(items_json)
+        update["items"] = items
+    except Exception:
+        pass
+
+    try:
+        models.db_manager.update_quote(quote_id, update)
+        flash("견적서가 저장되었습니다.")
+    except Exception as e:
+        logger.error(f"견적서 수정 에러: {e}")
+        flash(f"저장 중 오류: {e}")
+
+    return redirect(url_for("admin.quote_edit", quote_id=quote_id))
+
+
+@admin_bp.route("/quotes/<int:quote_id>/preview")
+@admin_required
+def quote_preview(quote_id):
+    """견적서 미리보기 (인쇄용)"""
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+
+    quote = models.db_manager.get_quote(quote_id)
+    if not quote:
+        flash("견적서를 찾을 수 없습니다.")
+        return redirect(url_for("admin.quotes"))
+
+    return render_template("admin/quote_preview.html", quote=quote)
+
+
+@admin_bp.route("/quotes/<int:quote_id>/approve", methods=["POST"])
+@admin_required
+def quote_approve(quote_id):
+    """견적서 승인 → 캠페인 등록 폼으로 이동 (자동 채우기)"""
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+
+    quote = models.db_manager.get_quote(quote_id)
+    if not quote:
+        flash("견적서를 찾을 수 없습니다.")
+        return redirect(url_for("admin.quotes"))
+
+    # 상태를 승인으로 변경
+    models.db_manager.update_quote(quote_id, {"status": "승인"})
+
+    # 캠페인 등록 폼으로 리다이렉트 (쿼리 파라미터로 quote_id 전달)
+    flash(f"견적서 #{quote_id} 승인. 캠페인 정보를 확인하고 등록해주세요.")
+    return redirect(url_for("admin.campaign_new", from_quote=quote_id))
+
+
+@admin_bp.route("/api/quotes/<int:quote_id>", methods=["DELETE"])
+@admin_required
+def api_quote_delete(quote_id):
+    """견적서 삭제"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    try:
+        models.db_manager.delete_quote(quote_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error(f"견적서 삭제 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/quotes/parse", methods=["POST"])
+@admin_required
+def api_quote_parse():
+    """요청서 텍스트 실시간 파싱 API (AJAX)"""
+    data = request.get_json(silent=True) or {}
+    raw_text = data.get("text", "")
+    from modules.quote_parser import parse_request_text
+    result = parse_request_text(raw_text)
+    return jsonify({"ok": True, "parsed": result})
 
 
 @admin_bp.route("/api/progress/delete", methods=["POST"])

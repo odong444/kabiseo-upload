@@ -134,6 +134,7 @@
             <nav class="admin-nav">
                 <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
                 <a href="{{ url_for('admin.campaigns') }}" class="active">캠페인</a>
+                <a href="{{ url_for('admin.quotes') }}">견적서</a>
                 <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
                 <a href="{{ url_for('admin.reviews') }}">검수</a>
                 <a href="{{ url_for('admin.settlement') }}">정산</a>
@@ -161,7 +162,14 @@
         {% endif %}
         {% endwith %}
 
+        {% if quote_data %}
+        <div style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:14px;">
+            견적서 #{{ quote_data.id }}에서 자동 채우기되었습니다. 내용을 확인하고 등록해주세요.
+        </div>
+        {% endif %}
+
         <form id="campaignForm" method="POST" action="{{ url_for('admin.campaign_new_post') }}" enctype="multipart/form-data" class="admin-form">
+            {% if quote_data %}<input type="hidden" name="from_quote" value="{{ quote_data.id }}">{% endif %}
 
             <!-- 캠페인 정보 -->
             <div class="form-section">
@@ -169,25 +177,22 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>캠페인명</label>
-                        <input type="text" name="캠페인명" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
+                        <input type="text" name="캠페인명" value="{{ quote_data.product_name if quote_data else '' }}" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
                     </div>
                     <div class="form-group">
                         <label>상품명 *</label>
-                        <input type="text" name="상품명" required placeholder="예: 들기름 300ml">
+                        <input type="text" name="상품명" required value="{{ quote_data.product_name if quote_data else '' }}" placeholder="예: 들기름 300ml">
                     </div>
                     <div class="form-group">
                         <label>업체명 *</label>
-                        <input type="text" name="업체명" required placeholder="예: 건강한들녘">
+                        <input type="text" name="업체명" required value="{{ quote_data.company if quote_data else '' }}" placeholder="예: 건강한들녘">
                     </div>
                     <div class="form-group">
                         <label>플랫폼 *</label>
                         <select name="플랫폼" id="platformSelect" required>
-                            <option value="스마트스토어">스마트스토어</option>
-                            <option value="쿠팡">쿠팡</option>
-                            <option value="오늘의집">오늘의집</option>
-                            <option value="11번가">11번가</option>
-                            <option value="지마켓">지마켓</option>
-                            <option value="올리브영">올리브영</option>
+                            {% for p in ['스마트스토어','쿠팡','오늘의집','11번가','지마켓','올리브영'] %}
+                            <option value="{{ p }}" {{ 'selected' if quote_data and quote_data.platform == p }}>{{ p }}</option>
+                            {% endfor %}
                             <option value="기타">기타 (직접입력)</option>
                         </select>
                     </div>
@@ -198,21 +203,21 @@
                     <div class="form-group">
                         <label>캠페인유형 *</label>
                         <select name="캠페인유형" required>
-                            <option value="실배송">실배송</option>
-                            <option value="빈박스">빈박스</option>
+                            <option value="실배송" {{ 'selected' if quote_data and quote_data.campaign_type == '실배송' }}>실배송</option>
+                            <option value="빈박스" {{ 'selected' if quote_data and quote_data.campaign_type == '빈박스' }}>빈박스</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>상품금액</label>
-                        <input type="text" name="상품금액" placeholder="예: 29,000">
+                        <input type="text" name="상품금액" value="{{ quote_data.product_price if quote_data and quote_data.product_price else '' }}" placeholder="예: 29,000">
                     </div>
                     <div class="form-group">
                         <label>리워드 (리뷰비)</label>
-                        <input type="text" name="리뷰비" placeholder="예: 15,000">
+                        <input type="text" name="리뷰비" value="{{ quote_data.review_fee if quote_data and quote_data.review_fee else '' }}" placeholder="예: 15,000">
                     </div>
                     <div class="form-group form-group-full">
                         <label>상품링크</label>
-                        <input type="text" name="상품링크" placeholder="예: https://smartstore.naver.com/...">
+                        <input type="text" name="상품링크" value="{{ quote_data.product_link if quote_data else '' }}" placeholder="예: https://smartstore.naver.com/...">
                         <div style="color:#999;font-size:12px;margin-top:4px;">중복 리뷰어 체크 및 키워드 자동 추출에 사용됩니다</div>
                     </div>
                     <div class="form-group form-group-full">
@@ -231,15 +236,15 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>총 모집인원 *</label>
-                        <input type="number" name="총수량" id="totalCount" required min="1" placeholder="예: 20">
+                        <input type="number" name="총수량" id="totalCount" required min="1" value="{{ quote_data.total_qty if quote_data and quote_data.total_qty else '' }}" placeholder="예: 20">
                     </div>
                     <div class="form-group">
                         <label>하루진행량</label>
-                        <input type="text" name="일수량" id="dailyCount" placeholder="숫자(예: 5) 또는 범위(예: 3-5)">
+                        <input type="text" name="일수량" id="dailyCount" value="{{ quote_data.daily_qty if quote_data and quote_data.daily_qty else '' }}" placeholder="숫자(예: 5) 또는 범위(예: 3-5)">
                     </div>
                     <div class="form-group">
                         <label>진행일수</label>
-                        <input type="number" name="진행일수" id="dayCount" min="1" placeholder="예: 4">
+                        <input type="number" name="진행일수" id="dayCount" min="1" value="{{ quote_data.duration_days if quote_data and quote_data.duration_days else '' }}" placeholder="예: 4">
                     </div>
                     <div class="form-group form-group-full">
                         <div class="calc-hint hidden" id="calcHint"></div>

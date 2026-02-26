@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 견적서 #{{ quote.id }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .form-section { margin-bottom: 32px; }
+        .form-section h3 {
+            font-size: 16px; font-weight: 700; color: #3c1e1e;
+            margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #fee500;
+        }
+        .form-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 24px; }
+        .raw-box {
+            background: #f9f9f9; border: 1px solid #eee; border-radius: 8px;
+            padding: 12px 16px; font-size: 13px; line-height: 1.8; white-space: pre-wrap;
+            max-height: 200px; overflow-y: auto; color: #555;
+        }
+        .toggle-raw { font-size: 12px; color: #888; cursor: pointer; margin-left: 8px; }
+        .items-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .items-table th {
+            background: #f8f9fa; padding: 8px 10px; text-align: center; font-size: 13px;
+            color: #555; font-weight: 600; border: 1px solid #e5e7eb;
+        }
+        .items-table td {
+            padding: 6px 8px; border: 1px solid #e5e7eb; text-align: center;
+        }
+        .items-table input {
+            width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;
+            font-size: 13px; text-align: right;
+        }
+        .items-table input.text-left { text-align: left; }
+        .items-table .calc { background: #f9fafb; color: #333; font-weight: 500; font-size: 13px; }
+        .add-item-btn {
+            margin-top: 8px; background: #f0f0f0; border: 1px dashed #ccc; border-radius: 6px;
+            padding: 8px 16px; cursor: pointer; font-size: 13px; color: #666;
+        }
+        .add-item-btn:hover { background: #e5e5e5; }
+        .remove-btn {
+            background: none; border: none; color: #ef4444; cursor: pointer; font-size: 16px;
+            padding: 4px 8px;
+        }
+        .total-row td { font-weight: 700; background: #fefce8 !important; }
+        .status-badge {
+            padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;
+        }
+        .approve-btn {
+            background: #10b981; color: #fff; border: none; padding: 10px 24px;
+            border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;
+        }
+        .approve-btn:hover { background: #059669; }
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .radio-group { display: flex; gap: 16px; align-items: center; padding: 6px 0; }
+        .radio-group label { display: flex; align-items: center; gap: 4px; font-weight: 400; cursor: pointer; margin-bottom: 0; }
+        .radio-group input[type="radio"] { width: auto; margin: 0; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.quotes') }}" class="active">견적서</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <h1 style="margin:0;">견적서 #{{ quote.id }}
+                {% if quote.status == '작성중' %}<span class="status-badge" style="background:#f3f4f6;color:#6b7280;">작성중</span>
+                {% elif quote.status == '검토중' %}<span class="status-badge" style="background:#fef3c7;color:#92400e;">검토중</span>
+                {% elif quote.status == '승인' %}<span class="status-badge" style="background:#d1fae5;color:#065f46;">승인</span>
+                {% elif quote.status == '캠페인등록' %}<span class="status-badge" style="background:#dbeafe;color:#1e40af;">캠페인등록</span>
+                {% endif %}
+            </h1>
+            <div style="display:flex;gap:8px;">
+                <a href="{{ url_for('admin.quote_preview', quote_id=quote.id) }}" class="admin-btn" target="_blank">견적서 보기</a>
+                {% if quote.status not in ('캠페인등록',) %}
+                <form method="POST" action="{{ url_for('admin.quote_approve', quote_id=quote.id) }}" style="margin:0;" onsubmit="return confirm('견적서를 승인하고 캠페인 등록으로 넘어가시겠습니까?')">
+                    <button type="submit" class="approve-btn">승인 → 캠페인 등록</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="admin-flash">
+            {% for msg in messages %}<p>{{ msg }}</p>{% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- 원문 요청서 -->
+        {% if quote.raw_request %}
+        <div class="form-section" style="margin-top:20px;">
+            <h3>원문 요청서 <span class="toggle-raw" id="toggleRaw">접기/펼치기</span></h3>
+            <div class="raw-box" id="rawBox">{{ quote.raw_request }}</div>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('admin.quote_edit_post', quote_id=quote.id) }}" class="admin-form" id="quoteForm">
+
+            <!-- 기본 정보 -->
+            <div class="form-section">
+                <h3>기본 정보</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>받는 업체명 (귀하)</label>
+                        <input type="text" name="recipient" value="{{ quote.recipient or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>업체명 (발주처)</label>
+                        <input type="text" name="company" value="{{ quote.company or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>상품명</label>
+                        <input type="text" name="product_name" value="{{ quote.product_name or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>플랫폼</label>
+                        <select name="platform">
+                            {% for p in ['스마트스토어','쿠팡','오늘의집','11번가','지마켓','올리브영'] %}
+                            <option value="{{ p }}" {{ 'selected' if quote.platform == p }}>{{ p }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>캠페인유형</label>
+                        <select name="campaign_type">
+                            <option value="실배송" {{ 'selected' if quote.campaign_type == '실배송' }}>실배송</option>
+                            <option value="빈박스" {{ 'selected' if quote.campaign_type == '빈박스' }}>빈박스</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>상품링크</label>
+                        <input type="text" name="product_link" value="{{ quote.product_link or '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 파싱된 요청 정보 -->
+            <div class="form-section">
+                <h3>요청 정보</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>총 구매수량</label>
+                        <input type="number" name="total_qty" id="totalQty" value="{{ quote.total_qty or 0 }}" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>일 구매수량</label>
+                        <input type="number" name="daily_qty" value="{{ quote.daily_qty or 0 }}" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>진행일수</label>
+                        <input type="number" name="duration_days" value="{{ quote.duration_days or 0 }}" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>옵션</label>
+                        <input type="text" name="options" value="{{ quote.options or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>유입방식</label>
+                        <select name="entry_method">
+                            <option value="">선택</option>
+                            <option value="링크유입" {{ 'selected' if quote.entry_method == '링크유입' }}>링크유입</option>
+                            <option value="키워드유입" {{ 'selected' if quote.entry_method == '키워드유입' }}>키워드유입</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>키워드</label>
+                        <input type="text" name="keyword" value="{{ quote.keyword or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>현재순위</label>
+                        <input type="text" name="current_rank" value="{{ quote.current_rank or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>당일발송</label>
+                        <select name="same_day_ship">
+                            <option value="">선택</option>
+                            <option value="Y" {{ 'selected' if quote.same_day_ship == 'Y' }}>예</option>
+                            <option value="N" {{ 'selected' if quote.same_day_ship == 'N' }}>아니오</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>발송마감시간</label>
+                        <input type="text" name="ship_deadline" value="{{ quote.ship_deadline or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>택배사</label>
+                        <input type="text" name="courier" value="{{ quote.courier or '' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>3PL 사용</label>
+                        <select name="use_3pl">
+                            <option value="N" {{ 'selected' if not quote.use_3pl }}>X</option>
+                            <option value="Y" {{ 'selected' if quote.use_3pl }}>O (건당 비용 별도)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>3PL 비용 (건당)</label>
+                        <input type="number" name="cost_3pl" value="{{ quote.cost_3pl or 0 }}" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>주말작업</label>
+                        <select name="weekend_work">
+                            <option value="N" {{ 'selected' if not quote.weekend_work }}>무</option>
+                            <option value="Y" {{ 'selected' if quote.weekend_work }}>유</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰 제공</label>
+                        <select name="review_provided">
+                            <option value="Y" {{ 'selected' if quote.review_provided }}>카비서 작성</option>
+                            <option value="N" {{ 'selected' if not quote.review_provided }}>업체 전달</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰 원고수</label>
+                        <input type="number" name="review_qty" value="{{ quote.review_qty or 0 }}" min="0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 금액 설정 (담당자 입력) -->
+            <div class="form-section">
+                <h3>금액 설정 (담당자 확인 필요)</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>상품금액 (구매 단가)</label>
+                        <input type="number" name="product_price" id="productPrice" value="{{ quote.product_price or 0 }}" min="0" placeholder="상품 링크에서 확인">
+                        <small style="color:#e53e3e;">* 상품 링크를 직접 확인하고 입력해주세요</small>
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰비 (건당)</label>
+                        <input type="number" name="review_fee" value="{{ quote.review_fee or 0 }}" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>작업 단가</label>
+                        <input type="number" name="unit_price" id="unitPrice" value="{{ quote.unit_price or 0 }}" min="0">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 견적 항목 -->
+            <div class="form-section">
+                <h3>견적 항목</h3>
+                <table class="items-table" id="itemsTable">
+                    <thead>
+                        <tr>
+                            <th style="width:30px;"></th>
+                            <th style="width:120px;">품목</th>
+                            <th style="width:120px;">규격</th>
+                            <th style="width:70px;">수량</th>
+                            <th style="width:100px;">단가</th>
+                            <th style="width:110px;">공급가액</th>
+                            <th style="width:90px;">세액</th>
+                            <th style="width:110px;">합계</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                    </tbody>
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="5" style="text-align:right;font-weight:700;">합계</td>
+                            <td class="calc" id="totalSupply">0</td>
+                            <td class="calc" id="totalTax">0</td>
+                            <td class="calc" id="totalAmount">0</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <button type="button" class="add-item-btn" id="addItemBtn">+ 항목 추가</button>
+                <input type="hidden" name="items_json" id="itemsJson">
+                <input type="hidden" name="total_price" id="totalPriceHidden" value="{{ quote.total_price or 0 }}">
+            </div>
+
+            <!-- 메모 -->
+            <div class="form-section">
+                <h3>특이사항 / 메모</h3>
+                <textarea name="memo" rows="4" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:8px;font-size:14px;">{{ quote.memo or '' }}</textarea>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="admin-btn admin-btn-primary">저장</button>
+                <a href="{{ url_for('admin.quotes') }}" class="admin-btn">목록</a>
+            </div>
+        </form>
+    </main>
+
+    <script>
+    var items = {{ quote.items | tojson if quote.items else '[]' }};
+    if (typeof items === 'string') {
+        try { items = JSON.parse(items); } catch(e) { items = []; }
+    }
+    if (!items.length) {
+        items = [
+            { name: '구매비', spec: '{{ quote.product_name or "" }}', qty: {{ quote.total_qty or 0 }}, unit_price: {{ quote.product_price or 0 }} },
+            { name: '작업비', spec: '', qty: {{ quote.total_qty or 0 }}, unit_price: {{ quote.unit_price or 0 }} }
+        ];
+    }
+
+    function renderItems() {
+        var tbody = document.getElementById('itemsBody');
+        tbody.innerHTML = '';
+        items.forEach(function(item, idx) {
+            var supply = item.qty * item.unit_price;
+            var tax = Math.round(supply * 0.1);
+            var total = supply + tax;
+            var tr = document.createElement('tr');
+            tr.innerHTML = '<td><button type="button" class="remove-btn" onclick="removeItem(' + idx + ')">&times;</button></td>'
+                + '<td><input class="text-left" value="' + (item.name || '') + '" onchange="updateItem(' + idx + ',\'name\',this.value)"></td>'
+                + '<td><input class="text-left" value="' + (item.spec || '') + '" onchange="updateItem(' + idx + ',\'spec\',this.value)"></td>'
+                + '<td><input type="number" value="' + (item.qty || 0) + '" min="0" onchange="updateItem(' + idx + ',\'qty\',parseInt(this.value)||0)"></td>'
+                + '<td><input type="number" value="' + (item.unit_price || 0) + '" min="0" onchange="updateItem(' + idx + ',\'unit_price\',parseInt(this.value)||0)"></td>'
+                + '<td class="calc">' + supply.toLocaleString() + '</td>'
+                + '<td class="calc">' + tax.toLocaleString() + '</td>'
+                + '<td class="calc">' + total.toLocaleString() + '</td>';
+            tbody.appendChild(tr);
+        });
+        updateTotals();
+    }
+
+    function updateItem(idx, field, value) {
+        items[idx][field] = value;
+        renderItems();
+    }
+
+    function removeItem(idx) {
+        if (items.length <= 1) { alert('최소 1개 항목이 필요합니다.'); return; }
+        items.splice(idx, 1);
+        renderItems();
+    }
+
+    function updateTotals() {
+        var totalSupply = 0, totalTax = 0, totalAmount = 0;
+        items.forEach(function(item) {
+            var supply = item.qty * item.unit_price;
+            var tax = Math.round(supply * 0.1);
+            totalSupply += supply;
+            totalTax += tax;
+            totalAmount += supply + tax;
+        });
+        document.getElementById('totalSupply').textContent = totalSupply.toLocaleString();
+        document.getElementById('totalTax').textContent = totalTax.toLocaleString();
+        document.getElementById('totalAmount').textContent = totalAmount.toLocaleString();
+        document.getElementById('totalPriceHidden').value = totalAmount;
+        document.getElementById('itemsJson').value = JSON.stringify(items);
+    }
+
+    document.getElementById('addItemBtn').addEventListener('click', function() {
+        items.push({ name: '', spec: '', qty: parseInt(document.getElementById('totalQty').value) || 0, unit_price: 0 });
+        renderItems();
+    });
+
+    // 원문 접기/펼치기
+    var rawBox = document.getElementById('rawBox');
+    var toggleRaw = document.getElementById('toggleRaw');
+    if (toggleRaw) {
+        toggleRaw.addEventListener('click', function() {
+            rawBox.style.display = rawBox.style.display === 'none' ? 'block' : 'none';
+        });
+    }
+
+    // 폼 제출 시 items JSON 동기화
+    document.getElementById('quoteForm').addEventListener('submit', function() {
+        document.getElementById('itemsJson').value = JSON.stringify(items);
+    });
+
+    renderItems();
+    </script>
+</body>
+</html>

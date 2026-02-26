@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 견적서 관리</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .status-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .status-tab {
+            padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 500;
+            text-decoration: none; color: #666; background: #f0f0f0; border: 1px solid #ddd;
+        }
+        .status-tab.active { background: #fee500; color: #3c1e1e; border-color: #fee500; font-weight: 700; }
+        .quote-table { width: 100%; border-collapse: collapse; font-size: 14px; background: #fff; border-radius: 8px; overflow: hidden; }
+        .quote-table th {
+            background: #f8f9fa; padding: 10px 12px; text-align: left; font-size: 13px;
+            color: #555; font-weight: 600; border-bottom: 2px solid #eee;
+        }
+        .quote-table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+        .quote-table tr:hover td { background: #fefce8; }
+        .badge {
+            padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+            display: inline-block;
+        }
+        .badge-draft { background: #f3f4f6; color: #6b7280; }
+        .badge-review { background: #fef3c7; color: #92400e; }
+        .badge-approved { background: #d1fae5; color: #065f46; }
+        .badge-registered { background: #dbeafe; color: #1e40af; }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+        .quote-actions { display: flex; gap: 6px; }
+        .quote-actions a { font-size: 12px; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.quotes') }}" class="active">견적서</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <div class="top-bar">
+            <h1 style="margin:0;">견적서 관리</h1>
+            <a href="{{ url_for('admin.quote_new') }}" class="admin-btn admin-btn-primary">+ 견적서 작성</a>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="admin-flash">
+            {% for msg in messages %}<p>{{ msg }}</p>{% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="status-tabs">
+            <a href="{{ url_for('admin.quotes') }}" class="status-tab {{ 'active' if not status_filter }}">전체</a>
+            <a href="{{ url_for('admin.quotes', status='작성중') }}" class="status-tab {{ 'active' if status_filter == '작성중' }}">작성중</a>
+            <a href="{{ url_for('admin.quotes', status='검토중') }}" class="status-tab {{ 'active' if status_filter == '검토중' }}">검토중</a>
+            <a href="{{ url_for('admin.quotes', status='승인') }}" class="status-tab {{ 'active' if status_filter == '승인' }}">승인</a>
+            <a href="{{ url_for('admin.quotes', status='캠페인등록') }}" class="status-tab {{ 'active' if status_filter == '캠페인등록' }}">캠페인등록</a>
+        </div>
+
+        {% if quotes %}
+        <table class="quote-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>상태</th>
+                    <th>업체 (귀하)</th>
+                    <th>상품</th>
+                    <th>수량</th>
+                    <th>합계금액</th>
+                    <th>등록일</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for q in quotes %}
+                <tr>
+                    <td>{{ q.id }}</td>
+                    <td>
+                        {% if q.status == '작성중' %}<span class="badge badge-draft">작성중</span>
+                        {% elif q.status == '검토중' %}<span class="badge badge-review">검토중</span>
+                        {% elif q.status == '승인' %}<span class="badge badge-approved">승인</span>
+                        {% elif q.status == '캠페인등록' %}<span class="badge badge-registered">캠페인등록</span>
+                        {% else %}<span class="badge">{{ q.status }}</span>{% endif %}
+                    </td>
+                    <td>{{ q.recipient or q.company or '-' }}</td>
+                    <td>{{ q.product_name or '(미입력)' }}</td>
+                    <td>{{ q.total_qty }}건</td>
+                    <td>
+                        {% if q.total_price %}
+                        {{ "{:,}".format(q.total_price) }}원
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ q.created_at.strftime('%m/%d %H:%M') if q.created_at else '' }}</td>
+                    <td>
+                        <div class="quote-actions">
+                            <a href="{{ url_for('admin.quote_edit', quote_id=q.id) }}" class="admin-btn admin-btn-sm">수정</a>
+                            <a href="{{ url_for('admin.quote_preview', quote_id=q.id) }}" class="admin-btn admin-btn-sm" target="_blank">견적서</a>
+                            {% if q.status not in ('캠페인등록',) %}
+                            <button class="admin-btn admin-btn-sm" style="color:#ef4444;" onclick="deleteQuote({{ q.id }})">삭제</button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align:center;padding:60px 20px;color:#999;">
+            <p style="font-size:16px;">견적서가 없습니다.</p>
+            <a href="{{ url_for('admin.quote_new') }}" class="admin-btn admin-btn-primary" style="margin-top:16px;">+ 견적서 작성</a>
+        </div>
+        {% endif %}
+    </main>
+
+    <script>
+    function deleteQuote(id) {
+        if (!confirm('견적서 #' + id + '를 삭제하시겠습니까?')) return;
+        fetch('/admin/api/quotes/' + id, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) location.reload();
+            else alert('삭제 실패: ' + (data.message || ''));
+        });
+    }
+    </script>
+</body>
+</html>

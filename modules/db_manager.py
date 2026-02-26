@@ -201,6 +201,48 @@ CREATE TABLE IF NOT EXISTS managers (
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(name, phone)
 );
+
+CREATE TABLE IF NOT EXISTS quotes (
+    id              SERIAL PRIMARY KEY,
+    status          TEXT NOT NULL DEFAULT '작성중',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    company         TEXT DEFAULT '',
+    product_link    TEXT DEFAULT '',
+    product_name    TEXT DEFAULT '',
+    same_day_ship   TEXT DEFAULT '',
+    ship_deadline   TEXT DEFAULT '',
+    entry_method    TEXT DEFAULT '',
+    keyword         TEXT DEFAULT '',
+    keyword_position TEXT DEFAULT '',
+    current_rank    TEXT DEFAULT '',
+    options         TEXT DEFAULT '',
+    total_qty       INTEGER DEFAULT 0,
+    daily_qty       INTEGER DEFAULT 0,
+    courier         TEXT DEFAULT '',
+    use_3pl         BOOLEAN DEFAULT FALSE,
+    cost_3pl        INTEGER DEFAULT 0,
+    weekend_work    BOOLEAN DEFAULT FALSE,
+    review_provided BOOLEAN DEFAULT TRUE,
+    review_qty      INTEGER DEFAULT 0,
+    review_text_provided BOOLEAN DEFAULT FALSE,
+    review_text_deadline TEXT DEFAULT '',
+    product_price   INTEGER DEFAULT 0,
+    review_fee      INTEGER DEFAULT 0,
+    unit_price      INTEGER DEFAULT 0,
+    total_price     INTEGER DEFAULT 0,
+    duration_days   INTEGER DEFAULT 0,
+    platform        TEXT DEFAULT '스마트스토어',
+    campaign_type   TEXT DEFAULT '실배송',
+    memo            TEXT DEFAULT '',
+    raw_request     TEXT DEFAULT '',
+    campaign_id     TEXT DEFAULT '',
+    reviewed_by     TEXT DEFAULT '',
+    reviewed_at     TIMESTAMPTZ,
+    items           JSONB DEFAULT '[]',
+    recipient       TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
 """
 
 
@@ -254,6 +296,33 @@ class DBManager:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_start TEXT DEFAULT '09:00'")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_end TEXT DEFAULT '22:00'")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_cooldown INTEGER DEFAULT 60")
+                except Exception:
+                    pass
+                # 마이그레이션: quotes 테이블 (기존 DB에 없을 수 있음)
+                try:
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS quotes (
+                            id SERIAL PRIMARY KEY, status TEXT NOT NULL DEFAULT '작성중',
+                            created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(),
+                            company TEXT DEFAULT '', product_link TEXT DEFAULT '', product_name TEXT DEFAULT '',
+                            same_day_ship TEXT DEFAULT '', ship_deadline TEXT DEFAULT '',
+                            entry_method TEXT DEFAULT '', keyword TEXT DEFAULT '', keyword_position TEXT DEFAULT '',
+                            current_rank TEXT DEFAULT '', options TEXT DEFAULT '',
+                            total_qty INTEGER DEFAULT 0, daily_qty INTEGER DEFAULT 0,
+                            courier TEXT DEFAULT '', use_3pl BOOLEAN DEFAULT FALSE, cost_3pl INTEGER DEFAULT 0,
+                            weekend_work BOOLEAN DEFAULT FALSE, review_provided BOOLEAN DEFAULT TRUE,
+                            review_qty INTEGER DEFAULT 0, review_text_provided BOOLEAN DEFAULT FALSE,
+                            review_text_deadline TEXT DEFAULT '', product_price INTEGER DEFAULT 0,
+                            review_fee INTEGER DEFAULT 0, unit_price INTEGER DEFAULT 0,
+                            total_price INTEGER DEFAULT 0, duration_days INTEGER DEFAULT 0,
+                            platform TEXT DEFAULT '스마트스토어', campaign_type TEXT DEFAULT '실배송',
+                            memo TEXT DEFAULT '', raw_request TEXT DEFAULT '',
+                            campaign_id TEXT DEFAULT '', reviewed_by TEXT DEFAULT '', reviewed_at TIMESTAMPTZ
+                        )
+                    """)
+                    cur.execute("CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status)")
+                    cur.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS items JSONB DEFAULT '[]'")
+                    cur.execute("ALTER TABLE quotes ADD COLUMN IF NOT EXISTS recipient TEXT DEFAULT ''")
                 except Exception:
                     pass
                 # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
@@ -1463,3 +1532,100 @@ class DBManager:
                 count = cur.rowcount
             conn.commit()
         return count
+
+    # ─────────── quotes (견적서) ───────────
+
+    def create_quote(self, data: dict) -> int:
+        """견적서 생성. 생성된 id 반환."""
+        import json as _json
+        sql = """
+            INSERT INTO quotes (
+                status, company, product_link, product_name,
+                same_day_ship, ship_deadline, entry_method, keyword,
+                keyword_position, current_rank, options,
+                total_qty, daily_qty, courier, use_3pl, cost_3pl,
+                weekend_work, review_provided, review_qty,
+                review_text_provided, review_text_deadline,
+                product_price, review_fee, unit_price, total_price,
+                duration_days, platform, campaign_type, memo, raw_request,
+                items, recipient
+            ) VALUES (
+                %(status)s, %(company)s, %(product_link)s, %(product_name)s,
+                %(same_day_ship)s, %(ship_deadline)s, %(entry_method)s, %(keyword)s,
+                %(keyword_position)s, %(current_rank)s, %(options)s,
+                %(total_qty)s, %(daily_qty)s, %(courier)s, %(use_3pl)s, %(cost_3pl)s,
+                %(weekend_work)s, %(review_provided)s, %(review_qty)s,
+                %(review_text_provided)s, %(review_text_deadline)s,
+                %(product_price)s, %(review_fee)s, %(unit_price)s, %(total_price)s,
+                %(duration_days)s, %(platform)s, %(campaign_type)s, %(memo)s, %(raw_request)s,
+                %(items)s, %(recipient)s
+            ) RETURNING id
+        """
+        defaults = {
+            "status": "작성중", "company": "", "product_link": "", "product_name": "",
+            "same_day_ship": "", "ship_deadline": "", "entry_method": "", "keyword": "",
+            "keyword_position": "", "current_rank": "", "options": "",
+            "total_qty": 0, "daily_qty": 0, "courier": "", "use_3pl": False, "cost_3pl": 0,
+            "weekend_work": False, "review_provided": True, "review_qty": 0,
+            "review_text_provided": False, "review_text_deadline": "",
+            "product_price": 0, "review_fee": 0, "unit_price": 0, "total_price": 0,
+            "duration_days": 0, "platform": "스마트스토어", "campaign_type": "실배송",
+            "memo": "", "raw_request": "", "items": "[]", "recipient": "",
+        }
+        defaults.update(data)
+        # items를 JSON 문자열로 보장
+        if isinstance(defaults["items"], list):
+            defaults["items"] = _json.dumps(defaults["items"])
+        return self._execute_returning(sql, defaults)
+
+    def get_quote(self, quote_id: int) -> dict | None:
+        """견적서 단건 조회"""
+        return self._fetchone("SELECT * FROM quotes WHERE id = %s", (quote_id,))
+
+    def get_quotes(self, status: str = "") -> list[dict]:
+        """견적서 목록 조회"""
+        if status:
+            return self._fetchall(
+                "SELECT * FROM quotes WHERE status = %s ORDER BY created_at DESC", (status,)
+            )
+        return self._fetchall("SELECT * FROM quotes ORDER BY created_at DESC")
+
+    def update_quote(self, quote_id: int, data: dict):
+        """견적서 필드 업데이트"""
+        import json as _json
+        allowed = {
+            "status", "company", "product_link", "product_name",
+            "same_day_ship", "ship_deadline", "entry_method", "keyword",
+            "keyword_position", "current_rank", "options",
+            "total_qty", "daily_qty", "courier", "use_3pl", "cost_3pl",
+            "weekend_work", "review_provided", "review_qty",
+            "review_text_provided", "review_text_deadline",
+            "product_price", "review_fee", "unit_price", "total_price",
+            "duration_days", "platform", "campaign_type", "memo",
+            "campaign_id", "reviewed_by", "reviewed_at",
+            "items", "recipient",
+        }
+        sets = []
+        params = []
+        for k, v in data.items():
+            if k in allowed:
+                if k == "items" and isinstance(v, list):
+                    v = _json.dumps(v)
+                sets.append(f"{k} = %s")
+                params.append(v)
+        if not sets:
+            return
+        sets.append("updated_at = NOW()")
+        params.append(quote_id)
+        sql = f"UPDATE quotes SET {', '.join(sets)} WHERE id = %s"
+        self._execute(sql, params)
+
+    def delete_quote(self, quote_id: int) -> bool:
+        """견적서 삭제"""
+        self._execute("DELETE FROM quotes WHERE id = %s", (quote_id,))
+        return True
+
+    def get_quote_count_by_status(self) -> dict:
+        """상태별 견적서 건수"""
+        rows = self._fetchall("SELECT status, COUNT(*) as cnt FROM quotes GROUP BY status")
+        return {r["status"]: r["cnt"] for r in rows}

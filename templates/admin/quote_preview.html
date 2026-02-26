@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>견적서 #{{ quote.id }}</title>
+    <style>
+        @page { size: A4; margin: 15mm; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Malgun Gothic', '맑은 고딕', sans-serif; color: #222; background: #fff; padding: 20px; }
+
+        .quote-wrap { max-width: 800px; margin: 0 auto; }
+
+        /* 제목 */
+        .title { text-align: center; font-size: 32px; font-weight: 700; letter-spacing: 20px; margin-bottom: 24px; }
+
+        /* 상단 정보 영역 */
+        .top-section { display: flex; gap: 20px; margin-bottom: 24px; }
+        .top-left { flex: 1; font-size: 14px; line-height: 2; }
+        .top-right { flex: 1.3; }
+
+        /* 공급자 테이블 */
+        .supplier-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .supplier-table td { border: 1px solid #999; padding: 4px 8px; }
+        .supplier-table .label { background: #f5f5f5; font-weight: 600; text-align: center; width: 70px; }
+
+        /* 합계금액 바 */
+        .total-bar {
+            background: #fff; border: 2px solid #333; padding: 10px 16px;
+            font-size: 15px; font-weight: 700; margin-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .total-bar .amount { font-size: 18px; }
+
+        /* 견적 항목 테이블 */
+        .items-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+        .items-table th {
+            background: #f5f5f5; border: 1px solid #999; padding: 6px 10px;
+            text-align: center; font-weight: 600;
+        }
+        .items-table td { border: 1px solid #999; padding: 6px 10px; text-align: right; }
+        .items-table td.left { text-align: left; }
+        .items-table td.center { text-align: center; }
+        .items-table .total-row td { font-weight: 700; background: #fefce8; }
+        .items-table .empty-row td { height: 24px; }
+
+        /* 특이사항 */
+        .notes-section { border: 1px solid #999; min-height: 80px; padding: 12px; font-size: 13px; line-height: 1.8; }
+        .notes-title { background: #f5f5f5; border: 1px solid #999; border-bottom: none; padding: 6px 12px; font-size: 13px; font-weight: 600; text-align: center; letter-spacing: 6px; }
+
+        /* 인쇄 버튼 */
+        .print-bar {
+            position: fixed; top: 0; left: 0; right: 0; background: #333; color: #fff;
+            padding: 10px 20px; display: flex; justify-content: space-between; align-items: center;
+            z-index: 100;
+        }
+        .print-bar button {
+            background: #fee500; color: #333; border: none; padding: 8px 20px;
+            border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 14px;
+        }
+        @media print {
+            .print-bar { display: none !important; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="print-bar">
+        <span>견적서 #{{ quote.id }} - {{ quote.recipient or quote.company or '' }}</span>
+        <div>
+            <button onclick="window.print()">인쇄</button>
+            <button onclick="window.close()" style="background:#666;color:#fff;margin-left:8px;">닫기</button>
+        </div>
+    </div>
+
+    <div class="quote-wrap" style="margin-top:60px;">
+        <div class="title">견 적 서</div>
+
+        <div class="top-section">
+            <div class="top-left">
+                <div><strong>{{ quote.recipient or '(업체명)' }}</strong>&nbsp;&nbsp;&nbsp;귀하</div>
+                <div style="margin-top:12px;">{{ quote.created_at.strftime('%Y년 %m월 %d일') if quote.created_at else '' }}</div>
+                <div style="margin-top:12px;">아래와 같이 견적합니다.</div>
+            </div>
+            <div class="top-right">
+                <table class="supplier-table">
+                    <tr>
+                        <td class="label" rowspan="6" style="writing-mode:vertical-rl;letter-spacing:4px;width:30px;">공급자</td>
+                        <td class="label">사업자<br>등록번호</td>
+                        <td colspan="3">720 - 81 - 02310</td>
+                    </tr>
+                    <tr>
+                        <td class="label">상호</td>
+                        <td>(주)바이와이즈</td>
+                        <td class="label">대표자</td>
+                        <td>이재홍 (인)</td>
+                    </tr>
+                    <tr>
+                        <td class="label">사업장<br>소재지</td>
+                        <td colspan="3" style="font-size:11px;">경기 고양시 덕양구 원흥동 632-1, 클래시아더퍼스트 1301호</td>
+                    </tr>
+                    <tr>
+                        <td class="label">업태</td>
+                        <td>도매 및 소매업</td>
+                        <td class="label">업종</td>
+                        <td style="font-size:11px;">전자상거래<br>소매 중개업</td>
+                    </tr>
+                    <tr>
+                        <td class="label">계좌번호</td>
+                        <td colspan="3">하나은행 415-910028-92404</td>
+                    </tr>
+                    <tr>
+                        <td class="label">담당자</td>
+                        <td>오동열</td>
+                        <td class="label">연락처</td>
+                        <td>010-7210-0210</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        {% set items = quote.items if quote.items is iterable and quote.items is not string else [] %}
+        {% if items is string %}{% set items = [] %}{% endif %}
+
+        {% set ns = namespace(total_supply=0, total_tax=0, total_amount=0) %}
+        {% for item in items %}
+            {% set supply = (item.qty or 0) * (item.unit_price or 0) %}
+            {% set tax = (supply * 0.1) | round | int %}
+            {% set ns.total_supply = ns.total_supply + supply %}
+            {% set ns.total_tax = ns.total_tax + tax %}
+            {% set ns.total_amount = ns.total_amount + supply + tax %}
+        {% endfor %}
+
+        <!-- 합계금액 바 -->
+        <div class="total-bar">
+            <span>합계금액</span>
+            <span>( &#8361; {{ "{:,}".format(ns.total_amount | int) }} )</span>
+            <span>부가세 포함</span>
+        </div>
+
+        <!-- 견적 항목 -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width:120px;">품목</th>
+                    <th style="width:100px;">규격</th>
+                    <th style="width:60px;">수량</th>
+                    <th style="width:90px;">단가</th>
+                    <th style="width:110px;">공급가액</th>
+                    <th style="width:90px;">세액</th>
+                    <th style="width:110px;">합계</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                {% set supply = (item.qty or 0) * (item.unit_price or 0) %}
+                {% set tax = (supply * 0.1) | round | int %}
+                <tr>
+                    <td class="left">{{ item.name or '' }}</td>
+                    <td class="left">{{ item.spec or '' }}</td>
+                    <td class="center">{{ item.qty or 0 }}</td>
+                    <td>{{ "{:,}".format(item.unit_price or 0) }}</td>
+                    <td>{{ "{:,}".format(supply) }}</td>
+                    <td>{{ "{:,}".format(tax) }}</td>
+                    <td>{{ "{:,}".format(supply + tax) }}</td>
+                </tr>
+                {% endfor %}
+                <!-- 빈 행 채우기 -->
+                {% for i in range(max(0, 6 - items|length)) %}
+                <tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                {% endfor %}
+                <tr class="total-row">
+                    <td colspan="4" style="text-align:right;">합계</td>
+                    <td>{{ "{:,}".format(ns.total_supply | int) }}</td>
+                    <td>{{ "{:,}".format(ns.total_tax | int) }}</td>
+                    <td>{{ "{:,}".format(ns.total_amount | int) }}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- 특이사항 -->
+        <div class="notes-title">특 이 사 항</div>
+        <div class="notes-section">
+            {% if quote.memo %}{{ quote.memo }}{% endif %}
+            {% if quote.entry_method %}
+            <br>유입방식: {{ quote.entry_method }}{% if quote.keyword %} ({{ quote.keyword }}){% endif %}
+            {% endif %}
+            {% if quote.same_day_ship == 'Y' %}
+            <br>당일발송: 예{% if quote.ship_deadline %} (마감 {{ quote.ship_deadline }}){% endif %}
+            {% endif %}
+            {% if quote.weekend_work %}<br>주말작업: 유{% endif %}
+            {% if quote.courier %}<br>택배사: {{ quote.courier }}{% endif %}
+        </div>
+    </div>
+
+    <script>
+    // @media print 시 상단바 숨김은 CSS에서 처리
+    </script>
+</body>
+</html>
