@@ -201,6 +201,19 @@ CREATE TABLE IF NOT EXISTS managers (
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(name, phone)
 );
+
+CREATE TABLE IF NOT EXISTS quotes (
+    id              SERIAL PRIMARY KEY,
+    status          TEXT DEFAULT '작성중',
+    raw_text        TEXT NOT NULL DEFAULT '',
+    parsed_data     JSONB DEFAULT '{}',
+    campaign_id     TEXT,
+    memo            TEXT DEFAULT '',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
+CREATE INDEX IF NOT EXISTS idx_quotes_created ON quotes(created_at);
 """
 
 
@@ -1463,3 +1476,56 @@ class DBManager:
                 count = cur.rowcount
             conn.commit()
         return count
+
+    # ─────────── quotes (견적서) ───────────
+
+    def create_quote(self, raw_text: str, parsed_data: dict, status: str = "확인대기") -> int:
+        """견적서 생성, 생성된 id 반환"""
+        import json
+        return self._execute_returning(
+            "INSERT INTO quotes (raw_text, parsed_data, status) VALUES (%s, %s, %s) RETURNING id",
+            (raw_text, json.dumps(parsed_data, ensure_ascii=False), status),
+        )
+
+    def get_quotes(self, status: str | None = None) -> list[dict]:
+        """견적서 목록 조회 (최신순)"""
+        if status:
+            return self._fetchall(
+                "SELECT * FROM quotes WHERE status = %s ORDER BY created_at DESC", (status,)
+            )
+        return self._fetchall("SELECT * FROM quotes ORDER BY created_at DESC")
+
+    def get_quote(self, quote_id: int) -> dict | None:
+        """견적서 단건 조회"""
+        return self._fetchone("SELECT * FROM quotes WHERE id = %s", (quote_id,))
+
+    def update_quote(self, quote_id: int, parsed_data: dict | None = None,
+                     status: str | None = None, memo: str | None = None):
+        """견적서 수정"""
+        import json
+        sets, params = [], []
+        if parsed_data is not None:
+            sets.append("parsed_data = %s")
+            params.append(json.dumps(parsed_data, ensure_ascii=False))
+        if status is not None:
+            sets.append("status = %s")
+            params.append(status)
+        if memo is not None:
+            sets.append("memo = %s")
+            params.append(memo)
+        if not sets:
+            return
+        sets.append("updated_at = NOW()")
+        params.append(quote_id)
+        self._execute(f"UPDATE quotes SET {', '.join(sets)} WHERE id = %s", params)
+
+    def approve_quote(self, quote_id: int, campaign_id: str):
+        """견적서 승인 + 캠페인 ID 연결"""
+        self._execute(
+            "UPDATE quotes SET status = '승인', campaign_id = %s, updated_at = NOW() WHERE id = %s",
+            (campaign_id, quote_id),
+        )
+
+    def delete_quote(self, quote_id: int):
+        """견적서 삭제"""
+        self._execute("DELETE FROM quotes WHERE id = %s", (quote_id,))

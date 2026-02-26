@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 견적서 작성</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .quote-layout { display: flex; gap: 24px; align-items: flex-start; }
+    .quote-left { flex: 1; min-width: 0; }
+    .quote-right { flex: 1; min-width: 0; }
+    @media (max-width: 900px) { .quote-layout { flex-direction: column; } }
+    .section-card {
+        background: #fff; border-radius: 12px; padding: 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 20px;
+    }
+    .section-card h3 {
+        font-size: 15px; font-weight: 700; color: #3c1e1e;
+        margin: 0 0 14px 0; padding-bottom: 8px; border-bottom: 2px solid #fee500;
+    }
+    .raw-textarea {
+        width: 100%; min-height: 300px; border: 1px solid #ddd; border-radius: 8px;
+        padding: 14px; font-size: 13px; line-height: 1.6; resize: vertical; font-family: inherit;
+    }
+    .raw-textarea:focus { outline: none; border-color: #fee500; }
+    .btn-parse {
+        display: block; width: 100%; margin-top: 12px; padding: 12px;
+        background: #3c1e1e; color: #fff; border: none; border-radius: 8px;
+        font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .btn-parse:hover { background: #5a3030; }
+    .btn-parse:disabled { opacity: .5; cursor: default; }
+    .parsing-status {
+        text-align: center; padding: 8px; font-size: 13px; color: #888;
+        display: none; margin-top: 8px;
+    }
+    .form-group { margin-bottom: 12px; }
+    .form-group label {
+        display: block; font-size: 12px; font-weight: 600; color: #555;
+        margin-bottom: 4px;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+        width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+        font-size: 13px; background: #fff;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+        outline: none; border-color: #fee500;
+    }
+    .form-row { display: flex; gap: 12px; }
+    .form-row .form-group { flex: 1; }
+    .btn-bar { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-save {
+        flex: 1; padding: 12px; background: #fee500; color: #3c1e1e; border: none;
+        border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .btn-save:hover { background: #e6cf00; }
+    .btn-cancel {
+        padding: 12px 24px; background: #fff; color: #555; border: 1px solid #ddd;
+        border-radius: 8px; font-size: 15px; cursor: pointer; text-decoration: none;
+        text-align: center;
+    }
+    .btn-cancel:hover { background: #f5f5f5; }
+    .field-highlight { border-color: #60a5fa !important; background: #eff6ff !important; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.quotes') }}" class="active">견적서</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>견적서 작성</h1>
+
+        <div class="quote-layout">
+            <!-- 좌측: 요청서 텍스트 입력 -->
+            <div class="quote-left">
+                <div class="section-card">
+                    <h3>요청서 원본</h3>
+                    <textarea id="rawText" class="raw-textarea" placeholder="업체에서 받은 요청서 텍스트를 붙여넣으세요..."></textarea>
+                    <button type="button" id="btnParse" class="btn-parse" onclick="parseRequest()">AI 파싱</button>
+                    <div id="parsingStatus" class="parsing-status">AI가 요청서를 분석하고 있습니다...</div>
+                </div>
+            </div>
+
+            <!-- 우측: 파싱 결과 자동채우기 폼 -->
+            <div class="quote-right">
+                <form method="POST" action="{{ url_for('admin.quote_new_post') }}" id="quoteForm">
+                    <input type="hidden" name="raw_text" id="rawTextHidden">
+                    <input type="hidden" name="parsed_data" id="parsedDataHidden">
+
+                    <div class="section-card">
+                        <h3>상품 정보</h3>
+                        <div class="form-group">
+                            <label>상품링크</label>
+                            <input type="text" id="f_상품링크" placeholder="https://...">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>플랫폼</label>
+                                <select id="f_플랫폼">
+                                    <option value="">선택</option>
+                                    <option>스마트스토어</option>
+                                    <option>쿠팡</option>
+                                    <option>오늘의집</option>
+                                    <option>11번가</option>
+                                    <option>지마켓</option>
+                                    <option>올리브영</option>
+                                    <option>기타</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>캠페인유형</label>
+                                <select id="f_캠페인유형">
+                                    <option value="">선택</option>
+                                    <option>실배송</option>
+                                    <option>빈박스</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>업체명</label>
+                                <input type="text" id="f_업체명">
+                            </div>
+                            <div class="form-group">
+                                <label>상품명</label>
+                                <input type="text" id="f_상품명">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>상품금액</label>
+                                <input type="text" id="f_상품금액" placeholder="29,000">
+                            </div>
+                            <div class="form-group">
+                                <label>리뷰비</label>
+                                <input type="text" id="f_리뷰비" placeholder="15,000">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>옵션 (쉼표 구분)</label>
+                            <input type="text" id="f_옵션" placeholder="905 SS, 블랙">
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>수량 / 일정</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>총수량</label>
+                                <input type="text" id="f_총수량">
+                            </div>
+                            <div class="form-group">
+                                <label>일수량</label>
+                                <input type="text" id="f_일수량" placeholder="5 또는 3-5">
+                            </div>
+                            <div class="form-group">
+                                <label>진행일수</label>
+                                <input type="text" id="f_진행일수">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>유입 / 검색</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>유입방식</label>
+                                <select id="f_유입방식">
+                                    <option value="">선택</option>
+                                    <option>링크유입</option>
+                                    <option>키워드유입</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>키워드</label>
+                                <input type="text" id="f_키워드">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>키워드 노출 위치</label>
+                            <input type="text" id="f_키워드위치" placeholder="1페이지 8위">
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>배송 / 운영</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>당일발송</label>
+                                <select id="f_당일발송">
+                                    <option value="">선택</option>
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>발송마감시간</label>
+                                <input type="text" id="f_발송마감" placeholder="오후 6시 30분">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>택배사</label>
+                                <input type="text" id="f_택배사">
+                            </div>
+                            <div class="form-group">
+                                <label>배송대행(3PL)</label>
+                                <select id="f_3PL사용">
+                                    <option value="">선택</option>
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>주말작업</label>
+                                <select id="f_주말작업">
+                                    <option value="">선택</option>
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>중복허용</label>
+                                <select id="f_중복허용">
+                                    <option value="">선택</option>
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>구매가능시간</label>
+                            <input type="text" id="f_구매가능시간" placeholder="09:00~22:00">
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>리뷰</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>리뷰 제공 방식</label>
+                                <select id="f_리뷰제공">
+                                    <option value="">선택</option>
+                                    <option>자체작성</option>
+                                    <option>텍스트제공</option>
+                                    <option>사진제공</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>리뷰 원고 수</label>
+                                <input type="text" id="f_리뷰원고수">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>메모</h3>
+                        <div class="form-group">
+                            <label>기타 특이사항</label>
+                            <textarea id="f_메모" rows="3" style="resize:vertical;"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="btn-bar">
+                        <a href="{{ url_for('admin.quotes') }}" class="btn-cancel">취소</a>
+                        <button type="submit" class="btn-save">견적서 저장</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    var FIELD_IDS = [
+        "상품링크","플랫폼","캠페인유형","업체명","상품명","상품금액","리뷰비","옵션",
+        "총수량","일수량","진행일수",
+        "유입방식","키워드","키워드위치",
+        "당일발송","발송마감","택배사","3PL사용","주말작업","중복허용","구매가능시간",
+        "리뷰제공","리뷰원고수","메모"
+    ];
+
+    function parseRequest() {
+        var raw = document.getElementById('rawText').value.trim();
+        if (!raw) { alert('요청서 텍스트를 입력하세요.'); return; }
+
+        var btn = document.getElementById('btnParse');
+        var status = document.getElementById('parsingStatus');
+        btn.disabled = true;
+        status.style.display = 'block';
+
+        fetch('/admin/api/quotes/parse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raw_text: raw })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            btn.disabled = false;
+            status.style.display = 'none';
+            if (!d.ok) {
+                alert('파싱 실패: ' + (d.message || '알 수 없는 오류'));
+                return;
+            }
+            fillForm(d.parsed);
+        })
+        .catch(function(e) {
+            btn.disabled = false;
+            status.style.display = 'none';
+            alert('요청 실패: ' + e.message);
+        });
+    }
+
+    function fillForm(parsed) {
+        FIELD_IDS.forEach(function(key) {
+            var el = document.getElementById('f_' + key);
+            if (!el) return;
+            var val = parsed[key] || '';
+            if (el.tagName === 'SELECT') {
+                for (var i = 0; i < el.options.length; i++) {
+                    if (el.options[i].value === val || el.options[i].text === val) {
+                        el.selectedIndex = i;
+                        break;
+                    }
+                }
+            } else {
+                el.value = val;
+            }
+            if (val) el.classList.add('field-highlight');
+        });
+    }
+
+    function collectFormData() {
+        var data = {};
+        FIELD_IDS.forEach(function(key) {
+            var el = document.getElementById('f_' + key);
+            if (el) data[key] = el.value;
+        });
+        return data;
+    }
+
+    document.getElementById('quoteForm').addEventListener('submit', function(e) {
+        document.getElementById('rawTextHidden').value = document.getElementById('rawText').value;
+        document.getElementById('parsedDataHidden').value = JSON.stringify(collectFormData());
+    });
+    </script>
+</body>
+</html>

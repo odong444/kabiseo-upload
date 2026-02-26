@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 견적서</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .quote-toolbar {
+        display: flex; justify-content: space-between; align-items: center;
+        flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+    }
+    .quote-toolbar .left { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .status-tabs { display: flex; gap: 6px; }
+    .status-tabs a {
+        padding: 6px 14px; border: 1px solid #ddd; border-radius: 20px;
+        font-size: 13px; text-decoration: none; color: #555; background: #fff;
+    }
+    .status-tabs a:hover { background: #f5f5f5; }
+    .status-tabs a.active { background: #fee500; border-color: #e6cf00; font-weight: 700; color: #3c1e1e; }
+    .admin-status-badge {
+        display: inline-block; padding: 2px 10px; border-radius: 12px;
+        font-size: 12px; font-weight: 600;
+    }
+    .admin-status-badge.작성중 { background: #f3f4f6; color: #6b7280; }
+    .admin-status-badge.확인대기 { background: #fef3c7; color: #92400e; }
+    .admin-status-badge.승인 { background: #d1fae5; color: #065f46; }
+    .admin-status-badge.거절 { background: #fee2e2; color: #991b1b; }
+    .btn-new {
+        padding: 8px 20px; background: #3c1e1e; color: #fff; border: none;
+        border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+        text-decoration: none;
+    }
+    .btn-new:hover { background: #5a3030; }
+    .action-btns { display: flex; gap: 4px; }
+    .action-btns a, .action-btns button {
+        padding: 4px 10px; border: 1px solid #ddd; border-radius: 6px;
+        font-size: 12px; cursor: pointer; background: #fff; text-decoration: none; color: #333;
+    }
+    .action-btns a:hover, .action-btns button:hover { background: #f5f5f5; }
+    .action-btns .btn-danger { color: #dc2626; border-color: #fca5a5; }
+    .action-btns .btn-danger:hover { background: #fef2f2; }
+    .empty-state {
+        text-align: center; padding: 60px 20px; color: #999; font-size: 15px;
+    }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.quotes') }}" class="active">견적서</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>견적서 관리</h1>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        {% for msg in messages %}
+        <div style="background:#d1fae5;color:#065f46;padding:10px 16px;border-radius:8px;margin-bottom:12px;font-size:14px;">{{ msg }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="quote-toolbar">
+            <div class="left">
+                <div class="status-tabs">
+                    <a href="{{ url_for('admin.quotes') }}" class="{{ 'active' if not current_status }}">전체</a>
+                    <a href="{{ url_for('admin.quotes', status='확인대기') }}" class="{{ 'active' if current_status == '확인대기' }}">확인대기</a>
+                    <a href="{{ url_for('admin.quotes', status='승인') }}" class="{{ 'active' if current_status == '승인' }}">승인</a>
+                    <a href="{{ url_for('admin.quotes', status='거절') }}" class="{{ 'active' if current_status == '거절' }}">거절</a>
+                </div>
+                <span style="font-size:14px;color:#888;">총 <strong style="color:#3c1e1e;">{{ items|length }}</strong>건</span>
+            </div>
+            <a href="{{ url_for('admin.quote_new') }}" class="btn-new">+ 새 견적서</a>
+        </div>
+
+        {% if items %}
+        <div class="admin-table-wrap">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th style="width:60px;">#</th>
+                        <th>업체명</th>
+                        <th>상품명</th>
+                        <th>플랫폼</th>
+                        <th>총수량</th>
+                        <th>상태</th>
+                        <th>캠페인ID</th>
+                        <th>등록일</th>
+                        <th>액션</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for item in items %}
+                {% set p = item.parsed_data if item.parsed_data is mapping else {} %}
+                <tr>
+                    <td>{{ item.id }}</td>
+                    <td>{{ p.get('업체명', '-') if p else '-' }}</td>
+                    <td>{{ p.get('상품명', '-') if p else '-' }}</td>
+                    <td>{{ p.get('플랫폼', '-') if p else '-' }}</td>
+                    <td>{{ p.get('총수량', '-') if p else '-' }}</td>
+                    <td><span class="admin-status-badge {{ item.status }}">{{ item.status }}</span></td>
+                    <td>{{ item.campaign_id or '-' }}</td>
+                    <td>{{ item.created_at.strftime('%m/%d %H:%M') if item.created_at else '-' }}</td>
+                    <td>
+                        <div class="action-btns">
+                            <a href="{{ url_for('admin.quote_edit', quote_id=item.id) }}">수정</a>
+                            <a href="{{ url_for('admin.quote_preview', quote_id=item.id) }}">미리보기</a>
+                            <button class="btn-danger" onclick="deleteQuote({{ item.id }})">삭제</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">견적서가 없습니다.</div>
+        {% endif %}
+    </main>
+
+    <script>
+    function deleteQuote(id) {
+        if (!confirm('견적서 #' + id + '를 삭제하시겠습니까?')) return;
+        fetch('/admin/quotes/' + id, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(d => { if (d.ok) location.reload(); else alert(d.message || '삭제 실패'); });
+    }
+    </script>
+</body>
+</html>

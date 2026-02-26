@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>견적서 #{{ quote.id }} - 미리보기</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    @media print {
+        .admin-header, .no-print { display: none !important; }
+        .admin-main { padding: 0 !important; }
+        .quote-doc { box-shadow: none !important; }
+    }
+    .quote-doc {
+        max-width: 800px; margin: 0 auto; background: #fff; border-radius: 12px;
+        padding: 40px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .quote-header {
+        text-align: center; border-bottom: 3px solid #3c1e1e; padding-bottom: 20px;
+        margin-bottom: 30px;
+    }
+    .quote-header h2 { font-size: 24px; color: #3c1e1e; margin: 0 0 6px 0; }
+    .quote-header .subtitle { font-size: 14px; color: #888; }
+    .quote-table {
+        width: 100%; border-collapse: collapse; margin-bottom: 24px;
+    }
+    .quote-table th {
+        text-align: left; padding: 10px 14px; background: #f8f5f0;
+        border: 1px solid #e0dcd5; font-size: 13px; color: #555;
+        width: 140px; font-weight: 600;
+    }
+    .quote-table td {
+        padding: 10px 14px; border: 1px solid #e0dcd5; font-size: 14px;
+        color: #333;
+    }
+    .section-title {
+        font-size: 16px; font-weight: 700; color: #3c1e1e; margin: 28px 0 12px 0;
+        padding-left: 10px; border-left: 4px solid #fee500;
+    }
+    .btn-toolbar {
+        display: flex; gap: 10px; justify-content: center; margin-top: 30px;
+    }
+    .btn-toolbar a, .btn-toolbar button {
+        padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;
+        cursor: pointer; text-decoration: none; border: 1px solid #ddd;
+    }
+    .btn-print { background: #3c1e1e; color: #fff; border-color: #3c1e1e; }
+    .btn-print:hover { background: #5a3030; }
+    .btn-back { background: #fff; color: #555; }
+    .btn-back:hover { background: #f5f5f5; }
+    .status-badge {
+        display: inline-block; padding: 4px 14px; border-radius: 20px;
+        font-size: 13px; font-weight: 700;
+    }
+    .status-badge.작성중 { background: #f3f4f6; color: #6b7280; }
+    .status-badge.확인대기 { background: #fef3c7; color: #92400e; }
+    .status-badge.승인 { background: #d1fae5; color: #065f46; }
+    .status-badge.거절 { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.quotes') }}" class="active">견적서</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        {% set p = quote.parsed_data if quote.parsed_data is mapping else {} %}
+
+        <div class="quote-doc">
+            <div class="quote-header">
+                <h2>견 적 서</h2>
+                <div class="subtitle">
+                    #{{ quote.id }} | {{ quote.created_at.strftime('%Y-%m-%d') if quote.created_at else '-' }}
+                    | <span class="status-badge {{ quote.status }}">{{ quote.status }}</span>
+                </div>
+            </div>
+
+            <div class="section-title">상품 정보</div>
+            <table class="quote-table">
+                <tr><th>업체명</th><td>{{ p.get('업체명', '-') }}</td></tr>
+                <tr><th>상품명</th><td>{{ p.get('상품명', '-') }}</td></tr>
+                <tr><th>상품링크</th><td>{% if p.get('상품링크') %}<a href="{{ p.상품링크 }}" target="_blank">{{ p.상품링크 }}</a>{% else %}-{% endif %}</td></tr>
+                <tr><th>플랫폼</th><td>{{ p.get('플랫폼', '-') }}</td></tr>
+                <tr><th>캠페인유형</th><td>{{ p.get('캠페인유형', '-') }}</td></tr>
+                <tr><th>상품금액</th><td>{{ p.get('상품금액', '-') }}</td></tr>
+                <tr><th>리뷰비</th><td>{{ p.get('리뷰비', '-') }}</td></tr>
+                <tr><th>옵션</th><td>{{ p.get('옵션', '-') }}</td></tr>
+            </table>
+
+            <div class="section-title">수량 / 일정</div>
+            <table class="quote-table">
+                <tr><th>총수량</th><td>{{ p.get('총수량', '-') }}</td></tr>
+                <tr><th>일수량</th><td>{{ p.get('일수량', '-') }}</td></tr>
+                <tr><th>진행일수</th><td>{{ p.get('진행일수', '-') }}</td></tr>
+            </table>
+
+            <div class="section-title">유입 / 검색</div>
+            <table class="quote-table">
+                <tr><th>유입방식</th><td>{{ p.get('유입방식', '-') }}</td></tr>
+                <tr><th>키워드</th><td>{{ p.get('키워드', '-') }}</td></tr>
+                <tr><th>키워드 위치</th><td>{{ p.get('키워드위치', '-') }}</td></tr>
+            </table>
+
+            <div class="section-title">배송 / 운영</div>
+            <table class="quote-table">
+                <tr><th>당일발송</th><td>{{ p.get('당일발송', '-') }}</td></tr>
+                <tr><th>발송마감시간</th><td>{{ p.get('발송마감', '-') }}</td></tr>
+                <tr><th>택배사</th><td>{{ p.get('택배사', '-') }}</td></tr>
+                <tr><th>배송대행(3PL)</th><td>{{ p.get('3PL사용', '-') }}</td></tr>
+                <tr><th>주말작업</th><td>{{ p.get('주말작업', '-') }}</td></tr>
+                <tr><th>중복허용</th><td>{{ p.get('중복허용', '-') }}</td></tr>
+                <tr><th>구매가능시간</th><td>{{ p.get('구매가능시간', '-') }}</td></tr>
+            </table>
+
+            <div class="section-title">리뷰</div>
+            <table class="quote-table">
+                <tr><th>리뷰 방식</th><td>{{ p.get('리뷰제공', '-') }}</td></tr>
+                <tr><th>리뷰 원고 수</th><td>{{ p.get('리뷰원고수', '-') }}</td></tr>
+            </table>
+
+            {% if p.get('메모') or quote.memo %}
+            <div class="section-title">메모</div>
+            <table class="quote-table">
+                <tr><th>특이사항</th><td>{{ p.get('메모', '') }}{{ (' / ' + quote.memo) if quote.memo else '' }}</td></tr>
+            </table>
+            {% endif %}
+
+            <div class="btn-toolbar no-print">
+                <a href="{{ url_for('admin.quotes') }}" class="btn-back">목록</a>
+                <a href="{{ url_for('admin.quote_edit', quote_id=quote.id) }}" class="btn-back">수정</a>
+                <button class="btn-print" onclick="window.print()">인쇄</button>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

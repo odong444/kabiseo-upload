@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 견적서 수정</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .quote-layout { display: flex; gap: 24px; align-items: flex-start; }
+    .quote-left { flex: 1; min-width: 0; }
+    .quote-right { flex: 1; min-width: 0; }
+    @media (max-width: 900px) { .quote-layout { flex-direction: column; } }
+    .section-card {
+        background: #fff; border-radius: 12px; padding: 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 20px;
+    }
+    .section-card h3 {
+        font-size: 15px; font-weight: 700; color: #3c1e1e;
+        margin: 0 0 14px 0; padding-bottom: 8px; border-bottom: 2px solid #fee500;
+    }
+    .raw-textarea {
+        width: 100%; min-height: 250px; border: 1px solid #ddd; border-radius: 8px;
+        padding: 14px; font-size: 13px; line-height: 1.6; resize: vertical;
+        font-family: inherit; background: #fafafa; color: #333;
+    }
+    .form-group { margin-bottom: 12px; }
+    .form-group label {
+        display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 4px;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+        width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+        font-size: 13px; background: #fff;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+        outline: none; border-color: #fee500;
+    }
+    .form-row { display: flex; gap: 12px; }
+    .form-row .form-group { flex: 1; }
+    .btn-bar { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .btn-save {
+        flex: 1; padding: 12px; background: #fee500; color: #3c1e1e; border: none;
+        border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .btn-save:hover { background: #e6cf00; }
+    .btn-approve {
+        flex: 1; padding: 12px; background: #059669; color: #fff; border: none;
+        border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .btn-approve:hover { background: #047857; }
+    .btn-reject {
+        padding: 12px 20px; background: #fff; color: #dc2626; border: 1px solid #fca5a5;
+        border-radius: 8px; font-size: 15px; cursor: pointer;
+    }
+    .btn-reject:hover { background: #fef2f2; }
+    .btn-cancel {
+        padding: 12px 20px; background: #fff; color: #555; border: 1px solid #ddd;
+        border-radius: 8px; font-size: 15px; cursor: pointer; text-decoration: none; text-align: center;
+    }
+    .btn-cancel:hover { background: #f5f5f5; }
+    .status-badge {
+        display: inline-block; padding: 4px 14px; border-radius: 20px;
+        font-size: 13px; font-weight: 700;
+    }
+    .status-badge.작성중 { background: #f3f4f6; color: #6b7280; }
+    .status-badge.확인대기 { background: #fef3c7; color: #92400e; }
+    .status-badge.승인 { background: #d1fae5; color: #065f46; }
+    .status-badge.거절 { background: #fee2e2; color: #991b1b; }
+    .quote-meta {
+        display: flex; gap: 16px; align-items: center; margin-bottom: 16px;
+        font-size: 14px; color: #666;
+    }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.quotes') }}" class="active">견적서</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>견적서 #{{ quote.id }} 수정</h1>
+
+        <div class="quote-meta">
+            <span class="status-badge {{ quote.status }}">{{ quote.status }}</span>
+            <span>등록: {{ quote.created_at.strftime('%Y-%m-%d %H:%M') if quote.created_at else '-' }}</span>
+            {% if quote.campaign_id %}
+            <span>캠페인: <a href="{{ url_for('admin.campaign_edit', campaign_id=quote.campaign_id) }}">{{ quote.campaign_id }}</a></span>
+            {% endif %}
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        {% for msg in messages %}
+        <div style="background:#d1fae5;color:#065f46;padding:10px 16px;border-radius:8px;margin-bottom:12px;font-size:14px;">{{ msg }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="quote-layout">
+            <!-- 좌측: 원본 요청서 -->
+            <div class="quote-left">
+                <div class="section-card">
+                    <h3>요청서 원본</h3>
+                    <textarea class="raw-textarea" readonly>{{ quote.raw_text or '' }}</textarea>
+                </div>
+            </div>
+
+            <!-- 우측: 파싱 결과 수정 폼 -->
+            <div class="quote-right">
+                <form method="POST" id="quoteForm">
+                    <input type="hidden" name="parsed_data" id="parsedDataHidden">
+                    <input type="hidden" name="memo" id="memoHidden">
+
+                    <div class="section-card">
+                        <h3>상품 정보</h3>
+                        <div class="form-group">
+                            <label>상품링크</label>
+                            <input type="text" id="f_상품링크">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>플랫폼</label>
+                                <select id="f_플랫폼">
+                                    <option value="">선택</option>
+                                    <option>스마트스토어</option>
+                                    <option>쿠팡</option>
+                                    <option>오늘의집</option>
+                                    <option>11번가</option>
+                                    <option>지마켓</option>
+                                    <option>올리브영</option>
+                                    <option>기타</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>캠페인유형</label>
+                                <select id="f_캠페인유형">
+                                    <option value="">선택</option>
+                                    <option>실배송</option>
+                                    <option>빈박스</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>업체명</label>
+                                <input type="text" id="f_업체명">
+                            </div>
+                            <div class="form-group">
+                                <label>상품명</label>
+                                <input type="text" id="f_상품명">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>상품금액</label>
+                                <input type="text" id="f_상품금액">
+                            </div>
+                            <div class="form-group">
+                                <label>리뷰비</label>
+                                <input type="text" id="f_리뷰비">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>옵션 (쉼표 구분)</label>
+                            <input type="text" id="f_옵션">
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>수량 / 일정</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>총수량</label>
+                                <input type="text" id="f_총수량">
+                            </div>
+                            <div class="form-group">
+                                <label>일수량</label>
+                                <input type="text" id="f_일수량">
+                            </div>
+                            <div class="form-group">
+                                <label>진행일수</label>
+                                <input type="text" id="f_진행일수">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>유입 / 검색</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>유입방식</label>
+                                <select id="f_유입방식">
+                                    <option value="">선택</option>
+                                    <option>링크유입</option>
+                                    <option>키워드유입</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>키워드</label>
+                                <input type="text" id="f_키워드">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>키워드 노출 위치</label>
+                            <input type="text" id="f_키워드위치">
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>배송 / 운영</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>당일발송</label>
+                                <select id="f_당일발송">
+                                    <option value="">선택</option>
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>발송마감시간</label>
+                                <input type="text" id="f_발송마감">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>택배사</label>
+                                <input type="text" id="f_택배사">
+                            </div>
+                            <div class="form-group">
+                                <label>배송대행(3PL)</label>
+                                <select id="f_3PL사용">
+                                    <option value="">선택</option>
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>주말작업</label>
+                                <select id="f_주말작업">
+                                    <option value="">선택</option>
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>중복허용</label>
+                                <select id="f_중복허용">
+                                    <option value="">선택</option>
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>구매가능시간</label>
+                            <input type="text" id="f_구매가능시간">
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>리뷰</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>리뷰 제공 방식</label>
+                                <select id="f_리뷰제공">
+                                    <option value="">선택</option>
+                                    <option>자체작성</option>
+                                    <option>텍스트제공</option>
+                                    <option>사진제공</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>리뷰 원고 수</label>
+                                <input type="text" id="f_리뷰원고수">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h3>메모</h3>
+                        <div class="form-group">
+                            <textarea id="f_메모" rows="3" style="resize:vertical;">{{ quote.memo or '' }}</textarea>
+                        </div>
+                    </div>
+
+                    <div class="btn-bar">
+                        <a href="{{ url_for('admin.quotes') }}" class="btn-cancel">목록</a>
+                        {% if quote.status != '승인' %}
+                        <button type="button" class="btn-reject" onclick="rejectQuote()">거절</button>
+                        <button type="submit" class="btn-save">저장</button>
+                        <button type="button" class="btn-approve" onclick="approveQuote()">승인 → 캠페인 등록</button>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    var FIELD_IDS = [
+        "상품링크","플랫폼","캠페인유형","업체명","상품명","상품금액","리뷰비","옵션",
+        "총수량","일수량","진행일수",
+        "유입방식","키워드","키워드위치",
+        "당일발송","발송마감","택배사","3PL사용","주말작업","중복허용","구매가능시간",
+        "리뷰제공","리뷰원고수","메모"
+    ];
+
+    // 기존 데이터 로드
+    var existingData = {{ quote.parsed_data | tojson }};
+    if (typeof existingData === 'string') {
+        try { existingData = JSON.parse(existingData); } catch(e) { existingData = {}; }
+    }
+
+    function fillForm(data) {
+        FIELD_IDS.forEach(function(key) {
+            var el = document.getElementById('f_' + key);
+            if (!el) return;
+            var val = data[key] || '';
+            if (el.tagName === 'SELECT') {
+                for (var i = 0; i < el.options.length; i++) {
+                    if (el.options[i].value === val || el.options[i].text === val) {
+                        el.selectedIndex = i; break;
+                    }
+                }
+            } else if (el.tagName === 'TEXTAREA') {
+                el.value = val;
+            } else {
+                el.value = val;
+            }
+        });
+    }
+
+    function collectFormData() {
+        var data = {};
+        FIELD_IDS.forEach(function(key) {
+            var el = document.getElementById('f_' + key);
+            if (el) data[key] = el.value;
+        });
+        return data;
+    }
+
+    // 폼 제출 시 hidden 필드 채우기
+    document.getElementById('quoteForm').addEventListener('submit', function(e) {
+        document.getElementById('parsedDataHidden').value = JSON.stringify(collectFormData());
+        document.getElementById('memoHidden').value = document.getElementById('f_메모').value;
+    });
+
+    function approveQuote() {
+        if (!confirm('이 견적서를 승인하고 캠페인을 등록하시겠습니까?')) return;
+
+        // 먼저 현재 폼 데이터 저장
+        var formData = collectFormData();
+        fetch('/admin/quotes/{{ quote.id }}/edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'parsed_data=' + encodeURIComponent(JSON.stringify(formData)) + '&memo=' + encodeURIComponent(document.getElementById('f_메모').value)
+        }).then(function() {
+            // 승인 요청
+            return fetch('/admin/quotes/{{ quote.id }}/approve', { method: 'POST' });
+        }).then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                alert(d.message);
+                location.href = '/admin/quotes';
+            } else {
+                alert('승인 실패: ' + (d.message || ''));
+            }
+        }).catch(function(e) { alert('요청 실패: ' + e.message); });
+    }
+
+    function rejectQuote() {
+        if (!confirm('이 견적서를 거절하시겠습니까?')) return;
+        fetch('/admin/quotes/{{ quote.id }}/reject', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) location.href = '/admin/quotes';
+                else alert('거절 실패: ' + (d.message || ''));
+            });
+    }
+
+    // 페이지 로드 시 기존 데이터 채우기
+    fillForm(existingData);
+    </script>
+</body>
+</html>

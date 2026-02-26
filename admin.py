@@ -1181,3 +1181,275 @@ def api_progress_delete():
     except Exception as e:
         logger.error(f"행 삭제 에러: {e}")
         return jsonify({"ok": False, "message": str(e)})
+
+
+# ═══════════════════════════════════════════
+#  견적서 (Quotes)
+# ═══════════════════════════════════════════
+
+QUOTE_PARSE_PROMPT = """아래 요청서 텍스트에서 캠페인 등록에 필요한 정보를 JSON으로 추출해줘.
+없는 항목은 빈 문자열(""), 불확실하면 빈 문자열로 둬.
+JSON만 출력해. 설명이나 코드블록 없이 순수 JSON만.
+
+[추출 필드 - 정확히 이 키를 사용]
+{
+  "상품링크": "",
+  "플랫폼": "(스마트스토어/쿠팡/오늘의집/11번가/지마켓/올리브영/기타)",
+  "업체명": "",
+  "상품명": "",
+  "캠페인유형": "(실배송/빈박스)",
+  "총수량": "",
+  "일수량": "",
+  "진행일수": "",
+  "상품금액": "",
+  "리뷰비": "",
+  "옵션": "(쉼표 구분)",
+  "유입방식": "(링크유입/키워드유입)",
+  "키워드": "",
+  "키워드위치": "(예: 1페이지 8위)",
+  "당일발송": "(Y/N)",
+  "발송마감": "(예: 오후 6시 30분)",
+  "택배사": "",
+  "3PL사용": "(Y/N)",
+  "주말작업": "(Y/N)",
+  "리뷰제공": "(자체작성/텍스트제공/사진제공)",
+  "리뷰원고수": "",
+  "중복허용": "(Y/N)",
+  "구매가능시간": "",
+  "메모": "(기타 특이사항)"
+}
+
+[요청서]
+{raw_text}
+
+JSON:"""
+
+
+@admin_bp.route("/quotes")
+@admin_required
+def quotes():
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.dashboard"))
+    status_filter = request.args.get("status", "")
+    items = models.db_manager.get_quotes(status=status_filter or None)
+    return render_template("admin/quotes.html", items=items, current_status=status_filter)
+
+
+@admin_bp.route("/quotes/new", methods=["GET"])
+@admin_required
+def quote_new():
+    return render_template("admin/quote_new.html")
+
+
+@admin_bp.route("/quotes/new", methods=["POST"])
+@admin_required
+def quote_new_post():
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+
+    import json
+    raw_text = request.form.get("raw_text", "").strip()
+    parsed_json = request.form.get("parsed_data", "{}")
+    try:
+        parsed_data = json.loads(parsed_json)
+    except Exception:
+        parsed_data = {}
+
+    quote_id = models.db_manager.create_quote(raw_text, parsed_data, status="확인대기")
+    flash(f"견적서 #{quote_id} 저장 완료")
+    return redirect(url_for("admin.quote_edit", quote_id=quote_id))
+
+
+@admin_bp.route("/quotes/<int:quote_id>/edit", methods=["GET"])
+@admin_required
+def quote_edit(quote_id):
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+    quote = models.db_manager.get_quote(quote_id)
+    if not quote:
+        flash("견적서를 찾을 수 없습니다.")
+        return redirect(url_for("admin.quotes"))
+    return render_template("admin/quote_edit.html", quote=quote)
+
+
+@admin_bp.route("/quotes/<int:quote_id>/edit", methods=["POST"])
+@admin_required
+def quote_edit_post(quote_id):
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+
+    import json
+    parsed_json = request.form.get("parsed_data", "{}")
+    memo = request.form.get("memo", "")
+    try:
+        parsed_data = json.loads(parsed_json)
+    except Exception:
+        parsed_data = {}
+
+    models.db_manager.update_quote(quote_id, parsed_data=parsed_data, memo=memo)
+    flash("견적서 수정 완료")
+    return redirect(url_for("admin.quote_edit", quote_id=quote_id))
+
+
+@admin_bp.route("/quotes/<int:quote_id>/approve", methods=["POST"])
+@admin_required
+def quote_approve(quote_id):
+    """견적서 승인 → 캠페인 자동 등록"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+
+    import json
+    import uuid
+    import re as _re
+    from modules.utils import today_str, safe_int
+
+    quote = models.db_manager.get_quote(quote_id)
+    if not quote:
+        return jsonify({"ok": False, "message": "견적서 없음"})
+
+    parsed = quote.get("parsed_data") or {}
+    if isinstance(parsed, str):
+        try:
+            parsed = json.loads(parsed)
+        except Exception:
+            parsed = {}
+
+    # 캠페인 데이터 구성
+    campaign_id = str(uuid.uuid4())[:8]
+    data = {
+        "캠페인ID": campaign_id,
+        "등록일": today_str(),
+        "상태": "모집중",
+        "완료수량": "0",
+    }
+
+    # 파싱 데이터에서 캠페인 필드 매핑
+    direct_fields = [
+        "상품링크", "플랫폼", "업체명", "상품명", "캠페인유형",
+        "총수량", "일수량", "진행일수", "상품금액", "리뷰비",
+        "옵션", "유입방식", "키워드", "키워드위치",
+        "당일발송", "발송마감", "택배사", "3PL사용",
+        "주말작업", "리뷰제공", "중복허용", "구매가능시간", "메모",
+    ]
+    for f in direct_fields:
+        val = parsed.get(f, "")
+        if val:
+            data[f] = str(val)
+
+    # 상품링크에서 상품코드 자동 추출
+    from modules.utils import extract_product_codes
+    product_link = data.get("상품링크", "")
+    if product_link:
+        codes = extract_product_codes(product_link)
+        if codes:
+            data["상품코드"] = codes
+
+    # 일정 자동 생성
+    total = safe_int(data.get("총수량", 0))
+    daily_str = data.get("일수량", "").strip()
+    days = safe_int(data.get("진행일수", 0))
+    if total > 0 and days > 0 and daily_str:
+        range_match = _re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
+        if range_match:
+            lo, hi = int(range_match.group(1)), int(range_match.group(2))
+        else:
+            lo = hi = safe_int(daily_str)
+        if lo > 0 and hi >= lo:
+            schedule = _generate_schedule(total, lo, hi, days)
+            data["일정"] = schedule
+            data["시작일"] = today_str()
+
+    try:
+        models.db_manager.create_campaign(data)
+        models.db_manager.approve_quote(quote_id, campaign_id)
+        display_name = data.get("캠페인명", "").strip() or data.get("상품명", "")
+        return jsonify({"ok": True, "campaign_id": campaign_id, "message": f"캠페인 '{display_name}' 등록 완료"})
+    except Exception as e:
+        logger.error(f"견적서 승인/캠페인 등록 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/quotes/<int:quote_id>/reject", methods=["POST"])
+@admin_required
+def quote_reject(quote_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    models.db_manager.update_quote(quote_id, status="거절")
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/quotes/<int:quote_id>", methods=["DELETE"])
+@admin_required
+def quote_delete(quote_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    models.db_manager.delete_quote(quote_id)
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/api/quotes/parse", methods=["POST"])
+@admin_required
+def api_quote_parse():
+    """AI 릴레이로 요청서 텍스트 파싱"""
+    import json
+
+    data = request.get_json(silent=True) or {}
+    raw_text = data.get("raw_text", "").strip()
+    if not raw_text:
+        return jsonify({"ok": False, "message": "요청서 텍스트가 비어있습니다."})
+
+    if not models.ai_handler:
+        return jsonify({"ok": False, "message": "AI 릴레이가 설정되지 않았습니다."})
+
+    prompt = QUOTE_PARSE_PROMPT.replace("{raw_text}", raw_text)
+
+    try:
+        headers = {}
+        if models.ai_handler.api_key:
+            headers["X-API-Key"] = models.ai_handler.api_key
+
+        resp = _requests.post(
+            f"{models.ai_handler.relay_url}/ai",
+            json={"prompt": prompt},
+            headers=headers,
+            timeout=90,
+        )
+        resp.raise_for_status()
+        ai_response = resp.json().get("response", "")
+
+        # JSON 추출 (코드블록 제거)
+        cleaned = ai_response.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[-1]
+        if cleaned.endswith("```"):
+            cleaned = cleaned.rsplit("```", 1)[0]
+        cleaned = cleaned.strip()
+
+        parsed = json.loads(cleaned)
+        return jsonify({"ok": True, "parsed": parsed})
+
+    except json.JSONDecodeError:
+        logger.error(f"AI 파싱 JSON 실패: {ai_response[:200] if 'ai_response' in dir() else 'N/A'}")
+        return jsonify({"ok": False, "message": "AI 응답을 JSON으로 변환할 수 없습니다.", "raw": ai_response if 'ai_response' in locals() else ""})
+    except _requests.Timeout:
+        return jsonify({"ok": False, "message": "AI 릴레이 타임아웃 (90초)"})
+    except Exception as e:
+        logger.error(f"AI 파싱 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/quotes/<int:quote_id>/preview")
+@admin_required
+def quote_preview(quote_id):
+    if not models.db_manager:
+        flash("시스템 초기화 중입니다.")
+        return redirect(url_for("admin.quotes"))
+    quote = models.db_manager.get_quote(quote_id)
+    if not quote:
+        flash("견적서를 찾을 수 없습니다.")
+        return redirect(url_for("admin.quotes"))
+    return render_template("admin/quote_preview.html", quote=quote)
