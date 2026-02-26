@@ -198,6 +198,17 @@
         width: 100%;
         height: 100%;
     }
+    .capture-modal-body .img-col #captureImg {
+        width: 100%;
+        height: 100%;
+    }
+    .capture-modal-body .img-col #captureImg iframe {
+        width: 100%;
+        height: 100%;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fafafa;
+    }
     .capture-modal-body .img-col iframe {
         width: 100%;
         height: 100%;
@@ -352,6 +363,7 @@
                         <th>리뷰기한</th>
                         <th>리뷰비</th>
                         <th>입금금액</th>
+                        <th>AI검수</th>
                         <th>비고</th>
                         <th></th>
                     </tr>
@@ -383,6 +395,17 @@
                         <td class="editable" data-field="리뷰기한">{{ item.get('리뷰기한', '') }}</td>
                         <td class="editable" data-field="리뷰비">{{ item.get('리뷰비', '') }}</td>
                         <td class="editable" data-field="입금금액">{{ item.get('입금금액', '') }}</td>
+                        <td class="readonly" style="white-space:nowrap;">
+                            {% set ai_p = item.get('AI구매검수', '') %}
+                            {% set ai_r = item.get('AI리뷰검수', '') %}
+                            {% if ai_p == '확인요청' or ai_r == '확인요청' %}
+                                <span style="background:#fef2f2;color:#dc2626;padding:1px 4px;border-radius:3px;font-size:10px;font-weight:600;" title="{{ item.get('AI구매사유', '') }} {{ item.get('AI리뷰사유', '') }}">확인요청</span>
+                            {% elif ai_p == 'AI검수통과' or ai_r == 'AI검수통과' %}
+                                <span style="color:#16a34a;font-size:10px;font-weight:600;">통과</span>
+                            {% elif ai_p or ai_r %}
+                                <span style="color:#888;font-size:10px;">{{ ai_p or ai_r }}</span>
+                            {% endif %}
+                        </td>
                         <td class="editable" data-field="비고" style="max-width:250px;">
                             <span class="remark-text">{{ item.get('비고', '') }}</span>
                             {% if item.get('구매캡쳐링크') %}

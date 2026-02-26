@@ -178,6 +178,23 @@ def _touch_reviewer_by_row(row_idx: int):
         logger.debug(f"타임아웃 리셋 실패 (무시): {e}")
 
 
+def _trigger_ai_verify(capture_type: str, progress_id: int, drive_link: str):
+    """업로드 완료 후 AI 검수 백그라운드 트리거"""
+    try:
+        from modules.capture_verifier import verify_capture_async
+        # 캠페인별 AI 지침 조회
+        ai_instructions = ""
+        row_data = models.db_manager.get_row_dict(progress_id)
+        campaign_id = row_data.get("캠페인ID", "")
+        if campaign_id:
+            campaign = models.db_manager.get_campaign_by_id(campaign_id)
+            if campaign:
+                ai_instructions = campaign.get("AI검수지침", "")
+        verify_capture_async(drive_link, capture_type, progress_id, models.db_manager, ai_instructions)
+    except Exception as e:
+        logger.warning(f"AI 검수 트리거 실패 (무시): {e}")
+
+
 def _handle_upload(capture_type: str, row: int):
     """공통 업로드 처리"""
     file = request.files.get("capture")
@@ -197,6 +214,7 @@ def _handle_upload(capture_type: str, row: int):
         )
         models.db_manager.update_after_upload(capture_type, row, drive_link)
         _touch_reviewer_by_row(row)
+        _trigger_ai_verify(capture_type, row, drive_link)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
         return render_template(
@@ -238,6 +256,7 @@ def api_upload():
         )
         models.db_manager.update_after_upload(capture_type, row_idx, drive_link)
         _touch_reviewer_by_row(row_idx)
+        _trigger_ai_verify(capture_type, row_idx, drive_link)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
         return jsonify({"ok": True, "message": f"{label} 캡쳐 제출 완료!"})

@@ -106,7 +106,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     promo_categories  TEXT DEFAULT '',
     promo_start       TEXT DEFAULT '09:00',
     promo_end         TEXT DEFAULT '22:00',
-    promo_cooldown    INTEGER DEFAULT 60
+    promo_cooldown    INTEGER DEFAULT 60,
+    ai_instructions   TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS reviewers (
@@ -150,7 +151,13 @@ CREATE TABLE IF NOT EXISTS progress (
     settled_date    DATE,
     is_collected    BOOLEAN DEFAULT FALSE,
     remark          TEXT DEFAULT '',
-    last_reminder_date DATE
+    last_reminder_date DATE,
+    ai_purchase_result  TEXT DEFAULT '',
+    ai_purchase_reason  TEXT DEFAULT '',
+    ai_review_result    TEXT DEFAULT '',
+    ai_review_reason    TEXT DEFAULT '',
+    ai_verified_at      TIMESTAMPTZ,
+    ai_override         TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
@@ -287,6 +294,17 @@ class DBManager:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_start TEXT DEFAULT '09:00'")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_end TEXT DEFAULT '22:00'")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS promo_cooldown INTEGER DEFAULT 60")
+                except Exception:
+                    pass
+                # AI 검수 컬럼
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS ai_instructions TEXT DEFAULT ''")
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_purchase_result TEXT DEFAULT ''")
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_purchase_reason TEXT DEFAULT ''")
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_review_result TEXT DEFAULT ''")
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_review_reason TEXT DEFAULT ''")
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_verified_at TIMESTAMPTZ")
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_override TEXT DEFAULT ''")
                 except Exception:
                     pass
                 # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
@@ -544,6 +562,7 @@ class DBManager:
         "홍보시작시간": "promo_start",
         "홍보종료시간": "promo_end",
         "홍보주기": "promo_cooldown",
+        "AI검수지침": "ai_instructions",
     }
 
     _CAMPAIGN_COLUMNS = {
@@ -567,6 +586,7 @@ class DBManager:
         "promotion_message",
         "promo_enabled", "promo_categories",
         "promo_start", "promo_end", "promo_cooldown",
+        "ai_instructions",
     }
 
     _BOOL_COLUMNS = {
@@ -810,6 +830,12 @@ class DBManager:
             "입금완료": str(row["settled_date"]) if row.get("settled_date") else "",
             "회수여부": "Y" if row.get("is_collected") else "",
             "비고": row.get("remark", ""),
+            "AI구매검수": row.get("ai_purchase_result", ""),
+            "AI구매사유": row.get("ai_purchase_reason", ""),
+            "AI리뷰검수": row.get("ai_review_result", ""),
+            "AI리뷰사유": row.get("ai_review_reason", ""),
+            "AI검수시간": row["ai_verified_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("ai_verified_at") else "",
+            "AI관리자판정": row.get("ai_override", ""),
         }
         return result
 

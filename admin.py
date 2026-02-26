@@ -206,6 +206,7 @@ def campaign_edit_post(campaign_id):
         "상품링크", "키워드", "유입방식", "리뷰기한일수",
         "공개여부", "캠페인가이드", "메모", "홍보메시지",
         "홍보활성", "홍보카테고리", "홍보시작시간", "홍보종료시간", "홍보주기",
+        "AI검수지침",
     ]
 
     update_data = {}
@@ -334,6 +335,7 @@ def campaign_new_post():
         "상품금액", "리뷰비", "중복허용", "구매가능시간", "캠페인가이드",
         "상품링크", "홍보메시지",
         "홍보활성", "홍보카테고리", "홍보시작시간", "홍보종료시간", "홍보주기",
+        "AI검수지침",
     ]
 
     data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
@@ -548,6 +550,58 @@ def api_reviews_reject():
         return jsonify({"ok": True})
     except Exception as e:
         logger.error(f"검수 반려 API 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+# ──────── AI 검수 API ────────
+
+@admin_bp.route("/api/ai-verify/override", methods=["POST"])
+@admin_required
+def api_ai_override():
+    """관리자가 AI 검수 결과를 오버라이드"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    progress_id = data.get("progress_id")
+    override = data.get("override", "")  # "통과" or "반려"
+    try:
+        models.db_manager._execute(
+            "UPDATE progress SET ai_override = %s WHERE id = %s",
+            (override, int(progress_id)),
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error(f"AI 오버라이드 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/ai-verify/recheck", methods=["POST"])
+@admin_required
+def api_ai_recheck():
+    """AI 검수 재실행"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    progress_id = data.get("progress_id")
+    capture_type = data.get("capture_type", "purchase")
+    try:
+        row = models.db_manager.get_row_dict(int(progress_id))
+        url_key = "구매캡쳐링크" if capture_type == "purchase" else "리뷰캡쳐링크"
+        drive_url = row.get(url_key, "")
+        if not drive_url:
+            return jsonify({"ok": False, "message": "캡쳐 URL 없음"})
+
+        from modules.capture_verifier import verify_capture_async
+        ai_instructions = ""
+        campaign_id = row.get("캠페인ID", "")
+        if campaign_id:
+            campaign = models.db_manager.get_campaign_by_id(campaign_id)
+            if campaign:
+                ai_instructions = campaign.get("AI검수지침", "")
+        verify_capture_async(drive_url, capture_type, int(progress_id), models.db_manager, ai_instructions)
+        return jsonify({"ok": True, "message": "AI 검수 재실행 중"})
+    except Exception as e:
+        logger.error(f"AI 재검수 에러: {e}")
         return jsonify({"ok": False, "message": str(e)})
 
 

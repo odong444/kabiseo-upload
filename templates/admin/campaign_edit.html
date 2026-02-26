@@ -430,6 +430,12 @@
                 </div>
 
                 <div class="form-group form-group-full">
+                    <label>AI 검수 지침</label>
+                    <textarea name="AI검수지침" rows="4" placeholder="예: 반드시 판매자배송으로 구매해야 합니다. 로켓배송은 불가합니다.">{{ campaign.get('AI검수지침', '') }}</textarea>
+                    <small style="color:#888;">캡쳐 업로드 시 AI가 자동으로 검수합니다. 캠페인별 추가 지침을 입력하세요.</small>
+                </div>
+
+                <div class="form-group form-group-full">
                     <label>메모</label>
                     <textarea name="메모" rows="3">{{ campaign.get('메모', '') }}</textarea>
                 </div>
