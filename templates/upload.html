@@ -1,43 +1,42 @@
 {% extends "base.html" %}
-{% block title %}카비서 - 사진 제출{% endblock %}
+{% block title %}카비서 - 리뷰 제출{% endblock %}
 
 {% block content %}
 <div class="page-content">
-    <h1 class="page-title">사진 제출</h1>
-    <p class="page-subtitle">제출할 캡쳐 유형을 선택해주세요</p>
+    <h1 class="page-title">리뷰 캡쳐 제출</h1>
+    <p class="page-subtitle">이름과 연락처로 검색 후 리뷰 캡쳐를 제출해주세요</p>
 
     <div class="menu-buttons">
-        <a href="{{ url_for('upload_purchase') }}" class="btn btn-primary btn-large">
-            <span class="btn-icon">&#128722;</span>
-            <span class="btn-text">구매 캡쳐 제출</span>
-            <span class="btn-desc">주문 완료 화면 캡쳐</span>
-        </a>
-        <a href="{{ url_for('upload_review') }}" class="btn btn-secondary btn-large">
+        <a href="{{ url_for('upload_review') }}" class="btn btn-primary btn-large">
             <span class="btn-icon">&#128221;</span>
             <span class="btn-text">리뷰 캡쳐 제출</span>
             <span class="btn-desc">리뷰 작성 완료 캡쳐</span>
         </a>
     </div>
+
+    <p style="text-align:center; color:#888; font-size:13px; margin-top:16px;">
+        구매 캡쳐는 <a href="/campaigns" style="color:#3c1e1e; font-weight:600;">캠페인목록</a>에서 해당 캠페인 진행 시 제출합니다.
+    </p>
 </div>
 {% endblock %}
 
 {% block nav %}
 <nav class="bottom-nav">
-    <a href="/chat" class="nav-item">
-        <span class="nav-icon">&#128172;</span>
-        <span class="nav-label">채팅</span>
+    <a href="/campaigns" class="nav-item">
+        <span class="nav-icon">&#x1f4cb;</span>
+        <span class="nav-label">캠페인</span>
     </a>
-    <a href="/status" class="nav-item">
-        <span class="nav-icon">&#128203;</span>
-        <span class="nav-label">진행현황</span>
+    <a href="/my" class="nav-item">
+        <span class="nav-icon">&#x1f4dd;</span>
+        <span class="nav-label">내작업</span>
     </a>
     <a href="/upload" class="nav-item active">
-        <span class="nav-icon">&#128247;</span>
-        <span class="nav-label">사진제출</span>
+        <span class="nav-icon">&#x1f4f7;</span>
+        <span class="nav-label">리뷰제출</span>
     </a>
-    <a href="/payment" class="nav-item">
-        <span class="nav-icon">&#128176;</span>
-        <span class="nav-label">입금</span>
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#x1f4ac;</span>
+        <span class="nav-label">문의</span>
     </a>
 </nav>
 {% endblock %}
