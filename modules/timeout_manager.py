@@ -201,6 +201,9 @@ class TimeoutManager:
             except Exception as e:
                 logger.warning(f"카톡 타임아웃 취소 알림 실패: {e}")
 
+        # 캠페인 모집마감 → 모집중 복원 (타임아웃으로 자리 생긴 경우)
+        self._try_reopen_campaign(campaign_id)
+
         # 상태 리셋
         state.reset()
         self._warned.discard(rid)
@@ -212,6 +215,21 @@ class TimeoutManager:
         sent = self._kakao_notifier.send_review_deadline_reminders()
         if sent:
             logger.info(f"리뷰 기한 리마인더 발송: {sent}건")
+
+    def _try_reopen_campaign(self, campaign_id: str):
+        """타임아웃 취소 후 자리가 생겼으면 모집마감 → 모집중 복원"""
+        if not self._db_manager or not campaign_id:
+            return
+        try:
+            campaign = self._db_manager.get_campaign_by_id(campaign_id)
+            if not campaign or campaign.get("상태") != "모집마감":
+                return
+            import models as _models
+            if _models.campaign_manager and _models.campaign_manager.check_capacity(campaign_id) > 0:
+                self._db_manager.update_campaign_status(campaign_id, "모집중")
+                logger.info("캠페인 [%s] 타임아웃 취소로 자리 생김 → 모집중 복원", campaign_id)
+        except Exception as e:
+            logger.warning("모집중 복원 체크 실패: %s", e)
 
     def _check_db_stale(self):
         """DB에서 오래된 건 처리: 20분 초과 타임아웃 취소 + 취소 행 삭제
@@ -247,6 +265,11 @@ class TimeoutManager:
                 (ids,)
             )
             logger.info(f"DB 기반 자동 취소: {len(ids)}건 (created_at + {self.timeout}초 초과)")
+
+            # 취소된 캠페인들 모집마감 → 모집중 복원 체크
+            affected_campaigns = set(r["campaign_id"] for r in to_cancel if r["campaign_id"])
+            for cid in affected_campaigns:
+                self._try_reopen_campaign(cid)
 
         deleted = self._db_manager.delete_old_cancelled_rows()
         if deleted:
