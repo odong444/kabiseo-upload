@@ -56,10 +56,11 @@
             const closed = card.closed;
             const closedClass = closed ? 'campaign-card-closed' : '';
             const cid = card.campaign_id || '';
+            const hasHistory = card.my_history && card.my_history.length > 0;
 
             html += `<div class="campaign-card ${closedClass}" data-id="${cid}">
-                <div class="campaign-card-header campaign-card-toggle" onclick="${closed ? '' : `location.href='/c/${cid}'`}">
-                    <div class="campaign-card-title-row">
+                <div class="campaign-card-header">
+                    <div class="campaign-card-title-row" style="flex:1; min-width:0;">
                         <span class="campaign-card-name">${card.name}</span>
                         ${closed
                             ? `<span class="campaign-closed">${card.closed_reason || '마감'}</span>`
@@ -68,7 +69,10 @@
                                 : `<span class="campaign-remain-badge">${card.remaining}자리</span>`
                         }
                     </div>
-                    ${!closed ? '<span class="campaign-card-arrow">&#x25B6;</span>' : ''}
+                    ${closed
+                        ? ''
+                        : `<a href="/c/${cid}" class="campaign-apply-btn">신청</a>`
+                    }
                 </div>
                 <div class="campaign-card-detail-row">
                     <span class="campaign-card-store">${card.store || ''}</span>
@@ -76,16 +80,29 @@
                     ${card.review_fee ? `<span class="campaign-card-fee">리뷰비 ${Reviewer.formatNumber(card.review_fee)}원</span>` : ''}
                 </div>
                 ${card.buy_time ? `<div class="campaign-card-time ${card.buy_time_closed ? 'closed' : ''}">구매시간 ${card.buy_time}</div>` : ''}
-                ${card.my_history ? renderHistory(card.my_history) : ''}
+                ${hasHistory ? renderHistory(card.my_history, cid) : ''}
             </div>`;
         }
         container.innerHTML = html;
     }
 
-    function renderHistory(history) {
+    function renderHistory(history, cid) {
         if (!history || history.length === 0) return '';
-        const items = history.map(h => `<span class="my-history-item">${h.id} (${h.status})</span>`).join(', ');
-        return `<div class="campaign-card-my">내 진행: ${items}</div>`;
+        const items = history.map(h => {
+            const st = h.status;
+            let action = '';
+            if (h.progress_id) {
+                if (['신청','가이드전달','구매캡쳐대기'].includes(st)) {
+                    action = `<a href="/task/${h.progress_id}" class="history-action-btn">구매제출</a>`;
+                } else if (st === '리뷰대기') {
+                    action = `<a href="/task/${h.progress_id}/review" class="history-action-btn">리뷰제출</a>`;
+                }
+            }
+            return `<div class="my-history-row">
+                <span>${h.id}</span><span class="my-history-status">${st}</span>${action}
+            </div>`;
+        }).join('');
+        return `<div class="campaign-card-my"><div class="campaign-card-my-title">내 진행</div>${items}</div>`;
     }
 
     loadCampaigns();

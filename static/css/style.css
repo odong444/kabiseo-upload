@@ -1363,13 +1363,58 @@ body {
     padding: 0 16px 10px;
 }
 .campaign-card-time.closed { color: #e74c3c; }
+.campaign-apply-btn {
+    padding: 6px 16px;
+    background: #fee500;
+    color: #3c1e1e;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+.campaign-apply-btn:active { opacity: 0.7; }
+.campaign-list .campaign-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+}
 .campaign-card-my {
-    font-size: 12px;
+    font-size: 13px;
     color: #555;
-    padding: 4px 16px 10px;
+    padding: 6px 16px 12px;
     border-top: 1px solid #f0f0f0;
 }
-.my-history-item { font-weight: 500; }
+.campaign-card-my-title {
+    font-weight: 600;
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+.my-history-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+}
+.my-history-status {
+    font-size: 12px;
+    color: #888;
+}
+.history-action-btn {
+    padding: 3px 10px;
+    background: #fee500;
+    color: #3c1e1e;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    margin-left: auto;
+}
+.history-action-btn:active { opacity: 0.7; }
 
 /* ──────── 캠페인 상세 ──────── */
 .back-link-top {

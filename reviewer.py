@@ -145,7 +145,7 @@ def api_campaigns():
                     sid = item.get("아이디", "").strip()
                     st = item.get("상태", "")
                     if sid and st not in ("타임아웃취소", "취소"):
-                        my_history.append({"id": sid, "status": st})
+                        my_history.append({"id": sid, "status": st, "progress_id": item.get("id")})
             if my_history:
                 card["my_history"] = my_history
 
