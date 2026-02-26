@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}내 작업 - 카비서{% endblock %}
+{% block head %}
+<script src="{{ url_for('static', filename='js/reviewer.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <h1 class="page-title">내 작업</h1>
+    <div id="myItems" class="loading">불러오는 중...</div>
+</div>
+{% endblock %}
+
+{% block nav %}
+<nav class="bottom-nav">
+    <a href="/campaigns" class="nav-item">
+        <span class="nav-icon">&#x1f4cb;</span>
+        <span class="nav-label">캠페인</span>
+    </a>
+    <a href="/my" class="nav-item active">
+        <span class="nav-icon">&#x1f4dd;</span>
+        <span class="nav-label">내작업</span>
+    </a>
+    <a href="/upload" class="nav-item">
+        <span class="nav-icon">&#x1f4f7;</span>
+        <span class="nav-label">사진제출</span>
+    </a>
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#x1f4ac;</span>
+        <span class="nav-label">문의</span>
+    </a>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const user = Reviewer.requireLogin();
+    if (!user) return;
+
+    async function load() {
+        const data = await Reviewer.apiGet('/api/my');
+        const container = document.getElementById('myItems');
+
+        if (!data.items || data.items.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>진행 중인 작업이 없습니다.</p>
+                    <a href="/campaigns" class="btn btn-primary" style="margin-top:12px">캠페인 보기</a>
+                </div>
+            `;
+            return;
+        }
+
+        // 상태별 분류
+        const inProgress = [];
+        const completed = [];
+
+        for (const item of data.items) {
+            if (['입금완료'].includes(item.status)) {
+                completed.push(item);
+            } else {
+                inProgress.push(item);
+            }
+        }
+
+        let html = '';
+
+        if (inProgress.length > 0) {
+            html += '<h2 class="section-title">진행중</h2>';
+            for (const item of inProgress) {
+                html += renderItem(item);
+            }
+        }
+
+        if (completed.length > 0) {
+            html += '<h2 class="section-title">완료</h2>';
+            for (const item of completed) {
+                html += renderItem(item, true);
+            }
+        }
+
+        container.innerHTML = html;
+    }
+
+    function renderItem(item, done = false) {
+        let actionBtn = '';
+        switch (item.status) {
+            case '신청':
+            case '가이드전달':
+                actionBtn = `<a href="/task/${item.id}" class="btn btn-primary btn-sm">가이드 보기</a>`;
+                break;
+            case '구매캡쳐대기':
+                actionBtn = `<a href="/task/${item.id}" class="btn btn-primary btn-sm">구매캡쳐 제출</a>`;
+                break;
+            case '리뷰대기':
+                actionBtn = `<a href="/task/${item.id}/review" class="btn btn-primary btn-sm">리뷰캡쳐 제출</a>`;
+                break;
+            case '리뷰제출':
+                actionBtn = '<span class="my-status-text">검수 대기중</span>';
+                break;
+            case '입금대기':
+                actionBtn = '<span class="my-status-text">입금 대기중</span>';
+                break;
+            case '입금완료':
+                actionBtn = '<span class="my-status-text done">입금 완료</span>';
+                break;
+        }
+
+        const remarkHtml = item.remark && item.remark.startsWith('반려')
+            ? `<div class="my-item-remark">${item.remark}</div>`
+            : '';
+
+        return `
+            <div class="status-card ${done ? 'completed' : ''} ${item.remark && item.remark.startsWith('반려') ? 'rejected' : ''}">
+                <div class="status-card-header">
+                    <span class="product-name">${item.product_name}</span>
+                    ${Reviewer.statusBadge(item.status)}
+                </div>
+                <div class="status-card-body">
+                    <div class="info-row"><span class="label">업체</span><span>${item.store_name || ''}</span></div>
+                    <div class="info-row"><span class="label">아이디</span><span>${item.store_id}</span></div>
+                    <div class="info-row"><span class="label">날짜</span><span>${item.date}</span></div>
+                    ${item.review_fee ? `<div class="info-row"><span class="label">리뷰비</span><span>${Reviewer.formatNumber(item.review_fee)}원</span></div>` : ''}
+                    ${remarkHtml}
+                </div>
+                <div class="my-item-action">${actionBtn}</div>
+            </div>
+        `;
+    }
+
+    load();
+})();
+</script>
+{% endblock %}

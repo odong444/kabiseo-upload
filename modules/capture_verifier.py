@@ -222,6 +222,85 @@ def verify_capture(drive_url: str, capture_type: str, ai_instructions: str = "")
         }
 
 
+def verify_capture_from_bytes(image_bytes: bytes, mime_type: str,
+                              capture_type: str, ai_instructions: str = "") -> dict:
+    """이미지 bytes에서 직접 AI 검수 (Drive 업로드 없이)
+
+    Args:
+        image_bytes: 이미지 바이트 데이터
+        mime_type: 이미지 MIME type (image/jpeg, image/png 등)
+        capture_type: "purchase" 또는 "review"
+        ai_instructions: 캠페인별 추가 AI 지침
+
+    Returns:
+        {
+            "result": "AI검수통과" | "확인요청" | "오류",
+            "reason": "사유 설명",
+            "details": { ... Gemini 분석 결과 },
+            "parsed": { ... 파싱된 정보 (구매캡쳐일 때) }
+        }
+    """
+    if not image_bytes:
+        return {"result": "오류", "reason": "이미지 데이터 없음", "details": {}, "parsed": {}}
+
+    # 프롬프트 구성
+    base_prompt = PURCHASE_PROMPT if capture_type == "purchase" else REVIEW_PROMPT
+    if ai_instructions:
+        full_prompt = f"{base_prompt}\n\n추가 검수 지침:\n{ai_instructions}"
+    else:
+        full_prompt = base_prompt
+
+    analysis = _call_gemini(image_bytes, mime_type, full_prompt)
+    if not analysis:
+        return {"result": "오류", "reason": "AI 분석 실패", "details": {}, "parsed": {}}
+
+    # 파싱 데이터 추출 (구매캡쳐일 때)
+    parsed = {}
+    if capture_type == "purchase":
+        parsed = {
+            "주문번호": analysis.get("주문번호", ""),
+            "수취인명": analysis.get("수취인명", ""),
+            "결제금액": analysis.get("결제금액", ""),
+            "배송유형": analysis.get("배송유형", ""),
+            "상품명": analysis.get("상품명", ""),
+        }
+
+    # 판정
+    problems = analysis.get("문제점", [])
+    if not problems or problems == ["정상"]:
+        if capture_type == "purchase":
+            delivery = analysis.get("배송유형", "")
+            if delivery in ("로켓배송", "로켓와우"):
+                return {
+                    "result": "확인요청",
+                    "reason": f"배송유형이 '{delivery}'입니다. 판매자배송으로 구매해야 합니다.",
+                    "details": analysis,
+                    "parsed": parsed,
+                }
+        return {"result": "AI검수통과", "reason": "정상", "details": analysis, "parsed": parsed}
+    else:
+        reason_parts = []
+        for p in problems:
+            if p == "상품정보_미확인":
+                reason_parts.append("상품 정보가 확인되지 않습니다")
+            elif p == "주문번호_미확인":
+                reason_parts.append("주문번호가 보이지 않습니다")
+            elif p == "수취인_미확인":
+                reason_parts.append("수취인 정보가 보이지 않습니다")
+            elif p == "리뷰내용_미확인":
+                reason_parts.append("리뷰 내용이 확인되지 않습니다")
+            elif p == "리뷰_아님":
+                reason_parts.append("리뷰 캡쳐가 아닌 것으로 보입니다")
+            else:
+                reason_parts.append(p)
+        return {
+            "result": "확인요청",
+            "reason": ". ".join(reason_parts),
+            "details": analysis,
+            "parsed": parsed,
+        }
+
+
 def verify_capture_async(
     drive_url: str, capture_type: str, progress_id: int,
     db_manager, ai_instructions: str = ""

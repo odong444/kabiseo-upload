@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}캠페인 목록 - 카비서{% endblock %}
+{% block head %}
+<script src="{{ url_for('static', filename='js/reviewer.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <h1 class="page-title">캠페인 목록</h1>
+    <p class="page-subtitle">참여하고 싶은 캠페인을 선택하세요</p>
+
+    <div id="campaignList" class="campaign-list">
+        <div class="loading">불러오는 중...</div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block nav %}
+<nav class="bottom-nav">
+    <a href="/campaigns" class="nav-item active">
+        <span class="nav-icon">&#x1f4cb;</span>
+        <span class="nav-label">캠페인</span>
+    </a>
+    <a href="/my" class="nav-item">
+        <span class="nav-icon">&#x1f4dd;</span>
+        <span class="nav-label">내작업</span>
+    </a>
+    <a href="/upload" class="nav-item">
+        <span class="nav-icon">&#x1f4f7;</span>
+        <span class="nav-label">사진제출</span>
+    </a>
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#x1f4ac;</span>
+        <span class="nav-label">문의</span>
+    </a>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const user = Reviewer.getUser();
+
+    async function loadCampaigns() {
+        const data = await Reviewer.apiGet('/api/campaigns');
+        const container = document.getElementById('campaignList');
+
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div class="empty-state"><p>현재 참여 가능한 캠페인이 없습니다.</p></div>';
+            return;
+        }
+
+        let html = '';
+        for (const card of data) {
+            const closed = card.closed;
+            const closedClass = closed ? 'campaign-card-closed' : '';
+            const cid = card.campaign_id || '';
+
+            html += `<div class="campaign-card ${closedClass}" data-id="${cid}">
+                <div class="campaign-card-header campaign-card-toggle" onclick="${closed ? '' : `location.href='/c/${cid}'`}">
+                    <div class="campaign-card-title-row">
+                        <span class="campaign-card-name">${card.name}</span>
+                        ${closed
+                            ? `<span class="campaign-closed">${card.closed_reason || '마감'}</span>`
+                            : card.urgent
+                                ? '<span class="campaign-urgent">마감임박</span>'
+                                : `<span class="campaign-remain-badge">${card.remaining}자리</span>`
+                        }
+                    </div>
+                    ${!closed ? '<span class="campaign-card-arrow">&#x25B6;</span>' : ''}
+                </div>
+                <div class="campaign-card-detail-row">
+                    <span class="campaign-card-store">${card.store || ''}</span>
+                    ${card.product_price ? `<span class="campaign-card-price">${Reviewer.formatNumber(card.product_price)}원</span>` : ''}
+                    ${card.review_fee ? `<span class="campaign-card-fee">리뷰비 ${Reviewer.formatNumber(card.review_fee)}원</span>` : ''}
+                </div>
+                ${card.buy_time ? `<div class="campaign-card-time ${card.buy_time_closed ? 'closed' : ''}">구매시간 ${card.buy_time}</div>` : ''}
+                ${card.my_history ? renderHistory(card.my_history) : ''}
+            </div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    function renderHistory(history) {
+        if (!history || history.length === 0) return '';
+        const items = history.map(h => `<span class="my-history-item">${h.id} (${h.status})</span>`).join(', ');
+        return `<div class="campaign-card-my">내 진행: ${items}</div>`;
+    }
+
+    loadCampaigns();
+})();
+</script>
+{% endblock %}
