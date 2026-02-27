@@ -125,11 +125,12 @@ class ActivityLogger:
 
         try:
             from datetime import datetime
+            from modules.utils import KST
             sp = self._sheets_manager.spreadsheet
             ws = sp.worksheet(LOG_SHEET_NAME)
             rows = []
             for e in batch:
-                ts = datetime.fromtimestamp(e["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+                ts = datetime.fromtimestamp(e["timestamp"], tz=KST).strftime("%Y-%m-%d %H:%M:%S")
                 rows.append([ts, e["type"], e["icon"], e["name"], e["phone"],
                             e["campaign"], e["store_id"], e["content"]])
             ws.append_rows(rows, value_input_option="RAW")

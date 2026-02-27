@@ -135,6 +135,7 @@ def api_campaigns():
             "platform": str(c.get("플랫폼", "") or c.get("캠페인유형", "") or ""),
             "closed": is_closed,
             "closed_reason": closed_reason,
+            "max_per_person_daily": safe_int(c.get("1인일일제한", 0)),
         }
 
         # 내 진행 이력
@@ -212,6 +213,7 @@ def api_campaign_detail(campaign_id):
         "ship_memo_required": campaign.get("배송메모필수", ""),
         "ship_memo_content": campaign.get("배송메모내용", ""),
         "ship_memo_link": campaign.get("배송메모안내링크", ""),
+        "max_per_person_daily": safe_int(campaign.get("1인일일제한", 0)),
     }
 
     # 리뷰어 이력 추가 (로그인한 경우)
@@ -255,6 +257,15 @@ def api_apply():
     daily_remaining = models.campaign_manager.check_daily_remaining(campaign_id)
     if daily_remaining >= 0 and daily_remaining < len(store_ids):
         return jsonify({"ok": False, "error": f"금일 잔여 {daily_remaining}자리입니다."}), 400
+
+    # 1인 일일 제한 확인
+    from modules.utils import safe_int
+    max_pp = safe_int(campaign.get("1인일일제한", 0))
+    if max_pp > 0:
+        already = models.db_manager.count_today_user_campaign(name, phone, campaign_id)
+        if already + len(store_ids) > max_pp:
+            remain = max(0, max_pp - already)
+            return jsonify({"ok": False, "error": f"1인 하루 최대 {max_pp}건입니다. (잔여 {remain}건)"}), 400
 
     # 중복 체크 및 등록
     results = []
@@ -362,6 +373,8 @@ def api_task(progress_id):
         "store_id": row.get("아이디", ""),
         "status": row.get("상태", ""),
         "date": row.get("날짜", ""),
+        "created_at": row.get("created_at_iso", ""),
+        "timeout_seconds": 1800,
         "purchase_capture": row.get("구매캡쳐링크", ""),
         "review_capture": row.get("리뷰캡쳐링크", ""),
         "remark": row.get("비고", ""),

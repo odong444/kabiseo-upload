@@ -1,8 +1,8 @@
 """
-timeout_manager.py - 20분 타임아웃 관리
+timeout_manager.py - 30분 타임아웃 관리
 
 신청 후 양식+구매캡쳐 미제출 시 타임아웃 취소.
-15분 경고, 20분 취소.
+25분 경고, 30분 취소.
 
 이중 타임아웃:
   1) DB progress.created_at 기준 (서버 재시작 무관)
@@ -17,8 +17,8 @@ from datetime import timezone
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT_SECONDS = 1200  # 20분
-WARNING_SECONDS = 900   # 15분 (경고)
+TIMEOUT_SECONDS = 1800  # 30분
+WARNING_SECONDS = 1500  # 25분 (경고)
 
 
 class TimeoutManager:

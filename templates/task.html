@@ -235,8 +235,16 @@
             </div>`;
         }
 
+        // 카운트다운 타이머 계산
+        let timerHtml = '';
+        if (taskData.created_at && taskData.timeout_seconds) {
+            timerHtml = `<div id="deadlineTimer" class="task-deadline-timer"></div>`;
+        }
+
         container.innerHTML = `
             <a href="/my" class="back-link-top">&lt; 내 작업</a>
+
+            ${timerHtml}
 
             <div class="task-header">
                 <h2 class="task-title">${taskData.product_name}</h2>
@@ -251,6 +259,50 @@
             ${tabsHtml}
             ${panelsHtml}
         `;
+
+        // 카운트다운 타이머 시작
+        if (taskData.created_at && taskData.timeout_seconds) {
+            startDeadlineTimer(taskData.created_at, taskData.timeout_seconds);
+        }
+    }
+
+    function startDeadlineTimer(createdAt, timeoutSec) {
+        const timerEl = document.getElementById('deadlineTimer');
+        if (!timerEl) return;
+
+        const createdMs = new Date(createdAt).getTime();
+        const deadlineMs = createdMs + timeoutSec * 1000;
+        const deadlineTime = new Date(deadlineMs);
+        const deadlineStr = deadlineTime.getHours().toString().padStart(2, '0') + ':' +
+                           deadlineTime.getMinutes().toString().padStart(2, '0');
+
+        function update() {
+            const now = Date.now();
+            const remainMs = deadlineMs - now;
+
+            if (remainMs <= 0) {
+                timerEl.innerHTML = '<span class="timer-expired">제출 시간 초과</span>';
+                timerEl.className = 'task-deadline-timer timer-danger';
+                return;
+            }
+
+            const mins = Math.floor(remainMs / 60000);
+            const secs = Math.floor((remainMs % 60000) / 1000);
+            const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
+
+            timerEl.innerHTML = `<span class="timer-icon">&#x23F1;</span> 양식 제출 마감 <strong>${timeStr}</strong> 남음 <span class="timer-deadline">(${deadlineStr}까지)</span>`;
+
+            if (remainMs <= 300000) {
+                timerEl.className = 'task-deadline-timer timer-danger';
+            } else if (remainMs <= 600000) {
+                timerEl.className = 'task-deadline-timer timer-warning';
+            } else {
+                timerEl.className = 'task-deadline-timer timer-normal';
+            }
+        }
+
+        update();
+        setInterval(update, 1000);
     }
 
     function bankPresetsHtml(sid) {

@@ -107,7 +107,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     promo_start       TEXT DEFAULT '09:00',
     promo_end         TEXT DEFAULT '22:00',
     promo_cooldown    INTEGER DEFAULT 60,
-    ai_instructions   TEXT DEFAULT ''
+    ai_instructions   TEXT DEFAULT '',
+    max_per_person_daily INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS reviewers (
@@ -305,6 +306,11 @@ class DBManager:
                     cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_review_reason TEXT DEFAULT ''")
                     cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_verified_at TIMESTAMPTZ")
                     cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS ai_override TEXT DEFAULT ''")
+                except Exception:
+                    pass
+                # 1인 일일 제한
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_per_person_daily INTEGER DEFAULT 0")
                 except Exception:
                     pass
                 # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
@@ -563,6 +569,7 @@ class DBManager:
         "홍보종료시간": "promo_end",
         "홍보주기": "promo_cooldown",
         "AI검수지침": "ai_instructions",
+        "1인일일제한": "max_per_person_daily",
     }
 
     _CAMPAIGN_COLUMNS = {
@@ -586,7 +593,7 @@ class DBManager:
         "promotion_message",
         "promo_enabled", "promo_categories",
         "promo_start", "promo_end", "promo_cooldown",
-        "ai_instructions",
+        "ai_instructions", "max_per_person_daily",
     }
 
     _BOOL_COLUMNS = {
@@ -804,6 +811,7 @@ class DBManager:
             "캠페인ID": row.get("campaign_id", ""),
             "업체명": campaign.get("업체명", "") if campaign else "",
             "날짜": row["created_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("created_at") else "",
+            "created_at_iso": row["created_at"].astimezone(KST).isoformat() if row.get("created_at") else "",
             "제품명": (campaign.get("캠페인명", "") or campaign.get("상품명", "")) if campaign else "",
             "수취인명": row.get("recipient_name", ""),
             "연락처": row.get("phone", ""),
@@ -1264,6 +1272,20 @@ class DBManager:
             (today, STATUS_TIMEOUT, STATUS_CANCELLED)
         )
         return {r["campaign_id"]: r["cnt"] for r in rows}
+
+    def count_today_user_campaign(self, name: str, phone: str, campaign_id: str) -> int:
+        """오늘 특정 유저의 특정 캠페인 신청 건수"""
+        today = today_str()
+        row = self._fetchone(
+            """SELECT COUNT(*) as cnt FROM progress p
+               JOIN reviewers r ON p.reviewer_id = r.id
+               WHERE r.name = %s AND r.phone = %s
+               AND p.campaign_id = %s
+               AND p.created_at::date = %s::date
+               AND p.status NOT IN (%s, %s)""",
+            (name, phone, campaign_id, today, STATUS_TIMEOUT, STATUS_CANCELLED)
+        )
+        return row["cnt"] if row else 0
 
     def get_today_stats(self) -> dict:
         """오늘 현황 통계"""

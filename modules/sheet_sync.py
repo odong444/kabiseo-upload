@@ -12,6 +12,7 @@ import os
 import threading
 import time
 from datetime import datetime, timezone
+from modules.utils import KST
 
 import gspread
 
@@ -83,7 +84,7 @@ class SheetSync:
 
         # 증분 동기화 상태
         self._id_row_map: dict[int, int] = {}  # {progress_id: sheet_row_number}
-        self._last_sync_utc: datetime | None = None
+        self._last_sync_kst: datetime | None = None
         self._sync_count = 0
 
         self._init_spreadsheet()
@@ -164,7 +165,7 @@ class SheetSync:
             "backgroundColor": {"red": 0.9, "green": 0.9, "blue": 0.9},
         })
 
-        self._last_sync_utc = datetime.now(timezone.utc)
+        self._last_sync_kst = datetime.now(KST)
         logger.info("전체 동기화 완료: %d건", len(rows))
 
     # ──────── 증분 동기화 ────────
@@ -180,9 +181,9 @@ class SheetSync:
 
         # 2) 변경/추가분: updated_at > last_sync 인 것만 조회
         changed_rows = []
-        if self._last_sync_utc:
+        if self._last_sync_kst:
             changed_rows = self.db._fetchall(
-                _SYNC_CHANGED_SQL, (self._last_sync_utc, self._last_sync_utc)
+                _SYNC_CHANGED_SQL, (self._last_sync_kst, self._last_sync_kst)
             )
         changed_map = {r["id"]: r for r in changed_rows}
 
@@ -247,7 +248,7 @@ class SheetSync:
 
             self.worksheet.append_rows(new_data, value_input_option="RAW")
 
-        self._last_sync_utc = datetime.now(timezone.utc)
+        self._last_sync_kst = datetime.now(KST)
         logger.info(
             "증분 동기화: 추가=%d 수정=%d 삭제=%d",
             len(new_ids), len(updated_ids), len(deleted_ids),

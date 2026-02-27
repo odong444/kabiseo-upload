@@ -68,6 +68,7 @@
         if (c.dwell_time) infoRows += `<div class="detail-info-row"><span class="label">체류시간</span><span>${c.dwell_time}</span></div>`;
         if (c.buy_time) infoRows += `<div class="detail-info-row"><span class="label">구매시간</span><span>${c.buy_time}</span></div>`;
         if (c.entry_method) infoRows += `<div class="detail-info-row"><span class="label">유입방식</span><span>${c.entry_method}</span></div>`;
+        if (c.max_per_person_daily > 0) infoRows += `<div class="detail-info-row"><span class="label">1인 일일 제한</span><span>${c.max_per_person_daily}건</span></div>`;
         if (c.bookmark_required === 'Y') infoRows += `<div class="detail-info-row"><span class="label">상품찜</span><span>필수</span></div>`;
         if (c.alert_required === 'Y') infoRows += `<div class="detail-info-row"><span class="label">알림받기</span><span>필수</span></div>`;
         if (c.ship_memo_required === 'Y') {

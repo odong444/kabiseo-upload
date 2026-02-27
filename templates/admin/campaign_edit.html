@@ -189,6 +189,12 @@
                 </div>
 
                 <div class="form-group">
+                    <label>1인 일일 제한</label>
+                    <input type="number" name="1인일일제한" value="{{ campaign.get('1인일일제한', '') }}" min="0" placeholder="0 = 무제한">
+                    <small style="color:#888;font-size:12px;">한 명이 하루에 참여 가능한 최대 건수 (0이면 제한 없음)</small>
+                </div>
+
+                <div class="form-group">
                     <label>완료수량</label>
                     <input type="number" name="완료수량" value="{{ campaign.get('완료수량', '') }}">
                 </div>

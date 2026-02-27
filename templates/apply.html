@@ -44,7 +44,10 @@
 
     function renderStep1() {
         const container = document.getElementById('applyContainer');
-        const maxCount = Math.min(campaign.remaining, campaign.daily_remaining >= 0 ? campaign.daily_remaining : 99);
+        let maxCount = Math.min(campaign.remaining, campaign.daily_remaining >= 0 ? campaign.daily_remaining : 99);
+        if (campaign.max_per_person_daily > 0) {
+            maxCount = Math.min(maxCount, campaign.max_per_person_daily);
+        }
 
         container.innerHTML = `
             <div class="apply-campaign-info">
@@ -60,7 +63,7 @@
                     <span id="countDisplay" class="count-display">1</span>
                     <button type="button" class="count-btn count-plus" onclick="changeCount(1)">+</button>
                 </div>
-                <p class="apply-count-hint">최대 ${maxCount}개</p>
+                <p class="apply-count-hint">최대 ${maxCount}개${campaign.max_per_person_daily > 0 ? ` (1인 하루 ${campaign.max_per_person_daily}건)` : ''}</p>
             </div>
 
             <button type="button" class="btn btn-primary btn-full" onclick="goStep2()">다음</button>
@@ -79,7 +82,7 @@
         let inputsHtml = '';
 
         for (let i = 0; i < accountCount; i++) {
-            const suggestHtml = usedIds.length > 0 && i === 0
+            const suggestHtml = usedIds.length > 0
                 ? `<div class="apply-id-suggest">
                     <span class="suggest-label">이전 아이디:</span>
                     ${usedIds.map(id => `<button type="button" class="suggest-btn" onclick="fillId(${i},'${id}')">${id}</button>`).join('')}
@@ -151,13 +154,13 @@
 
         if (result.ok) {
             // 성공 시 task 페이지로 이동
+            Reviewer.toast('30분 이내에 양식을 제출해주세요!', 'success');
             const successIds = result.results.filter(r => r.ok);
             if (successIds.length === 1) {
-                window.location.href = `/task/${successIds[0].progress_id}`;
+                setTimeout(() => { window.location.href = `/task/${successIds[0].progress_id}`; }, 800);
             } else {
                 // 복수 건 → 내 작업 페이지
-                Reviewer.toast(result.message, 'success');
-                setTimeout(() => { window.location.href = '/my'; }, 1000);
+                setTimeout(() => { window.location.href = '/my'; }, 1200);
             }
         } else {
             Reviewer.toast(result.error || result.message || '신청 실패', 'error');
