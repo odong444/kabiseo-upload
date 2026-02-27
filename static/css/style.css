@@ -1647,6 +1647,20 @@ body {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
 }
+.timer-extend-btn {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 4px 12px;
+    background: #fff;
+    color: #c62828;
+    border: 1px solid #ef9a9a;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    vertical-align: middle;
+}
+.timer-extend-btn:hover { background: #ffebee; }
 
 .task-header {
     background: #fff;

@@ -473,6 +473,23 @@ def api_verify_capture():
         return jsonify({"ok": False, "error": f"AI 검수 실패: {e}"}), 500
 
 
+@reviewer_bp.route("/api/task/<int:progress_id>/extend-time", methods=["POST"])
+def api_extend_time(progress_id):
+    """양식 제출 시간 연장 (타임아웃 리셋)"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    try:
+        from app import _touch_reviewer_by_row
+        _touch_reviewer_by_row(progress_id)
+        from modules.utils import now_kst
+        new_deadline = now_kst() + __import__('datetime').timedelta(seconds=1800)
+        logger.info("시간 연장: progress=%s", progress_id)
+        return jsonify({"ok": True, "new_deadline": new_deadline.isoformat()})
+    except Exception as e:
+        logger.error("시간 연장 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @reviewer_bp.route("/api/task/<int:progress_id>/purchase", methods=["POST"])
 def api_task_purchase(progress_id):
     """구매완료 제출 (캡쳐 + 폼데이터)"""

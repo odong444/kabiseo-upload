@@ -271,10 +271,32 @@
         if (!timerEl) return;
 
         const createdMs = new Date(createdAt).getTime();
-        const deadlineMs = createdMs + timeoutSec * 1000;
-        const deadlineTime = new Date(deadlineMs);
-        const deadlineStr = deadlineTime.getHours().toString().padStart(2, '0') + ':' +
-                           deadlineTime.getMinutes().toString().padStart(2, '0');
+        let deadlineMs = createdMs + timeoutSec * 1000;
+        let extending = false;
+
+        function getDeadlineStr() {
+            const d = new Date(deadlineMs);
+            return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+        }
+
+        async function extendTime() {
+            if (extending) return;
+            extending = true;
+            try {
+                const firstSibling = taskData.siblings.find(s => ['가이드전달','구매캡쳐대기'].includes(s.status));
+                if (!firstSibling) return;
+                const res = await Reviewer.apiPost(`/api/task/${firstSibling.id}/extend-time`);
+                if (res.ok) {
+                    deadlineMs += 600000; // +10분
+                    Reviewer.toast('시간이 10분 연장되었습니다.', 'success');
+                } else {
+                    Reviewer.toast(res.error || '연장 실패', 'error');
+                }
+            } catch(e) {
+                Reviewer.toast('연장 요청 실패', 'error');
+            }
+            extending = false;
+        }
 
         function update() {
             const now = Date.now();
@@ -289,8 +311,14 @@
             const mins = Math.floor(remainMs / 60000);
             const secs = Math.floor((remainMs % 60000) / 1000);
             const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
+            const deadlineStr = getDeadlineStr();
 
-            timerEl.innerHTML = `<span class="timer-icon">&#x23F1;</span> 양식 제출 마감 <strong>${timeStr}</strong> 남음 <span class="timer-deadline">(${deadlineStr}까지)</span>`;
+            let extendBtn = '';
+            if (remainMs <= 300000) {
+                extendBtn = ` <button class="timer-extend-btn" onclick="window._extendTime()">+10분 연장</button>`;
+            }
+
+            timerEl.innerHTML = `<span class="timer-icon">&#x23F1;</span> 양식 제출 마감 <strong>${timeStr}</strong> 남음 <span class="timer-deadline">(${deadlineStr}까지)</span>${extendBtn}`;
 
             if (remainMs <= 300000) {
                 timerEl.className = 'task-deadline-timer timer-danger';
@@ -301,6 +329,7 @@
             }
         }
 
+        window._extendTime = extendTime;
         update();
         setInterval(update, 1000);
     }
