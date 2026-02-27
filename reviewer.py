@@ -125,7 +125,10 @@ def api_campaigns():
             is_closed = True
             closed_reason = "금일마감"
 
-        remaining = total_remaining
+        if daily_target > 0:
+            remaining = daily_target - today_done
+        else:
+            remaining = total_remaining
 
         buy_time_str = c.get("구매가능시간", "").strip()
         buy_time_active = is_within_buy_time(buy_time_str)
