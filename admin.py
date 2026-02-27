@@ -1545,6 +1545,27 @@ def api_friend_add():
         return jsonify({"ok": False, "error": "서버PC 연결 실패 또는 태스크 전송 거부"})
 
 
+@admin_bp.route("/api/friend-add-bulk", methods=["POST"])
+@admin_required
+def api_friend_add_bulk():
+    """선택한 리뷰어 일괄 친구추가 재시도"""
+    data = request.get_json(silent=True) or {}
+    items = data.get("items", [])  # [{name, phone}, ...]
+    if not items:
+        return jsonify({"ok": False, "error": "대상이 없습니다"})
+
+    from modules.signal_sender import request_friend_add
+    sent = 0
+    for item in items:
+        name = item.get("name", "").strip()
+        phone = item.get("phone", "").strip()
+        if name and phone:
+            if request_friend_add(name, phone):
+                sent += 1
+
+    return jsonify({"ok": True, "sent": sent, "total": len(items)})
+
+
 # ──────── 문의 관리 ────────
 
 @admin_bp.route("/inquiries")

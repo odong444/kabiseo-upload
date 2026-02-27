@@ -93,8 +93,9 @@
                 </tbody>
             </table>
         </div>
-        <div style="margin-top:1rem; display:flex; gap:0.5rem;">
+        <div style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
             <button type="submit" class="btn btn-primary" id="restoreBtn">타임아웃 복원 (가이드전달로 변경)</button>
+            <button type="button" class="btn" style="background:#ef4444;color:#fff;border:none;" onclick="bulkFriendAdd()">선택 친구추가 재시도</button>
             <button type="button" class="btn" style="background:#fae100;color:#3c1e1e;border:none;" onclick="bulkKakao()">카톡 일괄발송</button>
         </div>
         </form>
@@ -133,6 +134,41 @@
             document.getElementById('kakaoTarget').textContent = '대상: ' + _kakaoIds.length + '건';
             document.getElementById('kakaoMessage').value = '';
             document.getElementById('kakaoModal').style.display = 'flex';
+        }
+
+        function bulkFriendAdd() {
+            var checked = document.querySelectorAll('.row-check:checked');
+            if (checked.length === 0) { alert('재시도할 항목을 선택해주세요.'); return; }
+            var items = [];
+            var seen = {};
+            checked.forEach(function(cb) {
+                var row = cb.closest('tr');
+                var cells = row.querySelectorAll('td');
+                var name = cells[1].textContent.trim();
+                var phone = cells[2].textContent.trim();
+                var key = name + '|' + phone;
+                if (name && phone && !seen[key]) {
+                    seen[key] = true;
+                    items.push({name: name, phone: phone});
+                }
+            });
+            if (items.length === 0) { alert('유효한 대상이 없습니다.'); return; }
+            if (!confirm(items.length + '명 친구추가를 재시도하시겠습니까?')) return;
+
+            fetch('/admin/api/friend-add-bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: items })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) {
+                    alert('친구추가 요청 완료: ' + d.sent + '/' + d.total + '건 (서버PC에서 처리됩니다)');
+                } else {
+                    alert('요청 실패: ' + (d.error || ''));
+                }
+            })
+            .catch(function(e) { alert('요청 에러: ' + e.message); });
         }
 
         function retryFriendAdd(name, phone) {
