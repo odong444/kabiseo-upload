@@ -407,8 +407,11 @@ def api_task(progress_id):
         # 캠페인 가이드
         "campaign": {
             "name": campaign.get("캠페인명", "") or campaign.get("상품명", ""),
+            "product_name": campaign.get("상품명", ""),
             "product_link": campaign.get("상품링크", ""),
             "product_image": campaign.get("상품이미지", ""),
+            "product_codes": campaign.get("상품코드", {}),
+            "platform": campaign.get("플랫폼", ""),
             "keyword": campaign.get("키워드", ""),
             "options": campaign.get("옵션", ""),
             "campaign_guide": campaign.get("캠페인가이드", ""),

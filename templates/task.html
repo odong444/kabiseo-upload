@@ -232,13 +232,30 @@
 
         // === 가이드 섹션 (공통 1회) ===
         let guideHtml = '';
+
+        // === 상품 정보 ===
+        let productInfo = '';
+        if (c.product_name) productInfo += `<div class="task-guide-row"><span class="label">상품명</span><span class="value" style="font-weight:600;">${c.product_name}</span></div>`;
+        if (c.platform) productInfo += `<div class="task-guide-row"><span class="label">플랫폼</span><span class="value">${c.platform}</span></div>`;
+        var codes = c.product_codes;
+        if (codes && codes.codes) {
+            var codeEntries = Object.entries(codes.codes);
+            if (codeEntries.length > 0) {
+                codeEntries.forEach(function(entry) {
+                    productInfo += `<div class="task-guide-row"><span class="label">${entry[0]}</span><span class="value" style="font-family:monospace;font-weight:600;letter-spacing:0.5px;">${entry[1]}</span></div>`;
+                });
+            }
+        }
+        if (productInfo) {
+            guideHtml += `<div class="task-guide-section"><h3>상품 정보</h3><div class="task-guide-details">${productInfo}</div></div>`;
+        }
+
         if (c.campaign_guide) {
             guideHtml += `<div class="task-guide-section">
                 <h3>캠페인 가이드</h3>
                 <div class="task-guide-content">${linkify(c.campaign_guide)}</div>
             </div>`;
         }
-
 
         let guideDetails = '';
         if (c.keyword) guideDetails += `<div class="task-guide-row"><span class="label">키워드</span><span class="value">${c.keyword}</span></div>`;
