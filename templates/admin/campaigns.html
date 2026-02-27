@@ -304,6 +304,17 @@
                                         {% else %}-{% endif %}
                                     </div>
                                 </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">상품이미지</div>
+                                    <div class="detail-value">
+                                        {% set img = c.get('상품이미지', '') %}
+                                        {% if img %}
+                                        <img src="{{ img.replace('/file/d/', '/thumbnail?id=').replace('/view', '&sz=w300') if '/file/d/' in img else img }}"
+                                             alt="상품이미지" style="max-width:200px;border-radius:8px;border:1px solid #ddd;"
+                                             onerror="this.style.display='none'">
+                                        {% else %}-{% endif %}
+                                    </div>
+                                </div>
                             </div>
                             <!-- 일별 일정 -->
                             <div style="margin-top:8px;">

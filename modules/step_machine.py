@@ -931,10 +931,14 @@ class StepMachine:
 
         # 단일 옵션이면 바로 가이드 전달
         state.step = 4
-        if len(ids) > 1:
-            confirm += f"\n\n📋 {len(ids)}개 계정 각각 양식을 제출해주세요."
 
         guide = self._build_purchase_guide(campaign, state.name, state.phone, ids)
+        if len(ids) > 1:
+            return _resp(
+                f"{confirm}\n\n{guide}\n\n"
+                f"📋 위 가이드를 참고하여 {len(ids)}개 계정 양식을 각각 제출해주세요.",
+                buttons=[self._cancel_button()]
+            )
         return _resp(f"{confirm}\n\n{guide}", buttons=[self._cancel_button()])
 
     def _parse_campaign_options(self, campaign: dict) -> list[dict]:
@@ -1062,8 +1066,8 @@ class StepMachine:
 
         if len(ids) > 1:
             return _resp(
-                f"✅ 옵션 선택 완료:\n{summary}\n\n"
-                f"📋 {len(ids)}개 계정 각각 양식을 제출해주세요.\n\n{guide}",
+                f"✅ 옵션 선택 완료:\n{summary}\n\n{guide}\n\n"
+                f"📋 위 가이드를 참고하여 {len(ids)}개 계정 양식을 각각 제출해주세요.",
                 buttons=[self._cancel_button()]
             )
         return _resp(f"✅ 옵션 선택 완료:\n{summary}\n\n{guide}",
@@ -1250,13 +1254,29 @@ class StepMachine:
         except Exception as e:
             logger.error(f"기존 정보 조회 에러: {e}")
 
-        lines = []
-        if store_ids and len(store_ids) > 1:
-            lines.append("아이디: ")
-        elif store_ids and len(store_ids) == 1:
-            lines.append(f"아이디: {store_ids[0]}")
-
         guide_amount = campaign.get("결제금액", "") if campaign else ""
+
+        # 다중 아이디: 각각 양식 생성
+        if store_ids and len(store_ids) > 1:
+            all_forms = []
+            for sid in store_ids:
+                lines = [
+                    f"아이디: {sid}",
+                    "수취인명: ",
+                    "연락처: ",
+                    f"결제금액: {guide_amount}",
+                    "주문번호: ",
+                    f"은행: {prev_info.get('은행', '')}",
+                    f"계좌: {prev_info.get('계좌', '')}",
+                    f"예금주: {prev_info.get('예금주', '')}",
+                    f"주소: {prev_info.get('주소', '')}",
+                ]
+                all_forms.append("\n".join(lines))
+            return "\n\n---\n\n".join(all_forms)
+
+        lines = []
+        if store_ids and len(store_ids) == 1:
+            lines.append(f"아이디: {store_ids[0]}")
 
         lines += [
             "수취인명: ",
