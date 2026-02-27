@@ -12,7 +12,9 @@
     <header class="app-header">
         <div class="header-inner">
             <a href="/" class="logo">카비서</a>
-            {% block header_right %}{% endblock %}
+            {% block header_right %}
+            <button class="header-logout-btn" id="headerLogoutBtn" style="display:none;" onclick="if(confirm('로그아웃하시겠습니까?')){localStorage.removeItem('kabiseo_user');localStorage.removeItem('kabiseo_chat_last_read');window.location.href='/';}">로그아웃</button>
+            {% endblock %}
         </div>
     </header>
     {% endblock %}
@@ -50,11 +52,13 @@
     <script>
     (function() {
         var saved = localStorage.getItem('kabiseo_user');
+        var logoutBtn = document.getElementById('headerLogoutBtn');
         if (!saved) {
             var btn = document.getElementById('chatFloatBtn');
             if (btn) btn.style.display = 'none';
             return;
         }
+        if (logoutBtn) logoutBtn.style.display = '';
 
         // 읽지 않은 메시지 확인
         var chatUnread = 0;

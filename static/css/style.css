@@ -34,6 +34,18 @@ body {
     color: #3c1e1e;
     text-decoration: none;
 }
+.header-logout-btn {
+    background: none;
+    border: 1px solid #3c1e1e;
+    color: #3c1e1e;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    cursor: pointer;
+    font-weight: 500;
+    -webkit-tap-highlight-color: transparent;
+}
+.header-logout-btn:active { opacity: 0.6; }
 
 /* ──────── 앱 메인 ──────── */
 .app-main {
