@@ -312,7 +312,14 @@ def api_campaign_delete(campaign_id):
 @admin_required
 def campaign_new():
     categories = _fetch_server_categories()
-    return render_template("admin/campaign_new.html", promo_category_list=categories)
+    # 복사 등록: ?copy=캠페인ID
+    copy_data = {}
+    copy_id = request.args.get("copy", "").strip()
+    if copy_id and models.db_manager:
+        src = models.db_manager.get_campaign_by_id(copy_id)
+        if src:
+            copy_data = src
+    return render_template("admin/campaign_new.html", promo_category_list=categories, copy=copy_data)
 
 
 @admin_bp.route("/campaigns/new", methods=["POST"])

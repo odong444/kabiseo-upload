@@ -150,7 +150,7 @@
     </header>
 
     <main class="admin-main">
-        <h1>캠페인 신규 등록</h1>
+        <h1>{% if copy %}캠페인 복사 등록{% else %}캠페인 신규 등록{% endif %}</h1>
 
         {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -182,50 +182,52 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>캠페인명</label>
-                        <input type="text" name="캠페인명" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
+                        <input type="text" name="캠페인명" value="{{ copy.get('캠페인명', '') }}" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
                     </div>
                     <div class="form-group">
                         <label>상품명 *</label>
-                        <input type="text" name="상품명" required placeholder="예: 들기름 300ml">
+                        <input type="text" name="상품명" required value="{{ copy.get('상품명', '') }}" placeholder="예: 들기름 300ml">
                     </div>
                     <div class="form-group">
                         <label>업체명 *</label>
-                        <input type="text" name="업체명" required placeholder="예: 건강한들녘">
+                        <input type="text" name="업체명" required value="{{ copy.get('업체명', '') }}" placeholder="예: 건강한들녘">
                     </div>
                     <div class="form-group">
                         <label>플랫폼 *</label>
                         <select name="플랫폼" id="platformSelect" required>
-                            <option value="스마트스토어">스마트스토어</option>
-                            <option value="쿠팡">쿠팡</option>
-                            <option value="오늘의집">오늘의집</option>
-                            <option value="11번가">11번가</option>
-                            <option value="지마켓">지마켓</option>
-                            <option value="올리브영">올리브영</option>
-                            <option value="기타">기타 (직접입력)</option>
+                            {% set cp = copy.get('플랫폼', '스마트스토어') %}
+                            {% set known_platforms = ['스마트스토어','쿠팡','오늘의집','11번가','지마켓','올리브영'] %}
+                            <option value="스마트스토어" {{ 'selected' if cp == '스마트스토어' }}>스마트스토어</option>
+                            <option value="쿠팡" {{ 'selected' if cp == '쿠팡' }}>쿠팡</option>
+                            <option value="오늘의집" {{ 'selected' if cp == '오늘의집' }}>오늘의집</option>
+                            <option value="11번가" {{ 'selected' if cp == '11번가' }}>11번가</option>
+                            <option value="지마켓" {{ 'selected' if cp == '지마켓' }}>지마켓</option>
+                            <option value="올리브영" {{ 'selected' if cp == '올리브영' }}>올리브영</option>
+                            <option value="기타" {{ 'selected' if cp and cp not in known_platforms }}>기타 (직접입력)</option>
                         </select>
                     </div>
-                    <div class="form-group hidden" id="platformCustomWrap">
+                    <div class="form-group {{ '' if copy.get('플랫폼') and copy.get('플랫폼') not in ['스마트스토어','쿠팡','오늘의집','11번가','지마켓','올리브영'] else 'hidden' }}" id="platformCustomWrap">
                         <label>플랫폼 직접입력</label>
-                        <input type="text" id="platformCustom" placeholder="플랫폼명 입력">
+                        <input type="text" id="platformCustom" value="{{ copy.get('플랫폼', '') if copy.get('플랫폼') and copy.get('플랫폼') not in ['스마트스토어','쿠팡','오늘의집','11번가','지마켓','올리브영'] else '' }}" placeholder="플랫폼명 입력">
                     </div>
                     <div class="form-group">
                         <label>캠페인유형 *</label>
                         <select name="캠페인유형" required>
-                            <option value="실배송">실배송</option>
-                            <option value="빈박스">빈박스</option>
+                            <option value="실배송" {{ 'selected' if copy.get('캠페인유형') == '실배송' }}>실배송</option>
+                            <option value="빈박스" {{ 'selected' if copy.get('캠페인유형') == '빈박스' }}>빈박스</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>상품금액</label>
-                        <input type="text" name="상품금액" placeholder="예: 29,000">
+                        <input type="text" name="상품금액" value="{{ copy.get('상품금액', '') }}" placeholder="예: 29,000">
                     </div>
                     <div class="form-group">
                         <label>리워드 (리뷰비)</label>
-                        <input type="text" name="리뷰비" placeholder="예: 15,000">
+                        <input type="text" name="리뷰비" value="{{ copy.get('리뷰비', '') }}" placeholder="예: 15,000">
                     </div>
                     <div class="form-group form-group-full">
                         <label>상품링크</label>
-                        <input type="text" name="상품링크" placeholder="예: https://smartstore.naver.com/...">
+                        <input type="text" name="상품링크" value="{{ copy.get('상품링크', '') }}" placeholder="예: https://smartstore.naver.com/...">
                         <div style="color:#999;font-size:12px;margin-top:4px;">중복 리뷰어 체크 및 키워드 자동 추출에 사용됩니다</div>
                     </div>
                     <div class="form-group form-group-full">
@@ -244,19 +246,19 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>총 모집인원 *</label>
-                        <input type="number" name="총수량" id="totalCount" required min="1" placeholder="예: 20">
+                        <input type="number" name="총수량" id="totalCount" required min="1" value="{{ copy.get('총수량', '') }}" placeholder="예: 20">
                     </div>
                     <div class="form-group">
                         <label>하루진행량</label>
-                        <input type="text" name="일수량" id="dailyCount" placeholder="숫자(예: 5) 또는 범위(예: 3-5)">
+                        <input type="text" name="일수량" id="dailyCount" value="{{ copy.get('일수량', '') }}" placeholder="숫자(예: 5) 또는 범위(예: 3-5)">
                     </div>
                     <div class="form-group">
                         <label>진행일수</label>
-                        <input type="number" name="진행일수" id="dayCount" min="1" placeholder="예: 4">
+                        <input type="number" name="진행일수" id="dayCount" min="1" value="{{ copy.get('진행일수', '') }}" placeholder="예: 4">
                     </div>
                     <div class="form-group">
                         <label>1인 일일 제한</label>
-                        <input type="number" name="1인일일제한" min="0" placeholder="0 = 무제한">
+                        <input type="number" name="1인일일제한" min="0" value="{{ copy.get('1인일일제한', '') }}" placeholder="0 = 무제한">
                         <small style="color:#888;font-size:12px;">한 명이 하루에 참여 가능한 최대 건수 (0이면 제한 없음)</small>
                     </div>
                     <div class="form-group form-group-full">
@@ -302,21 +304,21 @@
                     </div>
                     <div class="form-group form-group-full">
                         <label>옵션명</label>
-                        <input type="text" name="옵션" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
+                        <input type="text" name="옵션" value="{{ copy.get('옵션', '') }}" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
                         <div style="color:#999;font-size:12px;margin-top:4px;">리뷰어가 구매 시 선택할 옵션을 입력하세요</div>
                     </div>
                     <div class="form-group form-group-full">
                         <label>캠페인 가이드</label>
-                        <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용"></textarea>
+                        <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용">{{ copy.get('캠페인가이드', '') }}</textarea>
                     </div>
                     <div class="form-group form-group-full">
                         <label>AI 구매캡쳐 검수 지침</label>
-                        <textarea name="AI구매검수지침" rows="3" placeholder="예: 반드시 판매자배송으로 구매해야 합니다. 로켓배송은 불가합니다."></textarea>
+                        <textarea name="AI구매검수지침" rows="3" placeholder="예: 반드시 판매자배송으로 구매해야 합니다. 로켓배송은 불가합니다.">{{ copy.get('AI구매검수지침', '') }}</textarea>
                         <small style="color:#888;">구매내역 캡쳐 업로드 시 AI 검수에 사용됩니다. (설정 페이지의 기본지침에 추가로 적용)</small>
                     </div>
                     <div class="form-group form-group-full">
                         <label>AI 리뷰캡쳐 검수 지침</label>
-                        <textarea name="AI리뷰검수지침" rows="3" placeholder="예: 리뷰에 사진이 반드시 포함되어야 합니다. 텍스트 100자 이상이어야 합니다."></textarea>
+                        <textarea name="AI리뷰검수지침" rows="3" placeholder="예: 리뷰에 사진이 반드시 포함되어야 합니다. 텍스트 100자 이상이어야 합니다.">{{ copy.get('AI리뷰검수지침', '') }}</textarea>
                         <small style="color:#888;">리뷰 캡쳐 업로드 시 AI 검수에 사용됩니다. (설정 페이지의 기본지침에 추가로 적용)</small>
                     </div>
                 </div>

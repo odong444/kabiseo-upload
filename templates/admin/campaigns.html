@@ -259,6 +259,8 @@
                                    class="admin-btn admin-btn-sm" onclick="event.stopPropagation();" style="background:#e3f2fd;color:#1565c0;">진행현황</a>
                                 <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
                                    class="admin-btn admin-btn-sm" onclick="event.stopPropagation();">수정</a>
+                                <a href="{{ url_for('admin.campaign_new', copy=c.get('캠페인ID', '')) }}"
+                                   class="admin-btn admin-btn-sm" onclick="event.stopPropagation();" style="background:#f0f4ff;color:#4a6cf7;">복사</a>
                                 {% if c.get('상태', '모집중') == '중지' %}
                                 <button type="button" class="admin-btn admin-btn-sm admin-btn-resume"
                                         onclick="event.stopPropagation(); campaignResume('{{ c.get('캠페인ID', '') }}', this);">재개</button>
