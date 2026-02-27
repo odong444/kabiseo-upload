@@ -314,6 +314,17 @@ def api_apply():
             results.append({"store_id": sid, "ok": False, "error": str(e)})
 
     success = [r for r in results if r.get("ok")]
+
+    # 카카오 친구추가 요청 (신청 성공 시, 미등록 친구만)
+    if success:
+        try:
+            reviewer = models.db_manager.get_reviewer(name, phone)
+            if not reviewer or not reviewer.get("kakao_friend"):
+                from modules.signal_sender import request_friend_add
+                request_friend_add(name, phone)
+        except Exception:
+            pass
+
     return jsonify({
         "ok": len(success) > 0,
         "results": results,
