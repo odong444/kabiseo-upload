@@ -878,10 +878,12 @@ class StepMachine:
         except Exception:
             pass
 
-        # 서버PC에 친구추가 요청 (카카오톡 DM 기반)
+        # 서버PC에 친구추가 요청 (이미 친구가 아닌 경우만)
         try:
-            from modules.signal_sender import request_friend_add
-            request_friend_add(state.name, state.phone)
+            reviewer = self.reviewers.db.get_reviewer(state.name, state.phone)
+            if not reviewer or not reviewer.get("kakao_friend"):
+                from modules.signal_sender import request_friend_add
+                request_friend_add(state.name, state.phone)
         except Exception:
             pass
 
