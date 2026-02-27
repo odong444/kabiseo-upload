@@ -4,6 +4,7 @@ drive_uploader.py - Google Drive 이미지 업로드
 
 import io
 import logging
+import threading
 
 from googleapiclient.http import MediaIoBaseUpload
 
@@ -17,40 +18,42 @@ class DriveUploader:
         self.service = drive_service
         self.folder_order = folder_order
         self.folder_review = folder_review
+        self._lock = threading.Lock()
 
     def upload(self, file_bytes: bytes, filename: str, content_type: str,
                capture_type: str = "purchase", description: str = "") -> str:
-        """파일 업로드 → 공유링크 반환"""
-        folder_id = self.folder_order if capture_type == "purchase" else self.folder_review
+        """파일 업로드 → 공유링크 반환 (Lock으로 동시접근 방지)"""
+        with self._lock:
+            folder_id = self.folder_order if capture_type == "purchase" else self.folder_review
 
-        media = MediaIoBaseUpload(
-            io.BytesIO(file_bytes), mimetype=content_type, resumable=True
-        )
+            media = MediaIoBaseUpload(
+                io.BytesIO(file_bytes), mimetype=content_type, resumable=True
+            )
 
-        metadata = {"name": filename, "description": description}
-        if folder_id:
-            metadata["parents"] = [folder_id]
+            metadata = {"name": filename, "description": description}
+            if folder_id:
+                metadata["parents"] = [folder_id]
 
-        uploaded = self.service.files().create(
-            body=metadata, media_body=media, fields="id, webViewLink",
-            supportsAllDrives=True,
-        ).execute()
-
-        file_id = uploaded["id"]
-
-        # 공유 설정
-        try:
-            self.service.permissions().create(
-                fileId=file_id,
-                body={"type": "anyone", "role": "reader"},
+            uploaded = self.service.files().create(
+                body=metadata, media_body=media, fields="id, webViewLink",
                 supportsAllDrives=True,
             ).execute()
-        except Exception as e:
-            logger.warning(f"공유 설정 실패 (공유 드라이브는 자동 공유): {e}")
 
-        link = uploaded.get("webViewLink", f"https://drive.google.com/file/d/{file_id}/view")
-        logger.info(f"Drive 업로드 완료: {filename} → {link}")
-        return link
+            file_id = uploaded["id"]
+
+            # 공유 설정
+            try:
+                self.service.permissions().create(
+                    fileId=file_id,
+                    body={"type": "anyone", "role": "reader"},
+                    supportsAllDrives=True,
+                ).execute()
+            except Exception as e:
+                logger.warning(f"공유 설정 실패 (공유 드라이브는 자동 공유): {e}")
+
+            link = uploaded.get("webViewLink", f"https://drive.google.com/file/d/{file_id}/view")
+            logger.info(f"Drive 업로드 완료: {filename} → {link}")
+            return link
 
     def upload_from_flask_file(self, file_storage, capture_type: str = "purchase",
                                 description: str = "") -> str:
