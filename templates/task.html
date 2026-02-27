@@ -34,6 +34,39 @@
     border-radius: 8px; border: 1px solid #ddd; cursor: pointer;
 }
 .photo-set-item img:hover { border-color: #fee500; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+
+/* 라이트박스 */
+.lightbox-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.9); z-index: 9999;
+    justify-content: center; align-items: center;
+    cursor: zoom-out; -webkit-tap-highlight-color: transparent;
+}
+.lightbox-overlay.open { display: flex; }
+.lightbox-overlay img {
+    max-width: 95vw; max-height: 90vh; object-fit: contain;
+    border-radius: 8px; user-select: none; -webkit-user-select: none;
+}
+.lightbox-close {
+    position: fixed; top: 12px; right: 16px;
+    color: #fff; font-size: 32px; cursor: pointer; z-index: 10000;
+    background: none; border: none; line-height: 1;
+}
+.lightbox-nav {
+    position: fixed; top: 50%; transform: translateY(-50%);
+    color: #fff; font-size: 36px; cursor: pointer; z-index: 10000;
+    background: rgba(255,255,255,0.15); border: none; border-radius: 50%;
+    width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+}
+.lightbox-nav:hover { background: rgba(255,255,255,0.3); }
+.lightbox-nav.prev { left: 12px; }
+.lightbox-nav.next { right: 12px; }
+.lightbox-counter {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    color: #fff; font-size: 14px; z-index: 10000; background: rgba(0,0,0,0.5);
+    padding: 4px 12px; border-radius: 12px;
+}
+.detail-image img { cursor: zoom-in; }
 </style>
 {% endblock %}
 
@@ -76,6 +109,80 @@
         if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400';
         return url;
     }
+
+    function driveToFull(url) {
+        if (!url) return url;
+        var m = url.match(/\/file\/d\/([^\/]+)/);
+        if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1200';
+        return url;
+    }
+
+    // ── 라이트박스 ──
+    var _lbImages = [];
+    var _lbIndex = 0;
+
+    function openLightbox(images, startIndex) {
+        _lbImages = images;
+        _lbIndex = startIndex || 0;
+        var overlay = document.getElementById('lightboxOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'lightboxOverlay';
+            overlay.className = 'lightbox-overlay';
+            overlay.innerHTML = '<button class="lightbox-close">&times;</button>'
+                + '<button class="lightbox-nav prev">&#8249;</button>'
+                + '<img id="lightboxImg" src="" alt="">'
+                + '<button class="lightbox-nav next">&#8250;</button>'
+                + '<div class="lightbox-counter" id="lightboxCounter"></div>';
+            document.body.appendChild(overlay);
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) closeLightbox();
+            });
+            overlay.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
+            overlay.querySelector('.lightbox-nav.prev').addEventListener('click', function(e) { e.stopPropagation(); lbPrev(); });
+            overlay.querySelector('.lightbox-nav.next').addEventListener('click', function(e) { e.stopPropagation(); lbNext(); });
+            // 스와이프
+            var startX = 0;
+            overlay.addEventListener('touchstart', function(e) { startX = e.touches[0].clientX; }, {passive: true});
+            overlay.addEventListener('touchend', function(e) {
+                var dx = e.changedTouches[0].clientX - startX;
+                if (dx > 50) lbPrev();
+                else if (dx < -50) lbNext();
+            });
+        }
+        lbShow();
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+        var overlay = document.getElementById('lightboxOverlay');
+        if (overlay) overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    function lbShow() {
+        var img = document.getElementById('lightboxImg');
+        var counter = document.getElementById('lightboxCounter');
+        if (!img) return;
+        img.src = _lbImages[_lbIndex];
+        counter.textContent = (_lbIndex + 1) + ' / ' + _lbImages.length;
+        var prevBtn = document.querySelector('.lightbox-nav.prev');
+        var nextBtn = document.querySelector('.lightbox-nav.next');
+        prevBtn.style.display = _lbImages.length > 1 ? '' : 'none';
+        nextBtn.style.display = _lbImages.length > 1 ? '' : 'none';
+        counter.style.display = _lbImages.length > 1 ? '' : 'none';
+    }
+
+    function lbPrev() { _lbIndex = (_lbIndex - 1 + _lbImages.length) % _lbImages.length; lbShow(); }
+    function lbNext() { _lbIndex = (_lbIndex + 1) % _lbImages.length; lbShow(); }
+
+    document.addEventListener('keydown', function(e) {
+        if (!document.getElementById('lightboxOverlay') || !document.getElementById('lightboxOverlay').classList.contains('open')) return;
+        if (e.key === 'Escape') closeLightbox();
+        else if (e.key === 'ArrowLeft') lbPrev();
+        else if (e.key === 'ArrowRight') lbNext();
+    });
 
     function linkify(text) {
         if (!text) return '';
@@ -158,12 +265,13 @@
         // === 참고 사진 세트 ===
         const photoSet = taskData.photo_set || [];
         if (photoSet.length > 0) {
+            var photoFullUrls = photoSet.map(function(u) { return driveToFull(u); });
+            // window에 저장해서 onclick에서 접근 가능하게
+            window._photoSetUrls = photoFullUrls;
             let photosHtml = '<div class="photo-set-gallery">';
             photoSet.forEach(function(url, idx) {
                 photosHtml += `<div class="photo-set-item">
-                    <a href="${url}" target="_blank" rel="noopener">
-                        <img src="${driveToThumb(url)}" alt="참고사진 ${idx+1}" onerror="this.parentNode.parentNode.style.display='none'">
-                    </a>
+                        <img src="${driveToThumb(url)}" alt="참고사진 ${idx+1}" onclick="openLightbox(window._photoSetUrls, ${idx})" onerror="this.parentNode.style.display='none'">
                 </div>`;
             });
             photosHtml += '</div>';
@@ -279,7 +387,7 @@
                 <p class="task-subtitle">${taskData.store_name || ''}</p>
             </div>
 
-            ${c.product_image ? `<div class="detail-image"><img src="${driveToThumb(c.product_image)}" alt="상품 이미지" onerror="this.parentNode.style.display='none'"></div>` : ''}
+            ${c.product_image ? `<div class="detail-image"><img src="${driveToThumb(c.product_image)}" alt="상품 이미지" onclick="openLightbox(['${driveToFull(c.product_image)}'], 0)" onerror="this.parentNode.style.display='none'"></div>` : ''}
 
             ${guideHtml}
 
