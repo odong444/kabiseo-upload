@@ -164,6 +164,18 @@
 
         <form id="campaignForm" method="POST" action="{{ url_for('admin.campaign_new_post') }}" enctype="multipart/form-data" class="admin-form">
 
+            <!-- 텍스트 자동 채우기 -->
+            <div class="form-section">
+                <h3>텍스트로 자동 채우기</h3>
+                <div class="form-group form-group-full">
+                    <textarea id="autoFillText" rows="5" placeholder="견적서, 요청서, 카톡 메시지 등을 붙여넣으세요. AI가 자동으로 폼을 채워줍니다."></textarea>
+                    <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+                        <button type="button" class="admin-btn admin-btn-primary" id="autoFillBtn" style="padding:8px 20px;">자동 채우기</button>
+                        <span id="autoFillStatus" style="font-size:13px;color:#888;"></span>
+                    </div>
+                </div>
+            </div>
+
             <!-- 캠페인 정보 -->
             <div class="form-section">
                 <h3>캠페인 정보</h3>
@@ -459,6 +471,107 @@
     document.getElementById('buyTimeStart').addEventListener('change', updateBuyTime);
     document.getElementById('buyTimeEnd').addEventListener('change', updateBuyTime);
     document.getElementById('buyTimeNextDay').addEventListener('change', updateBuyTime);
+
+    // 텍스트 자동 채우기
+    document.getElementById('autoFillBtn').addEventListener('click', async function() {
+        var text = document.getElementById('autoFillText').value.trim();
+        if (!text) { alert('텍스트를 입력해주세요.'); return; }
+
+        var btn = this;
+        var status = document.getElementById('autoFillStatus');
+        btn.disabled = true;
+        btn.textContent = 'AI 분석중...';
+        status.textContent = '';
+
+        try {
+            var resp = await fetch("{{ url_for('admin.api_campaign_parse_text') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
+            var result = await resp.json();
+
+            if (!result.ok) {
+                status.textContent = result.error || '파싱 실패';
+                status.style.color = '#e53e3e';
+                btn.disabled = false;
+                btn.textContent = '자동 채우기';
+                return;
+            }
+
+            var d = result.data;
+            function setVal(name, val) {
+                if (!val) return;
+                var el = document.querySelector('[name="' + name + '"]');
+                if (el) el.value = val;
+            }
+            function setSelect(name, val) {
+                if (!val) return;
+                var el = document.querySelector('[name="' + name + '"]');
+                if (!el) return;
+                // 옵션 목록에 있는지 확인
+                for (var i = 0; i < el.options.length; i++) {
+                    if (el.options[i].value === val) {
+                        el.value = val;
+                        el.dispatchEvent(new Event('change'));
+                        return;
+                    }
+                }
+                // 없으면 '기타'로 선택 후 직접입력
+                if (el.querySelector('option[value="기타"]')) {
+                    el.value = '기타';
+                    el.dispatchEvent(new Event('change'));
+                    var customInput = document.getElementById('platformCustom');
+                    if (customInput) customInput.value = val;
+                }
+            }
+
+            setVal('상품명', d['상품명']);
+            setVal('업체명', d['업체명']);
+            setVal('상품링크', d['상품링크']);
+            setVal('상품금액', d['상품금액']);
+            setVal('리뷰비', d['리뷰비']);
+            setVal('옵션', d['옵션']);
+            setVal('캠페인가이드', d['캠페인가이드']);
+            setVal('추가안내사항', d['추가안내사항'] || '');
+            setVal('AI구매검수지침', d['AI구매검수지침'] || '');
+            setVal('AI리뷰검수지침', d['AI리뷰검수지침'] || '');
+
+            if (d['플랫폼']) setSelect('플랫폼', d['플랫폼']);
+            if (d['캠페인유형']) setSelect('캠페인유형', d['캠페인유형']);
+
+            if (d['총수량']) document.getElementById('totalCount').value = d['총수량'];
+            if (d['일수량']) document.getElementById('dailyCount').value = d['일수량'];
+            if (d['진행일수']) document.getElementById('dayCount').value = d['진행일수'];
+
+            // 구매가능시간 파싱 (09:00~18:00 형태)
+            if (d['구매가능시간']) {
+                var tm = d['구매가능시간'].match(/(\d{1,2}):?\d{0,2}\s*[~\-]\s*(\d{1,2}):?\d{0,2}/);
+                if (tm) {
+                    document.getElementById('buyTimeStart').value = tm[1].padStart(2, '0');
+                    document.getElementById('buyTimeEnd').value = tm[2].padStart(2, '0');
+                    updateBuyTime();
+                }
+            }
+
+            // 중복허용
+            if (d['중복허용'] === 'N') {
+                var dupN = document.querySelector('input[name="중복진행"][value="N"]');
+                if (dupN) { dupN.checked = true; dupN.dispatchEvent(new Event('change')); }
+            }
+
+            // 일정 자동 계산 트리거
+            document.getElementById('totalCount').dispatchEvent(new Event('input'));
+
+            status.textContent = '자동 채우기 완료! 내용을 확인해주세요.';
+            status.style.color = '#38a169';
+        } catch(e) {
+            status.textContent = '오류: ' + e.message;
+            status.style.color = '#e53e3e';
+        }
+        btn.disabled = false;
+        btn.textContent = '자동 채우기';
+    });
 
     (function() {
         // 플랫폼 "기타" 토글

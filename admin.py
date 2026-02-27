@@ -905,6 +905,96 @@ def rate_message():
     return jsonify({"ok": ok})
 
 
+# ── 텍스트 → 캠페인 필드 자동 파싱 ──
+
+CAMPAIGN_PARSE_PROMPT = """아래 텍스트에서 캠페인 등록에 필요한 정보를 JSON으로 추출해줘.
+없는 항목은 빈 문자열(""), 불확실하면 빈 문자열로 둬.
+JSON만 출력해. 설명이나 코드블록 없이 순수 JSON만.
+
+{{
+  "상품링크": "",
+  "플랫폼": "(스마트스토어/쿠팡/오늘의집/11번가/지마켓/올리브영/기타)",
+  "업체명": "",
+  "상품명": "",
+  "캠페인유형": "(실배송/빈박스)",
+  "총수량": "",
+  "일수량": "(숫자 또는 범위, 예: 5 또는 3-5)",
+  "진행일수": "",
+  "상품금액": "(숫자만, 쉼표없이)",
+  "결제금액": "(숫자만, 쉼표없이. 리뷰어가 실제 결제할 금액)",
+  "리뷰비": "(숫자만)",
+  "옵션": "(쉼표 구분)",
+  "유입방식": "(링크유입/키워드유입)",
+  "키워드": "",
+  "체류시간": "(예: 3분 이상)",
+  "구매가능시간": "(예: 09:00~18:00)",
+  "중복허용": "(Y/N)",
+  "상품찜필수": "(Y/N)",
+  "알림받기필수": "(Y/N)",
+  "배송메모필수": "(Y/N)",
+  "배송메모내용": "",
+  "캠페인가이드": "(리뷰어에게 전달할 구매 가이드 전문. 줄바꿈 유지)",
+  "추가안내사항": "",
+  "AI구매검수지침": "",
+  "AI리뷰검수지침": "",
+  "메모": "(기타 특이사항)"
+}}
+
+규칙:
+- 상품금액과 결제금액이 동일하면 결제금액은 빈 문자열
+- 상품링크에서 플랫폼을 자동 판별 (smartstore.naver.com → 스마트스토어, coupang.com → 쿠팡 등)
+- 캠페인가이드는 원본 텍스트의 구매 절차/가이드 부분을 그대로 유지
+- 배송메모 관련 내용이 있으면 배송메모필수를 Y로, 내용을 배송메모내용에 넣어줘
+- 상품찜, 알림받기 관련 언급이 있으면 해당 필드를 Y로
+
+[텍스트]
+{raw_text}
+
+JSON:"""
+
+
+@admin_bp.route("/api/campaign/parse-text", methods=["POST"])
+@admin_required
+def api_campaign_parse_text():
+    """텍스트에서 캠페인 정보 AI 파싱"""
+    import json as _json
+    data = request.get_json(silent=True) or {}
+    raw_text = data.get("text", "").strip()
+    if not raw_text:
+        return jsonify({"ok": False, "error": "텍스트를 입력해주세요"})
+
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return jsonify({"ok": False, "error": "GEMINI_API_KEY 미설정"})
+
+    prompt = CAMPAIGN_PARSE_PROMPT.replace("{raw_text}", raw_text)
+    gemini_url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.0-flash:generateContent?key={api_key}"
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
+    }
+
+    try:
+        resp = _requests.post(gemini_url, json=payload, timeout=30)
+        if resp.status_code != 200:
+            logger.error("Gemini parse error: %s", resp.text[:300])
+            return jsonify({"ok": False, "error": "AI 파싱 실패"})
+
+        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1]
+            text = text.rsplit("```", 1)[0].strip()
+
+        parsed = _json.loads(text)
+        return jsonify({"ok": True, "data": parsed})
+    except Exception as e:
+        logger.error("Campaign parse error: %s", e)
+        return jsonify({"ok": False, "error": f"파싱 오류: {str(e)}"})
+
+
 @admin_bp.route("/api/campaign/preview", methods=["POST"])
 @admin_required
 def api_campaign_preview():
