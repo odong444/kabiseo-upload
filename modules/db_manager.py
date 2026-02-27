@@ -1287,6 +1287,13 @@ class DBManager:
 
     def get_recent_activities(self, limit: int = 30) -> list[dict]:
         """최근 활동 통합 피드 (대화 + 상태변경)"""
+        try:
+            return self._get_recent_activities_impl(limit)
+        except Exception as e:
+            logger.error(f"최근 활동 조회 에러: {e}")
+            return []
+
+    def _get_recent_activities_impl(self, limit: int) -> list[dict]:
         # 최근 대화
         chats = self._fetchall(
             """SELECT 'chat' as type, reviewer_id, sender, message,
@@ -1302,11 +1309,11 @@ class DBManager:
                       COALESCE(r.name, '') as reviewer_name,
                       COALESCE(r.phone, '') as reviewer_phone,
                       p.store_id, p.status,
-                      COALESCE(c.campaign_name, c.product_name, '') as campaign_name,
+                      COALESCE(NULLIF(c.campaign_name, ''), c.product_name, '') as campaign_name,
                       p.updated_at as ts
                FROM progress p
                LEFT JOIN reviewers r ON p.reviewer_id = r.id
-               LEFT JOIN campaigns c ON p.campaign_id = c.campaign_id
+               LEFT JOIN campaigns c ON p.campaign_id = c.id
                ORDER BY p.updated_at DESC LIMIT %s""",
             (limit,)
         )
