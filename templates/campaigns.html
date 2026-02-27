@@ -94,8 +94,6 @@
             if (h.progress_id) {
                 if (['신청','가이드전달','구매캡쳐대기'].includes(st)) {
                     action = `<a href="/task/${h.progress_id}" class="history-action-btn">구매제출</a>`;
-                } else if (st === '리뷰대기') {
-                    action = `<a href="/task/${h.progress_id}/review" class="history-action-btn">리뷰제출</a>`;
                 }
             }
             return `<div class="my-history-row">
