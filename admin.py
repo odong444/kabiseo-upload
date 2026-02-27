@@ -59,6 +59,35 @@ def _fetch_server_categories() -> list[str]:
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin1234")
 
 
+def _get_server_promotion_status() -> bool | None:
+    """서버PC 홍보 활성화 상태 조회"""
+    try:
+        resp = _requests.get(
+            f"{SERVER_PC_URL}/api/config",
+            headers={"X-API-Key": SERVER_PC_API_KEY},
+            timeout=3,
+        )
+        if resp.ok:
+            return resp.json().get("promotion", {}).get("enabled", False)
+    except Exception:
+        pass
+    return None
+
+
+def _set_server_promotion(enabled: bool) -> bool:
+    """서버PC 홍보 on/off 설정"""
+    try:
+        resp = _requests.post(
+            f"{SERVER_PC_URL}/api/config",
+            headers={"X-API-Key": SERVER_PC_API_KEY, "Content-Type": "application/json"},
+            json={"promotion": {"enabled": enabled}},
+            timeout=5,
+        )
+        return resp.ok and resp.json().get("ok", False)
+    except Exception:
+        return False
+
+
 @admin_bp.app_context_processor
 def inject_pending_count():
     """모든 admin 페이지에 문의 대기 건수 주입"""
@@ -287,6 +316,26 @@ def api_campaign_resume(campaign_id):
     except Exception as e:
         logger.error(f"캠페인 재개 에러: {e}")
         return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/promotion/status", methods=["GET"])
+@admin_required
+def api_promotion_status():
+    """서버PC 홍보 상태 조회"""
+    status = _get_server_promotion_status()
+    return jsonify({"ok": True, "enabled": status})
+
+
+@admin_bp.route("/api/promotion/toggle", methods=["POST"])
+@admin_required
+def api_promotion_toggle():
+    """서버PC 홍보 on/off 토글"""
+    data = request.get_json(silent=True) or {}
+    enabled = data.get("enabled", False)
+    ok = _set_server_promotion(enabled)
+    if ok:
+        return jsonify({"ok": True, "enabled": enabled})
+    return jsonify({"ok": False, "error": "서버PC 연결 실패"}), 500
 
 
 @admin_bp.route("/api/campaigns/<campaign_id>", methods=["DELETE"])

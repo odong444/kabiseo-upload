@@ -154,6 +154,14 @@
 
     .admin-status-badge.중지 { background: #fff7ed; color: #ea580c; }
     .admin-status-badge.당일마감 { background: #fef2f2; color: #dc2626; font-size: 11px; margin-left: 4px; }
+
+    /* 토글 슬라이더 */
+    #promoSlider:before {
+        position: absolute; content: ""; height: 18px; width: 18px;
+        left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s;
+    }
+    #promoToggle:checked + #promoSlider { background: #22c55e; }
+    #promoToggle:checked + #promoSlider:before { transform: translateX(20px); }
     </style>
 </head>
 <body class="admin-body">
@@ -191,8 +199,16 @@
         {% endif %}
         {% endwith %}
 
-        <div style="margin-bottom: 16px;">
+        <div style="margin-bottom: 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
             <a href="{{ url_for('admin.campaign_new') }}" class="admin-btn admin-btn-primary">신규 등록</a>
+            <div style="display:flex;align-items:center;gap:8px;margin-left:auto;padding:8px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
+                <span style="font-size:13px;font-weight:600;color:#64748b;">카톡 홍보</span>
+                <label class="toggle-switch" style="position:relative;display:inline-block;width:44px;height:24px;">
+                    <input type="checkbox" id="promoToggle" style="opacity:0;width:0;height:0;">
+                    <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;border-radius:24px;transition:0.3s;" id="promoSlider"></span>
+                </label>
+                <span id="promoLabel" style="font-size:13px;font-weight:600;color:#94a3b8;">--</span>
+            </div>
         </div>
 
         {% if campaigns %}
@@ -362,6 +378,57 @@
     </main>
 
     <script>
+    // 홍보 토글
+    (function() {
+        var toggle = document.getElementById('promoToggle');
+        var label = document.getElementById('promoLabel');
+        // 초기 상태 로드
+        fetch('/admin/api/promotion/status')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.enabled === null) {
+                    label.textContent = '서버 오프라인';
+                    label.style.color = '#ef4444';
+                    toggle.disabled = true;
+                } else {
+                    toggle.checked = data.enabled;
+                    label.textContent = data.enabled ? 'ON' : 'OFF';
+                    label.style.color = data.enabled ? '#16a34a' : '#94a3b8';
+                }
+            })
+            .catch(function() {
+                label.textContent = '연결 실패';
+                label.style.color = '#ef4444';
+            });
+        // 토글 변경
+        toggle.addEventListener('change', function() {
+            var enabled = toggle.checked;
+            label.textContent = '변경중...';
+            label.style.color = '#94a3b8';
+            fetch('/admin/api/promotion/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enabled: enabled})
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.ok) {
+                    label.textContent = enabled ? 'ON' : 'OFF';
+                    label.style.color = enabled ? '#16a34a' : '#94a3b8';
+                } else {
+                    toggle.checked = !enabled;
+                    label.textContent = '실패';
+                    label.style.color = '#ef4444';
+                }
+            })
+            .catch(function() {
+                toggle.checked = !enabled;
+                label.textContent = '연결 실패';
+                label.style.color = '#ef4444';
+            });
+        });
+    })();
+
     function copyLink(campaignId, btn) {
         var url = location.origin + '/campaign/' + campaignId;
         navigator.clipboard.writeText(url).then(function() {
