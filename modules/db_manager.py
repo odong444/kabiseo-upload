@@ -1373,26 +1373,25 @@ class DBManager:
 
     def count_today_all_campaigns(self) -> dict:
         """오늘 캠페인별 신청 건수 ({캠페인ID: count})"""
-        today = today_str()
         rows = self._fetchall(
             """SELECT campaign_id, COUNT(*) as cnt FROM progress
-               WHERE created_at::date = %s::date AND status NOT IN (%s, %s)
+               WHERE (created_at AT TIME ZONE 'Asia/Seoul')::date = (NOW() AT TIME ZONE 'Asia/Seoul')::date
+               AND status NOT IN (%s, %s)
                GROUP BY campaign_id""",
-            (today, STATUS_TIMEOUT, STATUS_CANCELLED)
+            (STATUS_TIMEOUT, STATUS_CANCELLED)
         )
         return {r["campaign_id"]: r["cnt"] for r in rows}
 
     def count_today_user_campaign(self, name: str, phone: str, campaign_id: str) -> int:
         """오늘 특정 유저의 특정 캠페인 신청 건수"""
-        today = today_str()
         row = self._fetchone(
             """SELECT COUNT(*) as cnt FROM progress p
                JOIN reviewers r ON p.reviewer_id = r.id
                WHERE r.name = %s AND r.phone = %s
                AND p.campaign_id = %s
-               AND p.created_at::date = %s::date
+               AND (p.created_at AT TIME ZONE 'Asia/Seoul')::date = (NOW() AT TIME ZONE 'Asia/Seoul')::date
                AND p.status NOT IN (%s, %s)""",
-            (name, phone, campaign_id, today, STATUS_TIMEOUT, STATUS_CANCELLED)
+            (name, phone, campaign_id, STATUS_TIMEOUT, STATUS_CANCELLED)
         )
         return row["cnt"] if row else 0
 
