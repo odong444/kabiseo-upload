@@ -40,6 +40,7 @@ JSON 형식으로만 응답:
     "배송유형": "",
     "상품일치": true/false,
     "금액일치": true/false,
+    "금액비고": "",
     "플랫폼일치": true/false,
     "문제점": []
 }
@@ -53,7 +54,8 @@ JSON 형식으로만 응답:
 
 대조 검수 규칙 (유연하게 판단):
 - 상품일치: 캠페인 상품과 동일/유사 상품인지 판단. 상품명이 약간 다르더라도(약어, 브랜드명 생략, 옵션 표기 차이, 용량/색상 표기 방식 차이 등) 실질적으로 같은 상품이면 true. 완전히 다른 상품이면 false.
-- 금액일치: 캠페인 기준 금액과 비교. 쿠폰/할인/적립금 적용으로 소폭 차이(기준 금액의 30% 이내)는 true. 금액 차이가 크거나 기준 금액 정보가 없으면 false. 기준 금액이 제공되지 않은 경우는 true로 처리.
+- 금액일치: 캠페인 기준 금액과 비교. 쿠폰/할인/적립금 적용으로 소폭 차이(기준 금액의 10% 이내)는 true. 10% 초과 차이는 false. 기준 금액이 제공되지 않은 경우는 true로 처리.
+- 금액비고: 금액일치가 true이더라도 기준 금액과 차이가 있으면 그 차이를 설명 (예: "기준 29,000원 → 실결제 26,500원, 쿠폰 적용 추정"). 차이가 없거나 기준 금액 미제공이면 빈 문자열.
 - 플랫폼일치: 캡쳐 화면이 캠페인 지정 플랫폼의 주문 화면인지 확인. 플랫폼 정보가 제공되지 않은 경우는 true로 처리.
 
 문제점에는 다음 중 해당하는 것을 배열로 넣어주세요:
@@ -230,6 +232,7 @@ def _judge(analysis: dict, capture_type: str) -> dict:
     """Gemini 분석 결과로 최종 판정"""
     problems = analysis.get("문제점", [])
     if not problems or problems == ["정상"]:
+        notes = []
         # 구매캡쳐: 배송유형 체크
         if capture_type == "purchase":
             delivery = analysis.get("배송유형", "")
@@ -238,7 +241,14 @@ def _judge(analysis: dict, capture_type: str) -> dict:
                     "result": "확인요청",
                     "reason": f"배송유형이 '{delivery}'입니다. 판매자배송으로 구매해야 합니다.",
                 }
-        return {"result": "AI검수통과", "reason": "정상"}
+            # 금액 소폭 차이 코멘트
+            price_note = analysis.get("금액비고", "")
+            if price_note:
+                notes.append(f"금액 차이: {price_note}")
+        reason = "정상"
+        if notes:
+            reason = f"정상 ({'. '.join(notes)} - 담당자 확인 권장)"
+        return {"result": "AI검수통과", "reason": reason}
     else:
         reason_parts = [_PROBLEM_MESSAGES.get(p, p) for p in problems]
         return {"result": "확인요청", "reason": ". ".join(reason_parts)}
