@@ -253,7 +253,8 @@
                         <td style="font-weight:600;">
                             {{ c.get('캠페인명', '') or c.get('상품명', '') }}
                             {% if c.get('동시진행그룹', '') %}
-                            <span class="exclusive-group-badge" data-group="{{ c.get('동시진행그룹', '') }}" style="font-size:10px;padding:2px 6px;border-radius:10px;margin-left:4px;font-weight:500;cursor:help;" title="동시진행 그룹 (같은 아이디 사용 불가)">그룹</span>
+                            {% set ex_days = (c.get('동시진행기한', '0')|int) %}
+                            <span class="exclusive-group-badge" data-group="{{ c.get('동시진행그룹', '') }}" style="font-size:10px;padding:2px 6px;border-radius:10px;margin-left:4px;font-weight:500;cursor:help;" title="동시진행 그룹{{ ' (%d일 제한)'|format(ex_days) if ex_days > 0 else ' (항상 차단)' }}">그룹{{ '(%d일)'|format(ex_days) if ex_days > 0 else '' }}</span>
                             {% endif %}
                         </td>
                         <td>{{ c.get('업체명', '') }}</td>
@@ -876,16 +877,29 @@
     function linkExclusiveGroup() {
         var ids = getCheckedIds();
         if (ids.length < 2) { alert('2개 이상 선택하세요'); return; }
-        if (!confirm(ids.length + '개 캠페인을 동시진행 그룹으로 묶으시겠습니까?\n(같은 아이디로 동시 진행이 차단됩니다)')) return;
+        var daysStr = prompt(
+            ids.length + '개 캠페인을 동시진행 그룹으로 묶습니다.\n\n' +
+            '동시진행 불가 기한(일수)을 입력하세요:\n' +
+            '  0 = 기한 없음 (항상 차단)\n' +
+            '  1 = 당일만 차단\n' +
+            '  2 = 2일간 차단\n' +
+            '  ...',
+            '0'
+        );
+        if (daysStr === null) return;
+        var days = parseInt(daysStr) || 0;
+        if (days < 0) days = 0;
+        var daysLabel = days === 0 ? '기한 없음(항상 차단)' : days + '일간 차단';
+        if (!confirm(ids.length + '개 캠페인 그룹 묶기\n제한: ' + daysLabel + '\n\n진행하시겠습니까?')) return;
         fetch('/admin/api/campaigns/exclusive-group', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({campaign_ids: ids}),
+            body: JSON.stringify({campaign_ids: ids, days: days}),
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.ok) {
-                alert(data.count + '개 캠페인이 동시진행 그룹으로 묶였습니다.');
+                alert(data.count + '개 캠페인이 동시진행 그룹으로 묶였습니다. (' + daysLabel + ')');
                 location.reload();
             } else {
                 alert('실패: ' + (data.error || ''));

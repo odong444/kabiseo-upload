@@ -111,7 +111,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     ai_purchase_instructions TEXT DEFAULT '',
     ai_review_instructions TEXT DEFAULT '',
     max_per_person_daily INTEGER DEFAULT 0,
-    exclusive_group TEXT DEFAULT ''
+    exclusive_group TEXT DEFAULT '',
+    exclusive_days INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS reviewers (
@@ -348,6 +349,7 @@ class DBManager:
                 # 동시진행그룹
                 try:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS exclusive_group TEXT DEFAULT ''")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS exclusive_days INTEGER DEFAULT 0")
                 except Exception:
                     pass
                 # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
@@ -526,7 +528,7 @@ class DBManager:
                 deadline_date, is_public, is_selected, reward, memo,
                 promotion_message,
                 promo_enabled, promo_categories, promo_start, promo_end, promo_cooldown,
-                exclusive_group
+                exclusive_group, exclusive_days
             ) VALUES (
                 %(id)s, %(status)s, %(company)s, %(campaign_name)s, %(product_name)s, %(product_link)s,
                 %(product_codes)s, %(product_image)s, %(product_price)s, %(payment_amount)s, %(campaign_type)s, %(platform)s,
@@ -546,7 +548,7 @@ class DBManager:
                 %(is_selected)s, %(reward)s, %(memo)s,
                 %(promotion_message)s,
                 %(promo_enabled)s, %(promo_categories)s, %(promo_start)s, %(promo_end)s, %(promo_cooldown)s,
-                %(exclusive_group)s
+                %(exclusive_group)s, %(exclusive_days)s
             )
         """
         self._execute(sql, d)
@@ -612,6 +614,7 @@ class DBManager:
         "AI리뷰검수지침": "ai_review_instructions",
         "1인일일제한": "max_per_person_daily",
         "동시진행그룹": "exclusive_group",
+        "동시진행기한": "exclusive_days",
     }
 
     _CAMPAIGN_COLUMNS = {
@@ -638,6 +641,7 @@ class DBManager:
         "ai_instructions", "ai_purchase_instructions", "ai_review_instructions",
         "max_per_person_daily",
         "exclusive_group",
+        "exclusive_days",
     }
 
     _BOOL_COLUMNS = {
@@ -652,7 +656,7 @@ class DBManager:
         "product_price", "payment_amount", "total_qty", "daily_qty",
         "done_qty", "max_daily", "duration_days", "cost_3pl",
         "review_deadline_days", "review_fee",
-        "promo_cooldown",
+        "promo_cooldown", "exclusive_days",
     }
 
     def _convert_campaign_value(self, col: str, value):
@@ -1126,11 +1130,12 @@ class DBManager:
 
     def check_exclusive_group_duplicate(self, campaign_id: str, store_id: str) -> str | None:
         """동시진행그룹 내 다른 캠페인에서 동일 아이디 사용 중인지 확인.
+        exclusive_days > 0 이면 해당 일수 이내 진행건만 차단.
         Returns: 중복된 캠페인명 or None
         """
-        # 현재 캠페인의 exclusive_group 확인
         camp = self._fetchone(
-            "SELECT exclusive_group FROM campaigns WHERE id = %s", (campaign_id,)
+            "SELECT exclusive_group, exclusive_days FROM campaigns WHERE id = %s",
+            (campaign_id,),
         )
         if not camp:
             return None
@@ -1138,18 +1143,32 @@ class DBManager:
         if not group:
             return None
 
-        # 같은 그룹의 다른 캠페인에서 해당 아이디 진행중인지
-        row = self._fetchone(
-            """SELECT c.campaign_name
-               FROM progress p
-               JOIN campaigns c ON p.campaign_id = c.id
-               WHERE c.exclusive_group = %s
-               AND p.campaign_id != %s
-               AND p.store_id = %s
-               AND p.status NOT IN %s
-               LIMIT 1""",
-            (group, campaign_id, store_id, _DUP_IGNORE_STATUSES),
-        )
+        days = camp.get("exclusive_days") or 0
+        if days > 0:
+            row = self._fetchone(
+                """SELECT c.campaign_name
+                   FROM progress p
+                   JOIN campaigns c ON p.campaign_id = c.id
+                   WHERE c.exclusive_group = %s
+                   AND p.campaign_id != %s
+                   AND p.store_id = %s
+                   AND p.status NOT IN %s
+                   AND p.created_at >= NOW() - INTERVAL '%s days'
+                   LIMIT 1""",
+                (group, campaign_id, store_id, _DUP_IGNORE_STATUSES, days),
+            )
+        else:
+            row = self._fetchone(
+                """SELECT c.campaign_name
+                   FROM progress p
+                   JOIN campaigns c ON p.campaign_id = c.id
+                   WHERE c.exclusive_group = %s
+                   AND p.campaign_id != %s
+                   AND p.store_id = %s
+                   AND p.status NOT IN %s
+                   LIMIT 1""",
+                (group, campaign_id, store_id, _DUP_IGNORE_STATUSES),
+            )
         return row["campaign_name"] if row else None
 
     def cancel_stale_rows(self, hours: int = 1) -> int:
@@ -1543,25 +1562,41 @@ class DBManager:
         return {r["store_id"] for r in rows}
 
     def get_exclusive_group_active_ids(self, campaign_id: str) -> set:
-        """동시진행그룹 내 다른 캠페인에서 사용 중인 아이디 목록"""
+        """동시진행그룹 내 다른 캠페인에서 사용 중인 아이디 목록 (기한 적용)"""
         camp = self._fetchone(
-            "SELECT exclusive_group FROM campaigns WHERE id = %s", (campaign_id,)
+            "SELECT exclusive_group, exclusive_days FROM campaigns WHERE id = %s",
+            (campaign_id,),
         )
         if not camp:
             return set()
         group = (camp.get("exclusive_group") or "").strip()
         if not group:
             return set()
-        rows = self._fetchall(
-            """SELECT DISTINCT p.store_id
-               FROM progress p
-               JOIN campaigns c ON p.campaign_id = c.id
-               WHERE c.exclusive_group = %s
-               AND p.campaign_id != %s
-               AND p.store_id != ''
-               AND p.status NOT IN %s""",
-            (group, campaign_id, _DUP_IGNORE_STATUSES),
-        )
+
+        days = camp.get("exclusive_days") or 0
+        if days > 0:
+            rows = self._fetchall(
+                """SELECT DISTINCT p.store_id
+                   FROM progress p
+                   JOIN campaigns c ON p.campaign_id = c.id
+                   WHERE c.exclusive_group = %s
+                   AND p.campaign_id != %s
+                   AND p.store_id != ''
+                   AND p.status NOT IN %s
+                   AND p.created_at >= NOW() - INTERVAL '%s days'""",
+                (group, campaign_id, _DUP_IGNORE_STATUSES, days),
+            )
+        else:
+            rows = self._fetchall(
+                """SELECT DISTINCT p.store_id
+                   FROM progress p
+                   JOIN campaigns c ON p.campaign_id = c.id
+                   WHERE c.exclusive_group = %s
+                   AND p.campaign_id != %s
+                   AND p.store_id != ''
+                   AND p.status NOT IN %s""",
+                (group, campaign_id, _DUP_IGNORE_STATUSES),
+            )
         return {r["store_id"] for r in rows}
 
     # ─────────── ensure 메서드 (시트 호환 no-op) ───────────

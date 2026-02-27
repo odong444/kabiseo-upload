@@ -660,14 +660,15 @@ def api_exclusive_group_set():
         return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
     data = request.get_json(silent=True) or {}
     campaign_ids = data.get("campaign_ids", [])
+    days = int(data.get("days", 0) or 0)
     if len(campaign_ids) < 2:
         return jsonify({"ok": False, "error": "2개 이상 캠페인을 선택하세요"}), 400
     import uuid
     group_id = uuid.uuid4().hex[:8]
     try:
         for cid in campaign_ids:
-            models.db_manager.update_campaign(cid, {"동시진행그룹": group_id})
-        return jsonify({"ok": True, "group_id": group_id, "count": len(campaign_ids)})
+            models.db_manager.update_campaign(cid, {"동시진행그룹": group_id, "동시진행기한": str(days)})
+        return jsonify({"ok": True, "group_id": group_id, "count": len(campaign_ids), "days": days})
     except Exception as e:
         logger.error(f"동시진행그룹 설정 에러: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
@@ -685,7 +686,7 @@ def api_exclusive_group_remove():
         return jsonify({"ok": False, "error": "캠페인을 선택하세요"}), 400
     try:
         for cid in campaign_ids:
-            models.db_manager.update_campaign(cid, {"동시진행그룹": ""})
+            models.db_manager.update_campaign(cid, {"동시진행그룹": "", "동시진행기한": "0"})
         return jsonify({"ok": True, "count": len(campaign_ids)})
     except Exception as e:
         logger.error(f"동시진행그룹 해제 에러: {e}")
