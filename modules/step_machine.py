@@ -661,14 +661,19 @@ class StepMachine:
                     state.name, state.phone, campaign_id
                 )
 
+            # 동시진행그룹 내 다른 캠페인에서 사용 중인 아이디
+            group_ids = set()
+            if campaign_id:
+                group_ids = self.reviewers.db.get_exclusive_group_active_ids(campaign_id)
+
             items = []
             for sid in sorted(used_ids)[:8]:
-                disabled = sid in active_ids
-                items.append({
-                    "id": sid,
-                    "disabled": disabled,
-                    "reason": "진행중" if disabled else "",
-                })
+                if sid in active_ids:
+                    items.append({"id": sid, "disabled": True, "reason": "진행중"})
+                elif sid in group_ids:
+                    items.append({"id": sid, "disabled": True, "reason": "동시진행중"})
+                else:
+                    items.append({"id": sid, "disabled": False, "reason": ""})
 
             return {
                 "max_select": max_select,
@@ -762,6 +767,15 @@ class StepMachine:
                             f"\n\n대체할 아이디 {dup_count}개를 다시 입력해주세요."
                         )
 
+            # 동시진행그룹 중복 체크
+            for sid in new_ids:
+                conflict = self.reviewers.db.check_exclusive_group_duplicate(campaign_id, sid)
+                if conflict:
+                    return _resp(
+                        f"⚠️ '{sid}'은(는) 동시진행 캠페인 [{conflict}]에서 사용 중입니다.\n\n"
+                        f"대체할 아이디 {dup_count}개를 다시 입력해주세요."
+                    )
+
             all_ids = valid_ids + new_ids
             state.temp_data["store_ids"] = all_ids
             self._clear_dup_state(state)
@@ -818,6 +832,21 @@ class StepMachine:
                         self._back_button(),
                     ]
                 )
+
+        # 동시진행그룹 중복 체크 (그룹 내 다른 캠페인에서 사용중인 아이디 차단)
+        group_blocked = []
+        for sid in ids:
+            conflict = self.reviewers.db.check_exclusive_group_duplicate(campaign_id, sid)
+            if conflict:
+                group_blocked.append((sid, conflict))
+        if group_blocked:
+            blocked_lines = [f"  - {sid} → [{cname}]에서 진행중" for sid, cname in group_blocked]
+            remaining = [sid for sid in ids if sid not in {s for s, _ in group_blocked}]
+            msg = "⚠️ 동시진행 캠페인에서 이미 사용 중인 아이디입니다:\n" + "\n".join(blocked_lines)
+            if remaining:
+                msg += f"\n\n사용 가능: {', '.join(remaining)}"
+            msg += "\n\n다른 아이디로 다시 입력해주세요."
+            return _resp(msg, buttons=[self._back_button()])
 
         state.temp_data["store_ids"] = ids
         return self._register_and_guide(state)

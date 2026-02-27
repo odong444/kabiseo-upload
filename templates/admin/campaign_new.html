@@ -420,6 +420,12 @@
             <!-- 숨겨진 필드: 중복허용 실제값 -->
             <input type="hidden" name="중복허용" id="dupAllowValue" value="Y">
 
+            <div class="form-group" style="margin-bottom:16px;">
+                <label>동시진행그룹</label>
+                <input type="text" name="동시진행그룹" value="{{ copy.get('동시진행그룹', '') }}" placeholder="예: A업체" style="width:200px;">
+                <small style="color:#888;font-size:12px;">같은 그룹명의 캠페인끼리 동일 아이디 사용 불가</small>
+            </div>
+
             <div class="form-actions">
                 <button type="button" class="admin-btn admin-btn-preview" id="previewBtn">미리보기</button>
                 <button type="submit" class="admin-btn admin-btn-primary">등록</button>

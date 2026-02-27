@@ -251,6 +251,12 @@
                 </div>
 
                 <div class="form-group">
+                    <label>동시진행그룹</label>
+                    <input type="text" name="동시진행그룹" value="{{ campaign.get('동시진행그룹', '') }}" placeholder="예: A업체">
+                    <small style="color:#888;font-size:12px;">같은 그룹명의 캠페인끼리 동일 아이디 사용 불가</small>
+                </div>
+
+                <div class="form-group">
                     <label>상품링크</label>
                     <input type="text" name="상품링크" value="{{ campaign.get('상품링크', '') }}">
                 </div>
