@@ -11,6 +11,7 @@ app.py - Flask 메인 + SocketIO
 
 import eventlet
 eventlet.monkey_patch()
+eventlet.debug.hub_prevent_multiple_readers(False)
 
 from psycogreen.eventlet import patch_psycopg
 patch_psycopg()
