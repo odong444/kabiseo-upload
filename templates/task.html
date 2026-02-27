@@ -125,12 +125,6 @@
             </div>`;
         }
 
-        if (c.product_link) {
-            guideHtml += `<div class="task-guide-section">
-                <h3>상품 링크</h3>
-                <a href="${c.product_link}" target="_blank" class="task-product-link">${c.product_link}</a>
-            </div>`;
-        }
 
         let guideDetails = '';
         if (c.keyword) guideDetails += `<div class="task-guide-row"><span class="label">키워드</span><span class="value">${c.keyword}</span></div>`;
