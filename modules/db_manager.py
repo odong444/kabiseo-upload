@@ -36,9 +36,12 @@ STATUS_FORM_RECEIVED = STATUS_PURCHASE_WAIT
 _DONE_STATUSES = (STATUS_PURCHASE_WAIT, STATUS_REVIEW_WAIT, STATUS_REVIEW_DONE,
                   STATUS_PAYMENT_WAIT, STATUS_SETTLED)
 
-# 중복 체크 무시 상태
+# 중복 체크 무시 상태 (같은 캠페인 내)
 _DUP_IGNORE_STATUSES = (STATUS_APPLIED, STATUS_GUIDE_SENT,
                         STATUS_TIMEOUT, STATUS_CANCELLED, "")
+
+# 동시진행그룹 체크 무시 상태 (취소/타임아웃만 무시, 신청~입금완료는 모두 차단)
+_EXCLUSIVE_IGNORE_STATUSES = (STATUS_TIMEOUT, STATUS_CANCELLED, "")
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS campaigns (
@@ -1154,9 +1157,9 @@ class DBManager:
                    AND p.campaign_id != %s
                    AND p.store_id = %s
                    AND p.status NOT IN %s
-                   AND p.created_at >= NOW() - INTERVAL '%s days'
+                   AND p.created_at >= NOW() - (%s * INTERVAL '1 day')
                    LIMIT 1""",
-                (group, campaign_id, store_id, _DUP_IGNORE_STATUSES, days),
+                (group, campaign_id, store_id, _EXCLUSIVE_IGNORE_STATUSES, days),
             )
         else:
             row = self._fetchone(
@@ -1168,7 +1171,7 @@ class DBManager:
                    AND p.store_id = %s
                    AND p.status NOT IN %s
                    LIMIT 1""",
-                (group, campaign_id, store_id, _DUP_IGNORE_STATUSES),
+                (group, campaign_id, store_id, _EXCLUSIVE_IGNORE_STATUSES),
             )
         return row["campaign_name"] if row else None
 
@@ -1584,8 +1587,8 @@ class DBManager:
                    AND p.campaign_id != %s
                    AND p.store_id != ''
                    AND p.status NOT IN %s
-                   AND p.created_at >= NOW() - INTERVAL '%s days'""",
-                (group, campaign_id, _DUP_IGNORE_STATUSES, days),
+                   AND p.created_at >= NOW() - (%s * INTERVAL '1 day')""",
+                (group, campaign_id, _EXCLUSIVE_IGNORE_STATUSES, days),
             )
         else:
             rows = self._fetchall(
@@ -1596,7 +1599,7 @@ class DBManager:
                    AND p.campaign_id != %s
                    AND p.store_id != ''
                    AND p.status NOT IN %s""",
-                (group, campaign_id, _DUP_IGNORE_STATUSES),
+                (group, campaign_id, _EXCLUSIVE_IGNORE_STATUSES),
             )
         return {r["store_id"] for r in rows}
 
