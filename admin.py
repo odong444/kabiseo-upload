@@ -438,6 +438,17 @@ def api_campaign_upload_photos(campaign_id):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+def _photo_set_links(photo_sets: dict, set_number: int | None) -> str:
+    """사진 세트의 Drive URL 목록을 텍스트로 반환."""
+    if not set_number or set_number not in photo_sets:
+        return ""
+    photos = photo_sets[set_number]
+    if not photos:
+        return ""
+    lines = [f"사진{i+1}: {p['url']}" for i, p in enumerate(photos)]
+    return "\n".join(lines) + "\n\n"
+
+
 @admin_bp.route("/api/campaign/<campaign_id>/distribute-photos", methods=["POST"])
 @admin_required
 def api_campaign_distribute_photos(campaign_id):
@@ -464,7 +475,7 @@ def api_campaign_distribute_photos(campaign_id):
             # 알림만 재발송: 세트 할당됐고 리뷰 미제출인 리뷰어에게
             rows = models.db_manager._fetchall(
                 """SELECT DISTINCT ON (p.reviewer_id)
-                       p.id, r.name, r.phone, p.status
+                       p.id, p.photo_set_number, r.name, r.phone, p.status
                    FROM progress p
                    JOIN reviewers r ON p.reviewer_id = r.id
                    WHERE p.campaign_id = %s
@@ -475,9 +486,11 @@ def api_campaign_distribute_photos(campaign_id):
             )
             for r in rows:
                 task_url = f"{web_url}/task/{r['id']}"
+                photo_links = _photo_set_links(photo_sets, r.get("photo_set_number"))
                 msg = (
                     f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n\n"
                     f"아래 링크에서 사진을 저장 후 리뷰에 사용해주세요.\n{task_url}\n\n"
+                    f"{photo_links}"
                     f"사진 첨부 부탁드립니다. 사진 미첨부 시 리뷰제출이 거부될 수 있습니다."
                     f"\n\n※ 본 메시지는 발신전용입니다."
                 )
@@ -507,9 +520,11 @@ def api_campaign_distribute_photos(campaign_id):
             # 카카오톡 알림
             first_pid = group["progress_ids"][0]
             task_url = f"{web_url}/task/{first_pid}"
+            photo_links = _photo_set_links(photo_sets, next_set)
             msg = (
                 f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n\n"
                 f"아래 링크에서 사진을 저장 후 리뷰에 사용해주세요.\n{task_url}\n\n"
+                f"{photo_links}"
                 f"사진 첨부 부탁드립니다. 사진 미첨부 시 리뷰제출이 거부될 수 있습니다."
                 f"\n\n※ 본 메시지는 발신전용입니다."
             )
