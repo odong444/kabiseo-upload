@@ -159,18 +159,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label>상품금액</label>
-                    <input type="text" name="상품금액" value="{{ campaign.get('상품금액', '') }}">
+                    <label>결제금액</label>
+                    <input type="text" name="결제금액" value="{{ campaign.get('결제금액', '') or campaign.get('상품금액', '') }}">
                 </div>
 
                 <div class="form-group">
                     <label>리뷰비 (원)</label>
                     <input type="text" name="리뷰비" value="{{ campaign.get('리뷰비', '') }}" placeholder="예: 15000">
-                </div>
-
-                <div class="form-group">
-                    <label>결제금액 (원)</label>
-                    <input type="text" name="결제금액" value="{{ campaign.get('결제금액', '') }}" placeholder="리뷰어가 결제할 금액">
                 </div>
 
                 <div class="form-group">
@@ -547,7 +542,7 @@
     // 홍보 메시지 자동 생성
     document.getElementById('autoGenerateBtn').addEventListener('click', function() {
         var productName = document.querySelector('[name="상품명"]').value || '(상품명)';
-        var productPrice = document.querySelector('[name="상품금액"]').value || '확인필요';
+        var productPrice = document.querySelector('[name="결제금액"]').value || '확인필요';
         var campaignType = document.querySelector('[name="캠페인유형"]').value || '실배송';
         var totalQty = document.querySelector('[name="총수량"]').value || '0';
 

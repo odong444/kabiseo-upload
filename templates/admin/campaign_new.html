@@ -218,8 +218,8 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>상품금액</label>
-                        <input type="text" name="상품금액" value="{{ copy.get('상품금액', '') }}" placeholder="예: 29,000">
+                        <label>결제금액</label>
+                        <input type="text" name="결제금액" value="{{ copy.get('결제금액', '') or copy.get('상품금액', '') }}" placeholder="예: 29,000">
                     </div>
                     <div class="form-group">
                         <label>리워드 (리뷰비)</label>
@@ -536,7 +536,7 @@
             setVal('상품명', d['상품명']);
             setVal('업체명', d['업체명']);
             setVal('상품링크', d['상품링크']);
-            setVal('상품금액', d['상품금액']);
+            setVal('결제금액', d['결제금액'] || d['상품금액']);
             setVal('리뷰비', d['리뷰비']);
             setVal('옵션', d['옵션']);
             setVal('캠페인가이드', d['캠페인가이드']);
@@ -762,7 +762,7 @@
                 업체명: document.querySelector('[name="업체명"]').value,
                 플랫폼: platformSelect.value === '기타' ? platformCustom.value : platformSelect.value,
                 총수량: document.querySelector('[name="총수량"]').value,
-                상품금액: document.querySelector('[name="상품금액"]').value,
+                결제금액: document.querySelector('[name="결제금액"]').value,
                 리뷰비: document.querySelector('[name="리뷰비"]').value,
                 구매가능시간: document.querySelector('[name="구매가능시간"]').value,
                 캠페인가이드: document.querySelector('[name="캠페인가이드"]').value,
@@ -808,7 +808,7 @@
         // 홍보 메시지 자동 생성
         document.getElementById('autoGenerateBtn').addEventListener('click', function() {
             var productName = document.querySelector('[name="상품명"]').value || '(상품명)';
-            var productPrice = document.querySelector('[name="상품금액"]').value || '확인필요';
+            var productPrice = document.querySelector('[name="결제금액"]').value || '확인필요';
             var campaignType = document.querySelector('[name="캠페인유형"]').value || '실배송';
             var totalQty = document.querySelector('[name="총수량"]').value || '0';
 

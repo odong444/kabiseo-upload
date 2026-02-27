@@ -755,6 +755,14 @@ class DBManager:
                     continue
                 result[col] = ""
 
+        # 상품금액 ↔ 결제금액 동기화 (하나로 통일)
+        pp = result.get("product_price") or 0
+        pa = result.get("payment_amount") or 0
+        if pa and not pp:
+            result["product_price"] = pa
+        elif pp and not pa:
+            result["payment_amount"] = pp
+
         return result
 
     def _campaign_to_sheet_dict(self, row: dict) -> dict:
