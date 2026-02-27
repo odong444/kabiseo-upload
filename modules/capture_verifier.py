@@ -35,6 +35,7 @@ JSON 형식으로만 응답:
     "수량": "",
     "결제금액": "",
     "수취인명": "",
+    "주소": "",
     "배송유형": "",
     "문제점": []
 }
@@ -268,6 +269,7 @@ def verify_capture_from_bytes(image_bytes: bytes, mime_type: str,
             "주문번호": analysis.get("주문번호", ""),
             "수취인명": analysis.get("수취인명", ""),
             "결제금액": analysis.get("결제금액", ""),
+            "주소": analysis.get("주소", ""),
             "배송유형": analysis.get("배송유형", ""),
             "상품명": analysis.get("상품명", ""),
         }
