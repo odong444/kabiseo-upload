@@ -220,6 +220,16 @@ def _trigger_ai_verify(capture_type: str, progress_id: int, drive_link: str):
                     "옵션": campaign.get("옵션", ""),
                     "캠페인유형": campaign.get("캠페인유형", ""),
                 }
+        # 리뷰 검수 시 사진 세트 보유자 → 사진 첨부 필수 조건 추가
+        if capture_type == "review":
+            psn = row_data.get("사진세트")
+            if psn:
+                ai_instructions += (
+                    "\n\n[사진 첨부 필수 조건]\n"
+                    "이 리뷰어는 리뷰용 참고 사진을 제공받았습니다.\n"
+                    "리뷰에 사진이 반드시 포함되어야 합니다.\n"
+                    "리뷰 캡쳐에 사진이 보이지 않으면 '사진_미첨부'를 문제점에 추가하세요."
+                )
         verify_capture_async(drive_link, capture_type, progress_id,
                              models.db_manager, ai_instructions, campaign_info)
     except Exception as e:

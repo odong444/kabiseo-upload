@@ -483,6 +483,24 @@ def api_verify_capture():
                     }
             ai_instructions = "\n".join(parts)
 
+        # 리뷰 검수 시 사진 세트 할당 여부 확인 → 사진 필수 조건 추가
+        if capture_type == "review" and models.db_manager:
+            pid = request.form.get("progress_id", "")
+            if pid:
+                try:
+                    row = models.db_manager._fetchone(
+                        "SELECT photo_set_number FROM progress WHERE id = %s", (int(pid),)
+                    )
+                    if row and row.get("photo_set_number"):
+                        ai_instructions += (
+                            "\n\n[사진 첨부 필수 조건]\n"
+                            "이 리뷰어는 리뷰용 참고 사진을 제공받았습니다.\n"
+                            "리뷰에 사진이 반드시 포함되어야 합니다.\n"
+                            "리뷰 캡쳐에 사진이 보이지 않으면 '사진_미첨부'를 문제점에 추가하세요."
+                        )
+                except Exception:
+                    pass
+
         from modules.capture_verifier import verify_capture_from_bytes
         result = verify_capture_from_bytes(image_bytes, mime_type, capture_type, ai_instructions, campaign_info)
 

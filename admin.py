@@ -478,8 +478,9 @@ def api_campaign_distribute_photos(campaign_id):
             first_pid = group["progress_ids"][0]
             task_url = f"{web_url}/task/{first_pid}"
             msg = (
-                f"[{campaign_name}] 참고 사진이 등록되었습니다.\n\n"
-                f"아래 링크에서 확인해주세요.\n{task_url}"
+                f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n\n"
+                f"아래 링크에서 사진을 저장 후 리뷰에 사용해주세요.\n{task_url}\n\n"
+                f"사진 첨부 부탁드립니다. 사진 미첨부 시 리뷰제출이 거부될 수 있습니다."
                 f"\n\n※ 본 메시지는 발신전용입니다."
             )
             ok = request_notification(group["name"], group["phone"], msg)
@@ -870,7 +871,7 @@ def api_ai_override():
         return jsonify({"ok": False, "message": str(e)})
 
 
-def _build_ai_context(campaign_id: str, capture_type: str) -> tuple[str, dict | None]:
+def _build_ai_context(campaign_id: str, capture_type: str, progress_id: int | None = None) -> tuple[str, dict | None]:
     """글로벌 AI 지침 + 캠페인별 타입별 AI 지침 결합, 캠페인 기준정보 반환"""
     parts = []
     campaign_info = None
@@ -897,6 +898,17 @@ def _build_ai_context(campaign_id: str, capture_type: str) -> tuple[str, dict | 
                     "옵션": campaign.get("옵션", ""),
                     "캠페인유형": campaign.get("캠페인유형", ""),
                 }
+        # 리뷰 검수 시 사진 세트 보유자 → 사진 첨부 필수 조건 추가
+        if capture_type == "review" and progress_id is not None:
+            row = models.db_manager._fetchone(
+                "SELECT photo_set_number FROM progress WHERE id = %s", (progress_id,))
+            if row and row.get("photo_set_number"):
+                parts.append(
+                    "\n[사진 첨부 필수 조건]\n"
+                    "이 리뷰어는 리뷰용 참고 사진을 제공받았습니다.\n"
+                    "리뷰에 사진이 반드시 포함되어야 합니다.\n"
+                    "리뷰 캡쳐에 사진이 보이지 않으면 '사진_미첨부'를 문제점에 추가하세요."
+                )
     return "\n".join(parts), campaign_info
 
 
@@ -917,7 +929,7 @@ def api_ai_recheck():
             return jsonify({"ok": False, "message": "캡쳐 URL 없음"})
 
         from modules.capture_verifier import verify_capture_async
-        ai_instructions, campaign_info = _build_ai_context(row.get("캠페인ID", ""), capture_type)
+        ai_instructions, campaign_info = _build_ai_context(row.get("캠페인ID", ""), capture_type, int(progress_id))
         verify_capture_async(drive_url, capture_type, int(progress_id), models.db_manager, ai_instructions, campaign_info)
         return jsonify({"ok": True, "message": "AI 검수 재실행 중"})
     except Exception as e:
@@ -961,7 +973,7 @@ def api_ai_batch():
                 triggered += 1
 
             if row.get("review_capture_url"):
-                ai_instr, camp_info = _build_ai_context(campaign_id, "review")
+                ai_instr, camp_info = _build_ai_context(campaign_id, "review", progress_id)
                 verify_capture_async(row["review_capture_url"], "review", progress_id, models.db_manager, ai_instr, camp_info)
                 triggered += 1
 

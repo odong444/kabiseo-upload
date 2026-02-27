@@ -147,6 +147,7 @@
         formData.append('capture', file);
         formData.append('capture_type', 'review');
         formData.append('campaign_id', taskData.campaign_id);
+        formData.append('progress_id', progressId);
 
         const result = await Reviewer.apiPostForm('/api/verify-capture', formData);
 
