@@ -80,8 +80,8 @@ def payment():
 
 @app.route("/upload")
 def upload():
-    """사진 제출 메인"""
-    return render_template("upload.html")
+    """사진 제출 → 바로 리뷰 캡쳐 검색으로"""
+    return redirect(url_for("upload_review"))
 
 
 @app.route("/upload/purchase")
