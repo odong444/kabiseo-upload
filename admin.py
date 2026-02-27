@@ -458,12 +458,22 @@ def _sort_by_date_asc(items, date_key="날짜"):
 @admin_bp.route("/reviews")
 @admin_required
 def reviews():
-    items = []
+    tab = request.args.get("tab", "purchase")
+    review_items = []
+    purchase_items = []
+    purchase_count = 0
+    review_count = 0
     if models.db_manager:
         all_items = models.db_manager.get_all_reviewers()
-        items = [i for i in all_items if i.get("상태") == "리뷰제출"]
-    items = _sort_by_date_asc(items)
-    return render_template("admin/reviews.html", items=items)
+        # 구매캡쳐 확인요청: AI구매검수가 확인요청인 건
+        purchase_items = [i for i in all_items if i.get("AI구매검수") == "확인요청"]
+        # 리뷰캡쳐 확인요청: AI리뷰검수가 확인요청인 건
+        review_items = [i for i in all_items if i.get("AI리뷰검수") == "확인요청"]
+        purchase_count = len(purchase_items)
+        review_count = len(review_items)
+    items = _sort_by_date_asc(purchase_items if tab == "purchase" else review_items)
+    return render_template("admin/reviews.html", items=items, tab=tab,
+                           purchase_count=purchase_count, review_count=review_count)
 
 
 @admin_bp.route("/reviews/approve", methods=["POST"])
@@ -550,6 +560,67 @@ def api_reviews_reject():
         return jsonify({"ok": True})
     except Exception as e:
         logger.error(f"검수 반려 API 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+# 검수 탭 AI확인요청 처리 API
+@admin_bp.route("/api/reviews/ai-approve", methods=["POST"])
+@admin_required
+def api_reviews_ai_approve():
+    """AI 확인요청 건 수동 통과 → AI결과를 AI검수통과로 변경 후 자동승인 시도"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    row_idx = data.get("row_idx")
+    capture_type = data.get("capture_type", "purchase")
+    try:
+        progress_id = int(row_idx)
+        col = "ai_purchase_result" if capture_type == "purchase" else "ai_review_result"
+        col_reason = "ai_purchase_reason" if capture_type == "purchase" else "ai_review_reason"
+        models.db_manager._execute(
+            f"UPDATE progress SET {col} = %s, {col_reason} = %s WHERE id = %s",
+            ("AI검수통과", "관리자 수동 통과", progress_id),
+        )
+        # 양쪽 다 통과이면 자동승인
+        from modules.capture_verifier import _try_auto_approve
+        _try_auto_approve(progress_id, models.db_manager)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error(f"AI 검수 수동통과 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
+@admin_bp.route("/api/reviews/ai-reject", methods=["POST"])
+@admin_required
+def api_reviews_ai_reject():
+    """AI 확인요청 건 반려 → 리뷰어에게 재제출 요청"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    row_idx = data.get("row_idx")
+    capture_type = data.get("capture_type", "purchase")
+    reason = data.get("reason", "").strip() or ("구매내역을 다시 확인해주세요." if capture_type == "purchase" else "리뷰 사진을 다시 확인해주세요.")
+    try:
+        progress_id = int(row_idx)
+        row_data = models.db_manager.get_row_dict(progress_id)
+        if capture_type == "purchase":
+            # 구매캡쳐 반려: 구매캡쳐 URL 삭제 + AI결과 초기화 + 상태를 구매캡쳐대기로
+            models.db_manager._execute(
+                """UPDATE progress SET purchase_capture_url = '',
+                   ai_purchase_result = '', ai_purchase_reason = '',
+                   status = '구매캡쳐대기', remark = %s, updated_at = NOW()
+                   WHERE id = %s""",
+                (f"구매캡쳐 반려: {reason}", progress_id),
+            )
+        else:
+            # 리뷰캡쳐 반려: 기존 reject_review 로직
+            models.db_manager.reject_review(progress_id, reason)
+        _notify_reviewer_reject(row_data, reason)
+        if models.kakao_notifier:
+            models.kakao_notifier.notify_review_rejected(progress_id, reason)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error(f"AI 검수 반려 에러: {e}")
         return jsonify({"ok": False, "message": str(e)})
 
 

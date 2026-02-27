@@ -232,7 +232,6 @@ def _judge(analysis: dict, capture_type: str) -> dict:
     """Gemini 분석 결과로 최종 판정"""
     problems = analysis.get("문제점", [])
     if not problems or problems == ["정상"]:
-        notes = []
         # 구매캡쳐: 배송유형 체크
         if capture_type == "purchase":
             delivery = analysis.get("배송유형", "")
@@ -241,14 +240,14 @@ def _judge(analysis: dict, capture_type: str) -> dict:
                     "result": "확인요청",
                     "reason": f"배송유형이 '{delivery}'입니다. 판매자배송으로 구매해야 합니다.",
                 }
-            # 금액 소폭 차이 코멘트
+            # 금액 소폭 차이 → 확인요청
             price_note = analysis.get("금액비고", "")
             if price_note:
-                notes.append(f"금액 차이: {price_note}")
-        reason = "정상"
-        if notes:
-            reason = f"정상 ({'. '.join(notes)} - 담당자 확인 권장)"
-        return {"result": "AI검수통과", "reason": reason}
+                return {
+                    "result": "확인요청",
+                    "reason": f"금액 차이: {price_note}",
+                }
+        return {"result": "AI검수통과", "reason": "정상"}
     else:
         reason_parts = [_PROBLEM_MESSAGES.get(p, p) for p in problems]
         return {"result": "확인요청", "reason": ". ".join(reason_parts)}
@@ -354,8 +353,36 @@ def verify_capture_async(
                 "AI 검수 완료: progress=%s type=%s result=%s",
                 progress_id, capture_type, result["result"],
             )
+
+            # 양쪽 다 AI검수통과 + 리뷰제출 상태 → 자동 승인 (입금대기)
+            if result["result"] == "AI검수통과":
+                _try_auto_approve(progress_id, db_manager)
+
         except Exception as e:
             logger.error("AI 검수 비동기 에러: %s", e, exc_info=True)
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
+
+
+def _try_auto_approve(progress_id: int, db_manager):
+    """양쪽 AI검수 모두 통과 + 리뷰제출 상태이면 자동 승인"""
+    try:
+        row = db_manager._fetchone(
+            """SELECT status, ai_purchase_result, ai_review_result
+               FROM progress WHERE id = %s""",
+            (progress_id,),
+        )
+        if not row:
+            return
+        # 리뷰제출 상태가 아니면 패스
+        if row["status"] != "리뷰제출":
+            return
+        ai_p = row.get("ai_purchase_result", "") or ""
+        ai_r = row.get("ai_review_result", "") or ""
+        # 둘 다 통과이면 자동 승인
+        if ai_p == "AI검수통과" and ai_r == "AI검수통과":
+            db_manager.approve_review(progress_id)
+            logger.info("AI 자동 승인: progress=%s (양쪽 통과)", progress_id)
+    except Exception as e:
+        logger.error("AI 자동 승인 에러: %s", e)

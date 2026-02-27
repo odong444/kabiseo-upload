@@ -3,9 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>카비서 관리자 - 리뷰 검수</title>
+    <title>카비서 관리자 - 검수</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
+    .tab-bar {
+        display: flex; gap: 0; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb;
+    }
+    .tab-btn {
+        padding: 10px 24px; font-size: 14px; font-weight: 600; cursor: pointer;
+        border: none; background: none; color: #6b7280; position: relative;
+        border-bottom: 2px solid transparent; margin-bottom: -2px;
+    }
+    .tab-btn:hover { color: #374151; }
+    .tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+    .tab-badge {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 20px; height: 20px; border-radius: 10px; font-size: 11px;
+        font-weight: 700; margin-left: 6px; padding: 0 6px;
+    }
+    .tab-badge.purchase { background: #fef2f2; color: #dc2626; }
+    .tab-badge.review { background: #fef2f2; color: #dc2626; }
+
     .modal-overlay {
         display: none; position: fixed; inset: 0; background: rgba(0,0,0,.88);
         z-index: 1000; justify-content: center; align-items: center;
@@ -32,6 +50,10 @@
         font-size: 14px; color: #555; flex-wrap: wrap; flex-shrink: 0;
     }
     .modal-info strong { color: #222; }
+    .ai-reason-box {
+        padding: 8px 24px; background: #fef2f2; font-size: 13px; color: #dc2626;
+        flex-shrink: 0; border-bottom: 1px solid #fecaca;
+    }
     .modal-images {
         flex: 1; display: flex; gap: 12px; padding: 12px 16px;
         min-height: 0; overflow: hidden;
@@ -94,20 +116,23 @@
     </header>
 
     <main class="admin-main">
-        <h1>리뷰 검수</h1>
+        <h1>검수</h1>
 
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        <div class="flash-messages">
-            {% for msg in messages %}
-            <div class="flash">{{ msg }}</div>
-            {% endfor %}
+        <div class="tab-bar">
+            <a class="tab-btn {{ 'active' if tab == 'purchase' }}" href="{{ url_for('admin.reviews', tab='purchase') }}">
+                구매캡쳐 확인요청
+                {% if purchase_count %}<span class="tab-badge purchase">{{ purchase_count }}</span>{% endif %}
+            </a>
+            <a class="tab-btn {{ 'active' if tab == 'review' }}" href="{{ url_for('admin.reviews', tab='review') }}">
+                리뷰캡쳐 확인요청
+                {% if review_count %}<span class="tab-badge review">{{ review_count }}</span>{% endif %}
+            </a>
         </div>
-        {% endif %}
-        {% endwith %}
 
         {% if items %}
-        <p>검수 대기: <span id="totalCount">{{ items|length }}</span>건</p>
+        <p>확인요청: <span id="totalCount">{{ items|length }}</span>건
+            <span style="color:#888;font-size:13px;margin-left:8px;">AI가 통과시킨 건은 자동 처리됩니다</span>
+        </p>
 
         <div class="admin-table-wrap">
             <table class="admin-table">
@@ -117,10 +142,14 @@
                         <th>수취인명</th>
                         <th>아이디</th>
                         <th>제품명</th>
+                        <th>캠페인</th>
+                        {% if tab == 'purchase' %}
                         <th>구매캡쳐</th>
+                        {% else %}
                         <th>리뷰캡쳐</th>
-                        <th>AI검수</th>
-                        <th>리뷰제출일</th>
+                        {% endif %}
+                        <th>AI 사유</th>
+                        <th>상태</th>
                     </tr>
                 </thead>
                 <tbody id="reviewTbody">
@@ -130,57 +159,41 @@
                         <td>{{ item.get('수취인명', '') }}</td>
                         <td>{{ item.get('아이디', '') }}</td>
                         <td>{{ item.get('제품명', '') }}</td>
+                        <td>{{ item.get('캠페인명', '') or item.get('제품명', '') }}</td>
+                        {% if tab == 'purchase' %}
                         <td>{% if item.get('구매캡쳐링크') %}<span class="capture-link">보기</span>{% else %}-{% endif %}</td>
+                        <td style="max-width:250px;font-size:12px;color:#dc2626;">{{ item.get('AI구매사유', '') }}</td>
+                        {% else %}
                         <td>{% if item.get('리뷰캡쳐링크') %}<span class="capture-link">보기</span>{% else %}-{% endif %}</td>
-                        <td>
-                            {% set ai_p = item.get('AI구매검수', '') %}
-                            {% set ai_r = item.get('AI리뷰검수', '') %}
-                            {% if ai_p == '확인요청' or ai_r == '확인요청' %}
-                                <span style="background:#fef2f2;color:#dc2626;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;">확인요청</span>
-                            {% elif ai_p == 'AI검수통과' and ai_r == 'AI검수통과' %}
-                                <span style="background:#f0fdf4;color:#16a34a;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;">통과</span>
-                            {% elif ai_p == 'AI검수통과' or ai_r == 'AI검수통과' %}
-                                <span style="background:#f0fdf4;color:#16a34a;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600;">{{ ai_p or ai_r }}</span>
-                            {% elif ai_p == '오류' or ai_r == '오류' %}
-                                <span style="color:#888;font-size:11px;">오류</span>
-                            {% else %}
-                                <span style="color:#aaa;font-size:11px;">-</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ item.get('리뷰제출일', '') }}</td>
+                        <td style="max-width:250px;font-size:12px;color:#dc2626;">{{ item.get('AI리뷰사유', '') }}</td>
+                        {% endif %}
+                        <td>{{ item.get('상태', '') }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <div class="review-actions">
-            <form method="POST" action="{{ url_for('admin.reviews_approve') }}" id="approveForm" style="display:inline;">
-                <button type="submit" class="btn btn-primary" onclick="return submitChecked(this.form, '승인')">선택 승인</button>
-            </form>
-            <form method="POST" action="{{ url_for('admin.reviews_reject') }}" id="rejectForm" style="display:inline;">
-                <input type="text" name="reason" placeholder="반려 사유 (선택)" class="reject-reason-input">
-                <button type="submit" class="btn btn-danger" onclick="return submitChecked(this.form, '반려')">선택 반려</button>
-            </form>
+        <div class="review-actions" style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-primary" onclick="bulkAction('approve')">선택 통과</button>
+            <input type="text" id="bulkRejectReason" placeholder="반려 사유 (선택)" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:200px;">
+            <button class="btn btn-danger" onclick="bulkAction('reject')">선택 반려</button>
         </div>
 
         <!-- 이미지 모달 -->
         <div class="modal-overlay" id="reviewModal">
             <div class="modal-box">
                 <div class="modal-header">
-                    <h3>리뷰 검수</h3>
+                    <h3>{{ '구매캡쳐' if tab == 'purchase' else '리뷰캡쳐' }} 검수</h3>
                     <span class="modal-counter" id="modalCounter"></span>
                     <button class="modal-close" onclick="closeModal()">&times;</button>
                 </div>
                 <div class="modal-info" id="modalInfo"></div>
+                <div class="ai-reason-box" id="aiReasonBox"></div>
                 <div class="modal-images">
                     <div class="modal-img-col">
-                        <div class="img-label">구매 캡쳐</div>
-                        <div id="purchaseImg" style="flex:1;display:flex;"></div>
-                    </div>
-                    <div class="modal-img-col">
-                        <div class="img-label">리뷰 캡쳐</div>
-                        <div id="reviewImg" style="flex:1;display:flex;"></div>
+                        <div class="img-label">{{ '구매 캡쳐' if tab == 'purchase' else '리뷰 캡쳐' }}</div>
+                        <div id="captureImg" style="flex:1;display:flex;"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -190,7 +203,7 @@
                     </div>
                     <div class="modal-actions">
                         <span class="modal-toast" id="modalToast"></span>
-                        <button class="btn btn-primary" id="modalApproveBtn" onclick="modalAction('approve')">승인</button>
+                        <button class="btn btn-primary" id="modalApproveBtn" onclick="modalAction('approve')">통과</button>
                         <button class="btn btn-danger" id="modalRejectBtn" onclick="modalAction('reject')">반려</button>
                     </div>
                 </div>
@@ -198,12 +211,13 @@
         </div>
 
         {% else %}
-        <p class="admin-empty">검수 대기 건이 없습니다.</p>
+        <p class="admin-empty">확인요청 건이 없습니다.</p>
         {% endif %}
     </main>
 
     <script>
     var ITEMS = {{ items | tojson if items else '[]' }};
+    var TAB = '{{ tab }}';
     var currentIdx = 0;
     var processing = false;
 
@@ -218,7 +232,7 @@
         var el = document.getElementById(containerId);
         var previewUrl = drivePreviewUrl(link);
         if (previewUrl) {
-            el.innerHTML = '<iframe src="' + previewUrl + '" frameborder="0" allowfullscreen></iframe>';
+            el.innerHTML = '<iframe src="' + previewUrl + '" frameborder="0" allowfullscreen style="flex:1;width:100%;border:1px solid #ddd;border-radius:8px;"></iframe>';
         } else {
             el.innerHTML = '<div class="no-img">미제출</div>';
         }
@@ -233,8 +247,7 @@
 
     function closeModal() {
         document.getElementById('reviewModal').classList.remove('open');
-        document.getElementById('purchaseImg').innerHTML = '';
-        document.getElementById('reviewImg').innerHTML = '';
+        document.getElementById('captureImg').innerHTML = '';
     }
 
     function navigate(dir) {
@@ -248,36 +261,29 @@
         if (ITEMS.length === 0) { closeModal(); return; }
         var item = ITEMS[currentIdx];
         document.getElementById('modalCounter').textContent = (currentIdx + 1) + ' / ' + ITEMS.length;
-        var aiHtml = '';
-        var aiP = item['AI구매검수'] || '';
-        var aiR = item['AI리뷰검수'] || '';
-        if (aiP === '확인요청') {
-            aiHtml += '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-weight:600;">구매: 확인요청</span> ';
-            aiHtml += '<span style="color:#dc2626;font-size:12px;">' + (item['AI구매사유'] || '') + '</span> ';
-        } else if (aiP === 'AI검수통과') {
-            aiHtml += '<span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-weight:600;">구매: 통과</span> ';
-        }
-        if (aiR === '확인요청') {
-            aiHtml += '<span style="background:#fef2f2;color:#dc2626;padding:2px 8px;border-radius:4px;font-weight:600;">리뷰: 확인요청</span> ';
-            aiHtml += '<span style="color:#dc2626;font-size:12px;">' + (item['AI리뷰사유'] || '') + '</span>';
-        } else if (aiR === 'AI검수통과') {
-            aiHtml += '<span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:4px;font-weight:600;">리뷰: 통과</span>';
-        }
+
+        var captureLink = TAB === 'purchase' ? item['구매캡쳐링크'] : item['리뷰캡쳐링크'];
+        var aiReason = TAB === 'purchase' ? (item['AI구매사유'] || '') : (item['AI리뷰사유'] || '');
 
         document.getElementById('modalInfo').innerHTML =
             '<span><strong>수취인:</strong> ' + (item['수취인명'] || '-') + '</span>' +
             '<span><strong>아이디:</strong> ' + (item['아이디'] || '-') + '</span>' +
             '<span><strong>제품:</strong> ' + (item['제품명'] || '-') + '</span>' +
-            '<span><strong>제출일:</strong> ' + (item['리뷰제출일'] || '-') + '</span>' +
-            (aiHtml ? '<span><strong>AI:</strong> ' + aiHtml + '</span>' : '');
+            '<span><strong>상태:</strong> ' + (item['상태'] || '-') + '</span>';
 
-        renderFrame('purchaseImg', item['구매캡쳐링크']);
-        renderFrame('reviewImg', item['리뷰캡쳐링크']);
+        var reasonBox = document.getElementById('aiReasonBox');
+        if (aiReason) {
+            reasonBox.textContent = 'AI 사유: ' + aiReason;
+            reasonBox.style.display = '';
+        } else {
+            reasonBox.style.display = 'none';
+        }
+
+        renderFrame('captureImg', captureLink);
 
         document.getElementById('prevBtn').disabled = currentIdx === 0;
         document.getElementById('nextBtn').disabled = currentIdx === ITEMS.length - 1;
 
-        // 토스트 숨기기
         var toast = document.getElementById('modalToast');
         toast.className = 'modal-toast';
         toast.style.display = 'none';
@@ -290,6 +296,20 @@
         toast.textContent = msg;
         toast.className = 'modal-toast ' + type;
         toast.style.display = 'inline-block';
+    }
+
+    async function callApi(action, rowIdx, reason) {
+        var url = action === 'approve'
+            ? '{{ url_for("admin.api_reviews_ai_approve") }}'
+            : '{{ url_for("admin.api_reviews_ai_reject") }}';
+        var body = { row_idx: rowIdx, capture_type: TAB };
+        if (reason) body.reason = reason;
+        var resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        return await resp.json();
     }
 
     async function modalAction(action) {
@@ -306,38 +326,17 @@
         document.getElementById('modalApproveBtn').disabled = true;
         document.getElementById('modalRejectBtn').disabled = true;
 
-        var url = action === 'approve'
-            ? '{{ url_for("admin.api_reviews_approve") }}'
-            : '{{ url_for("admin.api_reviews_reject") }}';
-        var body = { row_idx: item['_row_idx'] };
-        if (reason) body.reason = reason;
-
         try {
-            var resp = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            var data = await resp.json();
-
+            var data = await callApi(action, item['_row_idx'], reason);
             if (data.ok) {
-                showToast(action === 'approve' ? '승인 완료' : '반려 완료', 'success');
-
-                // 테이블에서 해당 행 제거
+                showToast(action === 'approve' ? '통과 처리됨' : '반려 완료', 'success');
                 var rowEl = document.querySelector('tr[data-row-idx="' + item['_row_idx'] + '"]');
                 if (rowEl) rowEl.remove();
-
-                // ITEMS에서 제거
                 ITEMS.splice(currentIdx, 1);
                 document.getElementById('totalCount').textContent = ITEMS.length;
 
-                // 다음 건으로 이동 (끝이면 이전으로, 없으면 닫기)
                 setTimeout(function() {
-                    if (ITEMS.length === 0) {
-                        closeModal();
-                        location.reload();
-                        return;
-                    }
+                    if (ITEMS.length === 0) { closeModal(); location.reload(); return; }
                     if (currentIdx >= ITEMS.length) currentIdx = ITEMS.length - 1;
                     renderModal();
                 }, 400);
@@ -354,6 +353,28 @@
         processing = false;
     }
 
+    async function bulkAction(action) {
+        var checked = document.querySelectorAll('.row-check:checked');
+        if (checked.length === 0) { alert('항목을 선택해주세요.'); return; }
+
+        var reason = '';
+        if (action === 'reject') {
+            reason = document.getElementById('bulkRejectReason').value.trim();
+        }
+
+        if (!confirm(checked.length + '건을 ' + (action === 'approve' ? '통과' : '반려') + '하시겠습니까?')) return;
+
+        var processed = 0;
+        for (var cb of checked) {
+            try {
+                var data = await callApi(action, cb.value, reason);
+                if (data.ok) processed++;
+            } catch (e) {}
+        }
+        alert(processed + '건 처리 완료');
+        location.reload();
+    }
+
     document.addEventListener('keydown', function(e) {
         if (!document.getElementById('reviewModal').classList.contains('open')) return;
         if (e.key === 'ArrowLeft') navigate(-1);
@@ -367,18 +388,6 @@
 
     function toggleAll(el) {
         document.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = el.checked; });
-    }
-
-    function submitChecked(form, action) {
-        var checked = document.querySelectorAll('.row-check:checked');
-        if (checked.length === 0) { alert('항목을 선택해주세요.'); return false; }
-        if (!confirm(checked.length + '건을 ' + action + '하시겠습니까?')) return false;
-        checked.forEach(function(cb) {
-            var input = document.createElement('input');
-            input.type = 'hidden'; input.name = 'row_idx'; input.value = cb.value;
-            form.appendChild(input);
-        });
-        return true;
     }
     </script>
 </body>
