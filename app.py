@@ -12,6 +12,9 @@ app.py - Flask 메인 + SocketIO
 import eventlet
 eventlet.monkey_patch()
 
+from psycogreen.eventlet import patch_psycopg
+patch_psycopg()
+
 import os
 import logging
 
