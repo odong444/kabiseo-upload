@@ -257,6 +257,11 @@
                         <input type="number" name="진행일수" id="dayCount" min="1" value="{{ copy.get('진행일수', '') }}" placeholder="예: 4">
                     </div>
                     <div class="form-group">
+                        <label>시작일</label>
+                        <input type="date" name="시작일" id="startDate" value="{{ copy.get('시작일', '') }}">
+                        <small style="color:#888;font-size:12px;">비우면 등록일(오늘)로 설정됩니다</small>
+                    </div>
+                    <div class="form-group">
                         <label>1인 일일 제한</label>
                         <input type="number" name="1인일일제한" min="0" value="{{ copy.get('1인일일제한', '') }}" placeholder="0 = 무제한">
                         <small style="color:#888;font-size:12px;">한 명이 하루에 참여 가능한 최대 건수 (0이면 제한 없음)</small>

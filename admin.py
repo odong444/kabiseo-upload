@@ -357,11 +357,14 @@ def campaign_new_post():
         if codes:
             data["상품코드"] = codes
 
+    # 시작일: 폼 입력값 우선, 없으면 오늘
+    start_date = request.form.get("시작일", "").strip() or today_str()
+
     # 일정: 수동 입력값 우선, 없으면 자동 생성
     manual_schedule = request.form.get("일정", "").strip()
     if manual_schedule:
         data["일정"] = [safe_int(x) for x in re.split(r"[,\s]+", manual_schedule) if x.strip()]
-        data["시작일"] = today_str()
+        data["시작일"] = start_date
     else:
         total = safe_int(data.get("총수량", 0))
         daily_str = data.get("일수량", "").strip()
@@ -375,7 +378,7 @@ def campaign_new_post():
             if lo > 0 and hi >= lo:
                 schedule = _generate_schedule(total, lo, hi, days)
                 data["일정"] = schedule
-                data["시작일"] = today_str()
+                data["시작일"] = start_date
 
     # 상품이미지 파일 업로드
     image_file = request.files.get("상품이미지")
