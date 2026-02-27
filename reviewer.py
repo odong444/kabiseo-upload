@@ -490,6 +490,28 @@ def api_extend_time(progress_id):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@reviewer_bp.route("/api/chat/unread")
+def api_chat_unread():
+    """읽지 않은 채팅 메시지 수 (bot 메시지만)"""
+    name = request.args.get("name", "").strip()
+    phone = request.args.get("phone", "").strip()
+    last_read = request.args.get("last_read", "0")
+    if not name or not phone:
+        return jsonify({"count": 0})
+    try:
+        ts = float(last_read)
+    except (ValueError, TypeError):
+        ts = 0
+    reviewer_id = models.state_store.make_id(name, phone)
+    count = 0
+    if models.db_manager:
+        try:
+            count = models.db_manager.count_chat_unread(reviewer_id, ts)
+        except Exception:
+            pass
+    return jsonify({"count": count})
+
+
 @reviewer_bp.route("/api/task/<int:progress_id>/purchase", methods=["POST"])
 def api_task_purchase(progress_id):
     """구매완료 제출 (캡쳐 + 폼데이터)"""

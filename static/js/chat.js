@@ -66,6 +66,13 @@
         removeTyping();
         disableAllButtons();
 
+        // 부모 창에 새 메시지 알림 (모달 embed 모드)
+        try {
+            if (window.parent !== window) {
+                window.parent.postMessage({type: 'kabiseo_chat_msg'}, '*');
+            }
+        } catch(e) {}
+
         if (data.cards) {
             appendMessage('bot', data.message || '');
             renderCampaignCards(data.cards);
@@ -610,6 +617,7 @@
                 btn.href = '/upload';
                 btn.className = 'chat-action-btn';
                 btn.textContent = '📸 사진 제출하기';
+                if (isEmbed) btn.target = '_top';
                 btnWrap.appendChild(btn);
                 bubble.querySelector('.bubble-content').appendChild(btnWrap);
             }
@@ -675,7 +683,8 @@
         var div = document.createElement('div');
         div.textContent = cleanText;
         var escaped = div.innerHTML.replace(/\n/g, '<br>');
-        escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#4a90d9;text-decoration:underline;">$1</a>');
+        var linkTarget = isEmbed ? '_top' : '_blank';
+        escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="' + linkTarget + '" rel="noopener" style="color:#4a90d9;text-decoration:underline;">$1</a>');
 
         // 이미지 렌더링
         var imageHtml = '';

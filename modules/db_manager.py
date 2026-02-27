@@ -1612,6 +1612,16 @@ class DBManager:
             (reviewer_id,)
         )
 
+    def count_chat_unread(self, reviewer_id: str, last_read_ts: float) -> int:
+        """last_read_ts 이후의 bot 메시지 수"""
+        row = self._fetchone(
+            """SELECT COUNT(*) as cnt FROM chat_messages
+               WHERE reviewer_id = %s AND sender = 'bot'
+                 AND created_at > to_timestamp(%s)""",
+            (reviewer_id, last_read_ts)
+        )
+        return int(row["cnt"]) if row else 0
+
     def get_chat_reviewer_ids(self) -> list[str]:
         """대화 기록이 있는 리뷰어 ID 목록 (최근 대화순)"""
         rows = self._fetchall(

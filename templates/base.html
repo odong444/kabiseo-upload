@@ -49,30 +49,75 @@
     </div>
     <script>
     (function() {
-        // 로그인 안 된 상태면 플로팅 버튼 숨김
         var saved = localStorage.getItem('kabiseo_user');
         if (!saved) {
             var btn = document.getElementById('chatFloatBtn');
             if (btn) btn.style.display = 'none';
+            return;
         }
-    })();
-    function toggleChatModal() {
-        var overlay = document.getElementById('chatModalOverlay');
-        var iframe = document.getElementById('chatIframe');
-        if (overlay.style.display === 'none') {
-            overlay.style.display = 'flex';
-            if (iframe.src === 'about:blank') {
-                iframe.src = '/chat?embed=1';
+
+        // 읽지 않은 메시지 확인
+        var chatUnread = 0;
+        var badge = document.getElementById('chatFloatBadge');
+
+        function updateBadge() {
+            if (chatUnread > 0) {
+                badge.textContent = chatUnread > 99 ? '99+' : chatUnread;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
             }
-            document.body.style.overflow = 'hidden';
-        } else {
-            closeChatModal();
         }
-    }
-    function closeChatModal() {
-        document.getElementById('chatModalOverlay').style.display = 'none';
-        document.body.style.overflow = '';
-    }
+
+        // 페이지 로드 시 unread 체크
+        try {
+            var user = JSON.parse(saved);
+            var lastRead = localStorage.getItem('kabiseo_chat_last_read') || '0';
+            fetch('/api/chat/unread?name=' + encodeURIComponent(user.name) + '&phone=' + encodeURIComponent(user.phone) + '&last_read=' + lastRead)
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    chatUnread = d.count || 0;
+                    updateBadge();
+                })
+                .catch(function() {});
+        } catch(e) {}
+
+        // iframe에서 새 메시지 알림 수신
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'kabiseo_chat_msg') {
+                var overlay = document.getElementById('chatModalOverlay');
+                if (overlay.style.display === 'none') {
+                    chatUnread++;
+                    updateBadge();
+                }
+            }
+        });
+
+        // 모달 열기/닫기
+        window.toggleChatModal = function() {
+            var overlay = document.getElementById('chatModalOverlay');
+            var iframe = document.getElementById('chatIframe');
+            if (overlay.style.display === 'none') {
+                overlay.style.display = 'flex';
+                if (iframe.src === 'about:blank') {
+                    iframe.src = '/chat?embed=1';
+                }
+                document.body.style.overflow = 'hidden';
+                // 뱃지 클리어 + last_read 갱신
+                chatUnread = 0;
+                updateBadge();
+                localStorage.setItem('kabiseo_chat_last_read', String(Date.now() / 1000));
+            } else {
+                window.closeChatModal();
+            }
+        };
+        window.closeChatModal = function() {
+            document.getElementById('chatModalOverlay').style.display = 'none';
+            document.body.style.overflow = '';
+            // 닫을 때도 last_read 갱신
+            localStorage.setItem('kabiseo_chat_last_read', String(Date.now() / 1000));
+        };
+    })();
     </script>
 
     {% block scripts %}{% endblock %}
