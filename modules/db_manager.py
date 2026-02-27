@@ -108,6 +108,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
     promo_end         TEXT DEFAULT '22:00',
     promo_cooldown    INTEGER DEFAULT 60,
     ai_instructions   TEXT DEFAULT '',
+    ai_purchase_instructions TEXT DEFAULT '',
+    ai_review_instructions TEXT DEFAULT '',
     max_per_person_daily INTEGER DEFAULT 0
 );
 
@@ -242,6 +244,12 @@ CREATE TABLE IF NOT EXISTS quotes (
 );
 CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
 CREATE INDEX IF NOT EXISTS idx_quotes_created ON quotes(created_at);
+
+CREATE TABLE IF NOT EXISTS site_settings (
+    key             TEXT PRIMARY KEY,
+    value           TEXT DEFAULT '',
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 
@@ -311,6 +319,12 @@ class DBManager:
                 # 1인 일일 제한
                 try:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS max_per_person_daily INTEGER DEFAULT 0")
+                except Exception:
+                    pass
+                # AI 구매/리뷰 검수 지침 분리
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS ai_purchase_instructions TEXT DEFAULT ''")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS ai_review_instructions TEXT DEFAULT ''")
                 except Exception:
                     pass
                 # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
@@ -569,6 +583,8 @@ class DBManager:
         "홍보종료시간": "promo_end",
         "홍보주기": "promo_cooldown",
         "AI검수지침": "ai_instructions",
+        "AI구매검수지침": "ai_purchase_instructions",
+        "AI리뷰검수지침": "ai_review_instructions",
         "1인일일제한": "max_per_person_daily",
     }
 
@@ -593,7 +609,8 @@ class DBManager:
         "promotion_message",
         "promo_enabled", "promo_categories",
         "promo_start", "promo_end", "promo_cooldown",
-        "ai_instructions", "max_per_person_daily",
+        "ai_instructions", "ai_purchase_instructions", "ai_review_instructions",
+        "max_per_person_daily",
     }
 
     _BOOL_COLUMNS = {
@@ -1479,6 +1496,23 @@ class DBManager:
     def add_reviewer_row(self, data: dict):
         """시트의 add_reviewer_row 호환 → add_progress로 위임"""
         self.add_progress(data)
+
+    # ─────────── 사이트 설정 ───────────
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        """사이트 설정값 조회"""
+        row = self._fetchone("SELECT value FROM site_settings WHERE key = %s", (key,))
+        return row["value"] if row else default
+
+    def set_setting(self, key: str, value: str):
+        """사이트 설정값 저장 (upsert)"""
+        with self._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO site_settings (key, value, updated_at) VALUES (%s, %s, NOW())
+                       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                    (key, value)
+                )
 
     # ─────────── 담당자 관리 ───────────
 

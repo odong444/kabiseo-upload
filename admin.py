@@ -206,7 +206,7 @@ def campaign_edit_post(campaign_id):
         "상품링크", "키워드", "유입방식", "리뷰기한일수",
         "공개여부", "캠페인가이드", "메모", "홍보메시지",
         "홍보활성", "홍보카테고리", "홍보시작시간", "홍보종료시간", "홍보주기",
-        "AI검수지침",
+        "AI구매검수지침", "AI리뷰검수지침",
     ]
 
     update_data = {}
@@ -335,7 +335,7 @@ def campaign_new_post():
         "상품금액", "리뷰비", "중복허용", "구매가능시간", "캠페인가이드",
         "상품링크", "홍보메시지",
         "홍보활성", "홍보카테고리", "홍보시작시간", "홍보종료시간", "홍보주기",
-        "AI검수지침",
+        "AI구매검수지침", "AI리뷰검수지침",
     ]
 
     data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
@@ -575,6 +575,26 @@ def api_ai_override():
         return jsonify({"ok": False, "message": str(e)})
 
 
+def _build_ai_instructions(campaign_id: str, capture_type: str) -> str:
+    """글로벌 AI 지침 + 캠페인별 타입별 AI 지침을 결합"""
+    parts = []
+    if models.db_manager:
+        # 글로벌 지침
+        global_key = "ai_global_purchase" if capture_type == "purchase" else "ai_global_review"
+        global_instr = models.db_manager.get_setting(global_key, "")
+        if global_instr:
+            parts.append(global_instr)
+        # 캠페인별 지침
+        if campaign_id:
+            campaign = models.db_manager.get_campaign_by_id(campaign_id)
+            if campaign:
+                field = "AI구매검수지침" if capture_type == "purchase" else "AI리뷰검수지침"
+                camp_instr = campaign.get(field, "") or campaign.get("AI검수지침", "")
+                if camp_instr:
+                    parts.append(camp_instr)
+    return "\n".join(parts)
+
+
 @admin_bp.route("/api/ai-verify/recheck", methods=["POST"])
 @admin_required
 def api_ai_recheck():
@@ -592,12 +612,7 @@ def api_ai_recheck():
             return jsonify({"ok": False, "message": "캡쳐 URL 없음"})
 
         from modules.capture_verifier import verify_capture_async
-        ai_instructions = ""
-        campaign_id = row.get("캠페인ID", "")
-        if campaign_id:
-            campaign = models.db_manager.get_campaign_by_id(campaign_id)
-            if campaign:
-                ai_instructions = campaign.get("AI검수지침", "")
+        ai_instructions = _build_ai_instructions(row.get("캠페인ID", ""), capture_type)
         verify_capture_async(drive_url, capture_type, int(progress_id), models.db_manager, ai_instructions)
         return jsonify({"ok": True, "message": "AI 검수 재실행 중"})
     except Exception as e:
@@ -634,18 +649,15 @@ def api_ai_batch():
         for row in rows:
             progress_id = row["id"]
             campaign_id = row.get("campaign_id", "")
-            ai_instructions = ""
-            if campaign_id:
-                campaign = models.db_manager.get_campaign_by_id(campaign_id)
-                if campaign:
-                    ai_instructions = campaign.get("AI검수지침", "")
 
             if row.get("purchase_capture_url"):
-                verify_capture_async(row["purchase_capture_url"], "purchase", progress_id, models.db_manager, ai_instructions)
+                ai_instr = _build_ai_instructions(campaign_id, "purchase")
+                verify_capture_async(row["purchase_capture_url"], "purchase", progress_id, models.db_manager, ai_instr)
                 triggered += 1
 
             if row.get("review_capture_url"):
-                verify_capture_async(row["review_capture_url"], "review", progress_id, models.db_manager, ai_instructions)
+                ai_instr = _build_ai_instructions(campaign_id, "review")
+                verify_capture_async(row["review_capture_url"], "review", progress_id, models.db_manager, ai_instr)
                 triggered += 1
 
         return jsonify({"ok": True, "message": f"{triggered}건 AI 검수 시작", "count": triggered})
@@ -1169,10 +1181,27 @@ def settings():
     """담당자 설정 페이지"""
     managers = []
     suppliers = []
+    ai_settings = {}
     if models.db_manager:
         managers = models.db_manager.get_managers()
         suppliers = models.db_manager.get_suppliers()
-    return render_template("admin/settings.html", managers=managers, suppliers=suppliers)
+        ai_settings = {
+            "ai_global_purchase": models.db_manager.get_setting("ai_global_purchase", ""),
+            "ai_global_review": models.db_manager.get_setting("ai_global_review", ""),
+        }
+    return render_template("admin/settings.html", managers=managers, suppliers=suppliers, ai_settings=ai_settings)
+
+
+@admin_bp.route("/api/settings/ai", methods=["POST"])
+@admin_required
+def api_settings_ai():
+    """AI 기본 검수지침 저장"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    models.db_manager.set_setting("ai_global_purchase", data.get("ai_global_purchase", ""))
+    models.db_manager.set_setting("ai_global_review", data.get("ai_global_review", ""))
+    return jsonify({"ok": True})
 
 
 @admin_bp.route("/api/managers", methods=["GET"])

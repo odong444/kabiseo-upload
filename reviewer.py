@@ -432,12 +432,22 @@ def api_verify_capture():
         image_bytes = file.read()
         mime_type = file.content_type or "image/jpeg"
 
-        # 캠페인별 AI 지침 조회
+        # AI 지침 조회 (글로벌 + 캠페인별 타입별)
         ai_instructions = ""
-        if campaign_id and models.db_manager:
-            campaign = models.db_manager.get_campaign_by_id(campaign_id)
-            if campaign:
-                ai_instructions = campaign.get("AI검수지침", "")
+        if models.db_manager:
+            parts = []
+            global_key = "ai_global_purchase" if capture_type == "purchase" else "ai_global_review"
+            global_instr = models.db_manager.get_setting(global_key, "")
+            if global_instr:
+                parts.append(global_instr)
+            if campaign_id:
+                campaign = models.db_manager.get_campaign_by_id(campaign_id)
+                if campaign:
+                    field = "AI구매검수지침" if capture_type == "purchase" else "AI리뷰검수지침"
+                    camp_instr = campaign.get(field, "") or campaign.get("AI검수지침", "")
+                    if camp_instr:
+                        parts.append(camp_instr)
+            ai_instructions = "\n".join(parts)
 
         from modules.capture_verifier import verify_capture_from_bytes
         result = verify_capture_from_bytes(image_bytes, mime_type, capture_type, ai_instructions)
