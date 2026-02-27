@@ -328,10 +328,14 @@ def verify_capture_from_bytes(image_bytes: bytes, mime_type: str,
         return {"result": "오류", "reason": "이미지 데이터 없음", "details": {}, "parsed": {}}
 
     full_prompt = _build_prompt(capture_type, campaign_info, ai_instructions)
+    logger.info("AI 검수 요청: type=%s, campaign_info=%s, ai_instructions=%s",
+                capture_type, campaign_info, ai_instructions[:200] if ai_instructions else "없음")
 
     analysis = _call_gemini(image_bytes, mime_type, full_prompt)
     if not analysis:
         return {"result": "오류", "reason": "AI 분석 실패", "details": {}, "parsed": {}}
+
+    logger.info("AI 분석 결과: %s", json.dumps(analysis, ensure_ascii=False, default=str)[:500])
 
     # 파싱 데이터 추출 (구매캡쳐일 때)
     parsed = {}
@@ -350,6 +354,7 @@ def verify_capture_from_bytes(image_bytes: bytes, mime_type: str,
         }
 
     judgment = _judge(analysis, capture_type)
+    logger.info("AI 판정: %s", judgment)
     return {**judgment, "details": analysis, "parsed": parsed}
 
 
