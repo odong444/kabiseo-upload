@@ -605,10 +605,12 @@ def api_reviews_ai_reject():
         row_data = models.db_manager.get_row_dict(progress_id)
         if capture_type == "purchase":
             # 구매캡쳐 반려: 구매캡쳐 URL 삭제 + AI결과 초기화 + 상태를 구매캡쳐대기로
+            # created_at도 리셋하여 타이머 30분 재시작
             models.db_manager._execute(
                 """UPDATE progress SET purchase_capture_url = '',
                    ai_purchase_result = '', ai_purchase_reason = '',
-                   status = '구매캡쳐대기', remark = %s, updated_at = NOW()
+                   status = '구매캡쳐대기', remark = %s,
+                   created_at = NOW(), updated_at = NOW()
                    WHERE id = %s""",
                 (f"구매캡쳐 반려: {reason}", progress_id),
             )

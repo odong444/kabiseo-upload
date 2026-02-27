@@ -424,7 +424,8 @@ def _auto_reject(progress_id: int, capture_type: str, reason: str, db_manager):
         if capture_type == "purchase":
             db_manager._execute(
                 """UPDATE progress SET purchase_capture_url = '',
-                   status = '구매캡쳐대기', remark = %s, updated_at = NOW()
+                   status = '구매캡쳐대기', remark = %s,
+                   created_at = NOW(), updated_at = NOW()
                    WHERE id = %s""",
                 (f"AI 자동반려: {reason}", progress_id),
             )
