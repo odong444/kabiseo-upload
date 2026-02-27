@@ -24,7 +24,16 @@
         #chatApp > .chat-header { flex: 0 0 auto; }
         #chatApp > .chat-body { flex: 1 1 0; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
         #chatApp > .chat-input-area { flex: 0 0 auto; }
+        /* embed 모드: 헤더/사이드바 숨김 */
+        .embed-mode .chat-header { display: none; }
+        .embed-mode .sidebar,
+        .embed-mode .sidebar-overlay { display: none !important; }
     </style>
+    <script>
+        if (new URLSearchParams(window.location.search).get('embed') === '1') {
+            document.documentElement.classList.add('embed-mode');
+        }
+    </script>
 </head>
 <body>
 

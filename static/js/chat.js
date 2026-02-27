@@ -7,9 +7,10 @@
     'use strict';
 
     // ──────── 사용자 인증 확인 ────────
+    var isEmbed = new URLSearchParams(window.location.search).get('embed') === '1';
     const saved = localStorage.getItem('kabiseo_user');
     if (!saved) {
-        window.location.href = '/';
+        if (!isEmbed) window.location.href = '/';
         return;
     }
 
@@ -19,7 +20,7 @@
         if (!user.name || !user.phone) throw new Error();
     } catch(e) {
         localStorage.removeItem('kabiseo_user');
-        window.location.href = '/';
+        if (!isEmbed) window.location.href = '/';
         return;
     }
 

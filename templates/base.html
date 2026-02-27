@@ -32,6 +32,49 @@
     </main>
 
     {% block nav %}{% endblock %}
+
+    <!-- 플로팅 채팅 버튼 + 모달 -->
+    <button class="chat-float-btn" id="chatFloatBtn" onclick="toggleChatModal()">
+        <span class="chat-float-icon">&#x1f4ac;</span>
+        <span class="chat-float-badge" id="chatFloatBadge" style="display:none;"></span>
+    </button>
+    <div class="chat-modal-overlay" id="chatModalOverlay" style="display:none;" onclick="closeChatModal()">
+        <div class="chat-modal" onclick="event.stopPropagation()">
+            <div class="chat-modal-header">
+                <span class="chat-modal-title">문의</span>
+                <button class="chat-modal-close" onclick="closeChatModal()">&times;</button>
+            </div>
+            <iframe id="chatIframe" class="chat-modal-iframe" src="about:blank"></iframe>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // 로그인 안 된 상태면 플로팅 버튼 숨김
+        var saved = localStorage.getItem('kabiseo_user');
+        if (!saved) {
+            var btn = document.getElementById('chatFloatBtn');
+            if (btn) btn.style.display = 'none';
+        }
+    })();
+    function toggleChatModal() {
+        var overlay = document.getElementById('chatModalOverlay');
+        var iframe = document.getElementById('chatIframe');
+        if (overlay.style.display === 'none') {
+            overlay.style.display = 'flex';
+            if (iframe.src === 'about:blank') {
+                iframe.src = '/chat?embed=1';
+            }
+            document.body.style.overflow = 'hidden';
+        } else {
+            closeChatModal();
+        }
+    }
+    function closeChatModal() {
+        document.getElementById('chatModalOverlay').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+    </script>
+
     {% block scripts %}{% endblock %}
 </body>
 </html>
