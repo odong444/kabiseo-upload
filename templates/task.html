@@ -121,7 +121,7 @@
     var _lbImages = [];
     var _lbIndex = 0;
 
-    function openLightbox(images, startIndex) {
+    window.openLightbox = function(images, startIndex) {
         _lbImages = images;
         _lbIndex = startIndex || 0;
         var overlay = document.getElementById('lightboxOverlay');
