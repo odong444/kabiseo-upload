@@ -162,8 +162,9 @@ def dashboard():
 @admin_required
 def campaigns():
     import re as _re
-    from datetime import date as _date, datetime as _datetime
+    from datetime import date as _date, datetime as _datetime, timezone as _tz, timedelta as _td
     from modules.utils import safe_int
+    _KST = _tz(_td(hours=9))
 
     campaign_list = []
     if models.campaign_manager:
@@ -190,7 +191,8 @@ def campaigns():
         if schedule and start_date_str:
             try:
                 start = _datetime.strptime(start_date_str, "%Y-%m-%d").date()
-                day_index = (_date.today() - start).days
+                today_kst = _datetime.now(_KST).date()
+                day_index = (today_kst - start).days
                 if 0 <= day_index < len(schedule):
                     today_target = safe_int(schedule[day_index])
             except Exception:

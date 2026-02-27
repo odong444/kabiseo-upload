@@ -485,7 +485,7 @@ class DBManager:
                    COUNT(*) FILTER (WHERE status IN ('리뷰제출','입금대기','입금완료')) AS review_done,
                    COUNT(*) FILTER (WHERE status = '입금대기') AS settlement_pending,
                    COUNT(*) FILTER (WHERE status = '입금완료') AS settlement_done,
-                   COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE
+                   COUNT(*) FILTER (WHERE (created_at AT TIME ZONE 'Asia/Seoul')::date = (NOW() AT TIME ZONE 'Asia/Seoul')::date
                                     AND status NOT IN ('취소','타임아웃취소')) AS today_count
             FROM progress
             GROUP BY campaign_id
