@@ -553,6 +553,7 @@ def api_campaign_distribute_photos(campaign_id):
 
         data = request.get_json(silent=True) or {}
         notify_only = data.get("notify_only", False)
+        skip_notify = data.get("skip_notify", False)
 
         campaign = models.db_manager.get_campaign_by_id(campaign_id) or {}
         campaign_name = campaign.get("캠페인명", "") or campaign.get("상품명", "")
@@ -604,6 +605,9 @@ def api_campaign_distribute_photos(campaign_id):
 
             models.db_manager.assign_photo_set([prog["progress_id"]], next_set)
             assigned_count += 1
+
+            if skip_notify:
+                continue
 
             # 리뷰 미제출자에게만 알림 (리뷰제출, 입금대기, 입금완료 제외)
             if prog["status"] in ("리뷰제출", "입금대기", "입금완료"):

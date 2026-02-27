@@ -298,6 +298,16 @@ def api_apply():
             progress_id = models.reviewer_manager.register(name, phone, campaign, sid)
             # 아이디 목록 업데이트
             models.db_manager.update_reviewer_store_ids(name, phone, sid)
+            # 사진 세트 자동 할당 (계정별)
+            try:
+                photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
+                if photo_sets:
+                    next_set = models.db_manager.get_next_photo_set_number(campaign_id)
+                    if next_set is not None:
+                        models.db_manager.assign_photo_set([progress_id], next_set)
+                        logger.info("사진세트 %d 자동할당: %s / %s (progress %d)", next_set, name, sid, progress_id)
+            except Exception as pe:
+                logger.warning("사진세트 자동할당 실패: %s", pe)
             results.append({"store_id": sid, "ok": True, "progress_id": progress_id})
         except Exception as e:
             logger.error("신청 에러: %s", e, exc_info=True)
