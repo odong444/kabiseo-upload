@@ -575,16 +575,17 @@ def api_ai_override():
         return jsonify({"ok": False, "message": str(e)})
 
 
-def _build_ai_instructions(campaign_id: str, capture_type: str) -> str:
-    """글로벌 AI 지침 + 캠페인별 타입별 AI 지침을 결합"""
+def _build_ai_context(campaign_id: str, capture_type: str) -> tuple[str, dict | None]:
+    """글로벌 AI 지침 + 캠페인별 타입별 AI 지침 결합, 캠페인 기준정보 반환"""
     parts = []
+    campaign_info = None
     if models.db_manager:
         # 글로벌 지침
         global_key = "ai_global_purchase" if capture_type == "purchase" else "ai_global_review"
         global_instr = models.db_manager.get_setting(global_key, "")
         if global_instr:
             parts.append(global_instr)
-        # 캠페인별 지침
+        # 캠페인별 지침 + 기준정보
         if campaign_id:
             campaign = models.db_manager.get_campaign_by_id(campaign_id)
             if campaign:
@@ -592,7 +593,16 @@ def _build_ai_instructions(campaign_id: str, capture_type: str) -> str:
                 camp_instr = campaign.get(field, "") or campaign.get("AI검수지침", "")
                 if camp_instr:
                     parts.append(camp_instr)
-    return "\n".join(parts)
+                campaign_info = {
+                    "상품명": campaign.get("상품명", ""),
+                    "업체명": campaign.get("업체명", ""),
+                    "플랫폼": campaign.get("플랫폼", ""),
+                    "상품금액": campaign.get("상품금액", ""),
+                    "결제금액": campaign.get("결제금액", ""),
+                    "옵션": campaign.get("옵션", ""),
+                    "캠페인유형": campaign.get("캠페인유형", ""),
+                }
+    return "\n".join(parts), campaign_info
 
 
 @admin_bp.route("/api/ai-verify/recheck", methods=["POST"])
@@ -612,8 +622,8 @@ def api_ai_recheck():
             return jsonify({"ok": False, "message": "캡쳐 URL 없음"})
 
         from modules.capture_verifier import verify_capture_async
-        ai_instructions = _build_ai_instructions(row.get("캠페인ID", ""), capture_type)
-        verify_capture_async(drive_url, capture_type, int(progress_id), models.db_manager, ai_instructions)
+        ai_instructions, campaign_info = _build_ai_context(row.get("캠페인ID", ""), capture_type)
+        verify_capture_async(drive_url, capture_type, int(progress_id), models.db_manager, ai_instructions, campaign_info)
         return jsonify({"ok": True, "message": "AI 검수 재실행 중"})
     except Exception as e:
         logger.error(f"AI 재검수 에러: {e}")
@@ -651,13 +661,13 @@ def api_ai_batch():
             campaign_id = row.get("campaign_id", "")
 
             if row.get("purchase_capture_url"):
-                ai_instr = _build_ai_instructions(campaign_id, "purchase")
-                verify_capture_async(row["purchase_capture_url"], "purchase", progress_id, models.db_manager, ai_instr)
+                ai_instr, camp_info = _build_ai_context(campaign_id, "purchase")
+                verify_capture_async(row["purchase_capture_url"], "purchase", progress_id, models.db_manager, ai_instr, camp_info)
                 triggered += 1
 
             if row.get("review_capture_url"):
-                ai_instr = _build_ai_instructions(campaign_id, "review")
-                verify_capture_async(row["review_capture_url"], "review", progress_id, models.db_manager, ai_instr)
+                ai_instr, camp_info = _build_ai_context(campaign_id, "review")
+                verify_capture_async(row["review_capture_url"], "review", progress_id, models.db_manager, ai_instr, camp_info)
                 triggered += 1
 
         return jsonify({"ok": True, "message": f"{triggered}건 AI 검수 시작", "count": triggered})
