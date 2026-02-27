@@ -74,18 +74,27 @@ def _get_server_promotion_status() -> bool | None:
     return None
 
 
-def _set_server_promotion(enabled: bool) -> bool:
-    """서버PC 홍보 on/off 설정"""
+def _set_server_promotion(enabled: bool) -> dict:
+    """서버PC 홍보 on/off 설정. /api/promotion/start|stop 직접 호출."""
     try:
-        resp = _requests.post(
-            f"{SERVER_PC_URL}/api/config",
-            headers={"X-API-Key": SERVER_PC_API_KEY, "Content-Type": "application/json"},
-            json={"promotion": {"enabled": enabled}},
-            timeout=5,
-        )
-        return resp.ok and resp.json().get("ok", False)
-    except Exception:
-        return False
+        if enabled:
+            resp = _requests.post(
+                f"{SERVER_PC_URL}/api/promotion/start",
+                headers={"Content-Type": "application/json"},
+                json={"password": "4444"},
+                timeout=5,
+            )
+        else:
+            resp = _requests.post(
+                f"{SERVER_PC_URL}/api/promotion/stop",
+                timeout=5,
+            )
+        data = resp.json()
+        if resp.ok and data.get("ok"):
+            return {"ok": True}
+        return {"ok": False, "error": data.get("error", "서버 응답 오류")}
+    except Exception as e:
+        return {"ok": False, "error": f"서버PC 연결 실패: {e}"}
 
 
 @admin_bp.app_context_processor
@@ -332,10 +341,10 @@ def api_promotion_toggle():
     """서버PC 홍보 on/off 토글"""
     data = request.get_json(silent=True) or {}
     enabled = data.get("enabled", False)
-    ok = _set_server_promotion(enabled)
-    if ok:
+    result = _set_server_promotion(enabled)
+    if result.get("ok"):
         return jsonify({"ok": True, "enabled": enabled})
-    return jsonify({"ok": False, "error": "서버PC 연결 실패"}), 500
+    return jsonify({"ok": False, "error": result.get("error", "서버PC 연결 실패")}), 500
 
 
 @admin_bp.route("/api/campaigns/<campaign_id>", methods=["DELETE"])

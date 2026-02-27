@@ -403,6 +403,22 @@
         // 토글 변경
         toggle.addEventListener('change', function() {
             var enabled = toggle.checked;
+            // ON으로 변경 시 비밀번호 확인
+            if (enabled) {
+                var pw = prompt('홍보를 시작하려면 비밀번호를 입력하세요:');
+                if (pw === null || pw.trim() !== '4444') {
+                    toggle.checked = false;
+                    if (pw !== null) {
+                        label.textContent = '비밀번호 오류';
+                        label.style.color = '#ef4444';
+                        setTimeout(function() {
+                            label.textContent = 'OFF';
+                            label.style.color = '#94a3b8';
+                        }, 2000);
+                    }
+                    return;
+                }
+            }
             label.textContent = '변경중...';
             label.style.color = '#94a3b8';
             fetch('/admin/api/promotion/toggle', {
@@ -417,8 +433,12 @@
                     label.style.color = enabled ? '#16a34a' : '#94a3b8';
                 } else {
                     toggle.checked = !enabled;
-                    label.textContent = '실패';
+                    label.textContent = data.error || '실패';
                     label.style.color = '#ef4444';
+                    setTimeout(function() {
+                        label.textContent = toggle.checked ? 'ON' : 'OFF';
+                        label.style.color = toggle.checked ? '#16a34a' : '#94a3b8';
+                    }, 2000);
                 }
             })
             .catch(function() {

@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>카비서 홍보 관리</title>
+  <link rel="stylesheet" href="/static/campaign.css">
+  <style>
+    /* 토글 스위치 */
+    .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; border-radius: 22px; transition: .3s; }
+    .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .3s; }
+    .toggle-switch input:checked + .toggle-slider { background: #2ECC71; }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
+
+    /* 카테고리 칩 */
+    .cat-chip { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; margin: 2px; background: #F5F5F5; color: #555; }
+    .cat-chip.removable { padding-right: 6px; }
+    .cat-chip .chip-remove { display: inline-block; margin-left: 4px; cursor: pointer; font-size: 14px; line-height: 1; vertical-align: middle; opacity: 0.6; }
+    .cat-chip .chip-remove:hover { opacity: 1; }
+
+    /* 우선순위 뱃지 */
+    .priority-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .priority-1 { background: #FFEBEE; color: #C62828; }
+    .priority-2 { background: #E3F2FD; color: #1565C0; }
+    .priority-3 { background: #FFF8E1; color: #F57F17; }
+
+    /* 결과 뱃지 */
+    .result-success { color: #2E7D32; font-weight: 600; }
+    .result-fail { color: #C62828; font-weight: 600; }
+
+    /* 접기/펼치기 */
+    .collapsible-header { cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+    .collapsible-header .toggle-icon { font-size: 12px; color: #999; transition: transform 0.2s; }
+    .collapsible-header.open .toggle-icon { transform: rotate(90deg); }
+    .collapsible-body { overflow: hidden; transition: max-height 0.3s ease; }
+    .collapsible-body.collapsed { max-height: 0; padding-top: 0; padding-bottom: 0; }
+
+    /* 체크박스 그리드 */
+    .checkbox-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .checkbox-grid label { display: flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; padding: 4px 8px; border: 1px solid #E5E0D5; border-radius: 6px; transition: background 0.15s; }
+    .checkbox-grid label:hover { background: #FFF8E1; }
+    .checkbox-grid input[type="checkbox"]:checked + span { font-weight: 600; }
+
+    /* 시간 선택 영역 */
+    .time-range { display: flex; align-items: center; gap: 6px; }
+    .time-range select { width: auto; min-width: 80px; }
+
+    /* 인라인 수정 모달 대신 인라인 폼 */
+    .edit-row { background: #FFFDE7; }
+    .edit-row td { padding: 8px !important; }
+    .edit-row input, .edit-row select { font-size: 12px; padding: 4px 6px; }
+
+    /* 채팅방 유형 뱃지 */
+    .type-badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .type-open { background: #E8F5E9; color: #2E7D32; }
+    .type-normal { background: #E3F2FD; color: #1565C0; }
+
+    /* 자동 새로고침 표시 */
+    .auto-refresh-indicator { font-size: 11px; color: #999; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>카비서 홍보 관리</h1>
+    <span class="server-time" id="serverTime">--</span>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="chatrooms">채팅방 관리</button>
+    <button class="tab" data-tab="promotion">홍보 현황</button>
+    <button class="tab" data-tab="logs">로그</button>
+  </nav>
+
+  <main>
+    <!-- ============ Tab 1: 채팅방 관리 ============ -->
+    <section id="tab-chatrooms" class="tab-content active">
+
+      <!-- 카테고리 관리 -->
+      <div class="card">
+        <h2>카테고리 관리</h2>
+        <div id="categoryChips" style="margin-bottom: 12px;">
+          <p class="muted">로딩 중...</p>
+        </div>
+        <div class="filter-row">
+          <input type="text" id="newCategoryInput" placeholder="새 카테고리명" style="max-width: 200px;">
+          <button class="btn btn-sm" onclick="addCategory()">추가</button>
+          <span class="form-status" id="categoryStatus"></span>
+        </div>
+      </div>
+
+      <!-- 채팅방 목록 -->
+      <div class="card">
+        <h2>채팅방 목록</h2>
+        <div class="filter-row">
+          <button class="btn btn-sm" onclick="loadChatrooms()">새로고침</button>
+          <span id="chatroomCount" style="font-size: 13px; color: #6B6B6B;"></span>
+        </div>
+        <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;">
+          <button onclick="scanChatrooms('scan')" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">🔄 전체 스캔</button>
+          <button onclick="scanChatrooms('add')" style="padding:6px 14px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;">➕ 추가 스캔</button>
+          <span style="font-size:12px;color:#999;">열려있는 채팅창을 읽습니다</span>
+          <span id="scanStatus" style="margin-left:4px;font-size:13px;color:#666;"></span>
+        </div>
+        <div id="chatroomList">
+          <p class="muted">로딩 중...</p>
+        </div>
+      </div>
+
+      <!-- 채팅방 추가 -->
+      <div class="card">
+        <div class="collapsible-header" id="addRoomHeader" onclick="toggleCollapsible('addRoomBody', 'addRoomHeader')">
+          <h2 style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">채팅방 추가</h2>
+          <span class="toggle-icon">&#9654;</span>
+        </div>
+        <div class="collapsible-body collapsed" id="addRoomBody">
+          <form id="addRoomForm" onsubmit="addChatroom(event)" style="margin-top: 14px;">
+            <div class="form-row">
+              <div class="form-group">
+                <label>채팅방명 <span style="color: #E74C3C;">*</span></label>
+                <input type="text" name="name" required placeholder="정확한 카카오톡 채팅방 이름">
+              </div>
+              <div class="form-group">
+                <label>유형</label>
+                <select name="type">
+                  <option value="open">오픈채팅</option>
+                  <option value="normal">일반채팅</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>발송주기 (분)</label>
+                <input type="number" name="cooldown_minutes" value="60" min="1" max="1440">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label>카테고리</label>
+              <div class="checkbox-grid" id="addRoomCategories">
+                <p class="muted">카테고리를 먼저 등록하세요</p>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>홍보가능시간</label>
+                <div class="time-range">
+                  <select name="active_start" id="addRoomStartTime"></select>
+                  <span>~</span>
+                  <select name="active_end" id="addRoomEndTime"></select>
+                  <label style="font-size: 12px; margin-left: 4px;">
+                    <input type="checkbox" name="next_day" id="addRoomNextDay"> 익일
+                  </label>
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-save">추가</button>
+            <span class="form-status" id="addRoomStatus"></span>
+          </form>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============ Tab 2: 홍보 현황 ============ -->
+    <section id="tab-promotion" class="tab-content">
+
+      <!-- 홍보 제어 -->
+      <div class="card">
+        <h2>홍보 제어</h2>
+        <div class="status-indicators" style="margin-bottom: 12px;">
+          <span class="badge" id="systemStatusBadge">시스템: --</span>
+          <span class="badge" id="promotionStatusBadge">홍보: --</span>
+        </div>
+        <div class="control-buttons">
+          <button class="btn btn-start" id="btnPromoStart" onclick="startPromotion()">시작</button>
+          <button class="btn btn-stop" id="btnPromoStop" onclick="stopPromotion()" disabled>중지</button>
+        </div>
+        <span class="form-status" id="promotionControlStatus"></span>
+      </div>
+
+      <!-- 대기 중인 작업 -->
+      <div class="card">
+        <h2>대기 중인 작업</h2>
+        <div class="filter-row">
+          <button class="btn btn-sm" onclick="loadPendingTasks()">새로고침</button>
+          <span id="pendingTaskCount" style="font-size: 13px; color: #6B6B6B;"></span>
+        </div>
+        <div id="pendingTaskList">
+          <p class="muted">로딩 중...</p>
+        </div>
+      </div>
+
+      <!-- 최근 홍보 이력 -->
+      <div class="card">
+        <h2>최근 홍보 이력<span class="auto-refresh-indicator" id="historyRefreshIndicator">10초마다 갱신</span></h2>
+        <div id="promotionHistory">
+          <p class="muted">로딩 중...</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ============ Tab 3: 로그 ============ -->
+    <section id="tab-logs" class="tab-content">
+      <div class="card">
+        <h2>시스템 로그<span class="auto-refresh-indicator" id="logRefreshIndicator">10초마다 갱신</span></h2>
+        <div class="filter-row">
+          <button class="btn btn-sm" onclick="loadLogs()">새로고침</button>
+          <select id="logLevelFilter" onchange="loadLogs()" style="max-width: 120px;">
+            <option value="">전체</option>
+            <option value="ERROR">ERROR</option>
+            <option value="WARNING">WARNING</option>
+            <option value="INFO">INFO</option>
+          </select>
+        </div>
+        <div id="logContainer" class="log-container">
+          <p class="muted">로딩 중...</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  // ═══════════════════════════ 글로벌 상태 ═══════════════════════════
+  let _categories = [];
+  let _chatrooms = [];
+  let _editingRoom = null; // 현재 인라인 수정 중인 채팅방명
+
+  // ═══════════════════════════ API 헬퍼 ═══════════════════════════
+  async function api(url, options = {}) {
+    try {
+      const resp = await fetch(url, options);
+      return await resp.json();
+    } catch (e) {
+      console.error('API 오류:', e);
+      return { error: e.message };
+    }
+  }
+
+  function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+  }
+
+  // ═══════════════════════════ 탭 전환 ═══════════════════════════
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+      // 탭 진입 시 데이터 로드
+      if (btn.dataset.tab === 'promotion') {
+        loadPendingTasks();
+        loadPromotionHistory();
+      } else if (btn.dataset.tab === 'logs') {
+        loadLogs();
+      }
+    });
+  });
+
+  // ═══════════════════════════ 접기/펼치기 ═══════════════════════════
+  function toggleCollapsible(bodyId, headerId) {
+    const body = document.getElementById(bodyId);
+    const header = document.getElementById(headerId);
+    body.classList.toggle('collapsed');
+    header.classList.toggle('open');
+  }
+
+  // ═══════════════════════════ 시간 셀렉트 생성 ═══════════════════════════
+  function populateTimeSelects() {
+    const starts = [document.getElementById('addRoomStartTime')];
+    const ends = [document.getElementById('addRoomEndTime')];
+
+    [...starts, ...ends].forEach(sel => {
+      if (!sel) return;
+      sel.innerHTML = '';
+      for (let h = 0; h < 24; h++) {
+        for (let m = 0; m < 60; m += 30) {
+          const val = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+          const opt = document.createElement('option');
+          opt.value = val;
+          opt.textContent = val;
+          sel.appendChild(opt);
+        }
+      }
+    });
+
+    // 기본값: 09:00 ~ 22:00
+    if (starts[0]) starts[0].value = '09:00';
+    if (ends[0]) ends[0].value = '22:00';
+  }
+
+  // ═══════════════════════════ 카테고리 색상 ═══════════════════════════
+  const CATEGORY_COLORS = [
+    { bg: '#E8F5E9', fg: '#2E7D32' },  // 녹색
+    { bg: '#E3F2FD', fg: '#1565C0' },  // 파랑
+    { bg: '#FFF3E0', fg: '#E65100' },  // 주황
+    { bg: '#F3E5F5', fg: '#6A1B9A' },  // 보라
+    { bg: '#E0F7FA', fg: '#00695C' },  // 청록
+    { bg: '#FBE9E7', fg: '#BF360C' },  // 빨강
+    { bg: '#F1F8E9', fg: '#33691E' },  // 연두
+    { bg: '#FCE4EC', fg: '#AD1457' },  // 핑크
+  ];
+
+  function categoryColor(name) {
+    // 간단한 해시
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = ((hash << 5) - hash) + name.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % CATEGORY_COLORS.length;
+    return CATEGORY_COLORS[idx];
+  }
+
+  function catChipHtml(name, removable) {
+    const c = categoryColor(name);
+    const removeBtn = removable
+      ? ' <span class="chip-remove" onclick="removeCategory(\'' + escHtml(name).replace(/'/g, "\\'") + '\')">&times;</span>'
+      : '';
+    return '<span class="cat-chip' + (removable ? ' removable' : '') + '" '
+      + 'style="background:' + c.bg + ';color:' + c.fg + ';">'
+      + escHtml(name) + removeBtn + '</span>';
+  }
+
+  // ═══════════════════════════ 상대 시간 ═══════════════════════════
+  function relativeTime(isoStr) {
+    if (!isoStr) return '-';
+    try {
+      const then = new Date(isoStr);
+      const now = new Date();
+      const diffMs = now - then;
+      if (diffMs < 0) return '예정';
+      const mins = Math.floor(diffMs / 60000);
+      if (mins < 1) return '방금 전';
+      if (mins < 60) return mins + '분 전';
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return hours + '시간 전';
+      const days = Math.floor(hours / 24);
+      return days + '일 전';
+    } catch (e) {
+      return isoStr;
+    }
+  }
+
+  // ═══════════════════════════ 카테고리 관리 ═══════════════════════════
+  async function loadCategories() {
+    const data = await api('/api/categories');
+    if (data.error) {
+      document.getElementById('categoryChips').innerHTML = '<p class="muted">카테고리 로딩 실패</p>';
+      return;
+    }
+    _categories = data.categories || [];
+    renderCategories();
+    renderAddRoomCategories();
+  }
+
+  function renderCategories() {
+    const el = document.getElementById('categoryChips');
+    if (_categories.length === 0) {
+      el.innerHTML = '<p class="muted">등록된 카테고리가 없습니다</p>';
+      return;
+    }
+    el.innerHTML = _categories.map(c => catChipHtml(c, true)).join('');
+  }
+
+  function renderAddRoomCategories() {
+    const el = document.getElementById('addRoomCategories');
+    if (!el) return;
+    if (_categories.length === 0) {
+      el.innerHTML = '<p class="muted">카테고리를 먼저 등록하세요</p>';
+      return;
+    }
+    el.innerHTML = _categories.map(c =>
+      '<label><input type="checkbox" value="' + escHtml(c) + '"><span>' + escHtml(c) + '</span></label>'
+    ).join('');
+  }
+
+  async function addCategory() {
+    const input = document.getElementById('newCategoryInput');
+    const statusEl = document.getElementById('categoryStatus');
+    const name = input.value.trim();
+    if (!name) {
+      statusEl.textContent = '카테고리명을 입력하세요';
+      statusEl.style.color = '#E74C3C';
+      return;
+    }
+    if (_categories.includes(name)) {
+      statusEl.textContent = '이미 존재하는 카테고리입니다';
+      statusEl.style.color = '#E74C3C';
+      return;
+    }
+
+    statusEl.textContent = '추가 중...';
+    statusEl.style.color = '';
+    const data = await api('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name }),
+    });
+
+    if (data.error) {
+      statusEl.textContent = '실패: ' + data.error;
+      statusEl.style.color = '#E74C3C';
+    } else {
+      statusEl.textContent = '추가 완료';
+      statusEl.style.color = '#2ECC71';
+      input.value = '';
+      await loadCategories();
+      setTimeout(() => { statusEl.textContent = ''; }, 2000);
+    }
+  }
+
+  async function removeCategory(name) {
+    if (!confirm('"' + name + '" 카테고리를 삭제하시겠습니까?')) return;
+    const data = await api('/api/categories/' + encodeURIComponent(name), { method: 'DELETE' });
+    const statusEl = document.getElementById('categoryStatus');
+    if (data.error) {
+      statusEl.textContent = '삭제 실패: ' + data.error;
+      statusEl.style.color = '#E74C3C';
+    } else {
+      statusEl.textContent = '삭제 완료';
+      statusEl.style.color = '#2ECC71';
+      await loadCategories();
+      setTimeout(() => { statusEl.textContent = ''; }, 2000);
+    }
+  }
+
+  // ═══════════════════════════ 채팅방 관리 ═══════════════════════════
+  async function loadChatrooms() {
+    const data = await api('/api/chatrooms');
+    if (data.error) {
+      document.getElementById('chatroomList').innerHTML = '<p class="muted">채팅방 로딩 실패</p>';
+      return;
+    }
+    _chatrooms = data.rooms || [];
+    renderChatrooms();
+  }
+
+  function renderChatrooms() {
+    const container = document.getElementById('chatroomList');
+    const countEl = document.getElementById('chatroomCount');
+
+    if (_chatrooms.length === 0) {
+      container.innerHTML = '<p class="muted">등록된 채팅방이 없습니다</p>';
+      countEl.textContent = '';
+      return;
+    }
+
+    countEl.textContent = '총 ' + _chatrooms.length + '개';
+
+    let html = '<table class="data-table"><thead><tr>'
+      + '<th>활성</th><th>유형</th><th>채팅방명</th><th>카테고리</th><th>홍보시간</th><th>발송주기</th><th>최근발송</th><th>관리</th>'
+      + '</tr></thead><tbody>';
+
+    _chatrooms.forEach(room => {
+      if (_editingRoom === room.name) {
+        html += renderEditRow(room);
+      } else {
+        html += renderRoomRow(room);
+      }
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  function renderRoomRow(room) {
+    const checked = room.enabled ? 'checked' : '';
+    const roomType = room.type || 'open';
+    const typeBadge = roomType === 'open'
+      ? '<span class="type-badge type-open">오픈</span>'
+      : '<span class="type-badge type-normal">일반</span>';
+    const cats = (room.categories || []).map(c => catChipHtml(c, false)).join('');
+    const activeHours = room.active_hours || '-';
+    const cooldown = room.cooldown_minutes ? room.cooldown_minutes + '분' : '-';
+    const lastSent = relativeTime(room.last_sent);
+    const eName = escHtml(room.name).replace(/'/g, "\\'");
+
+    return '<tr>'
+      + '<td><label class="toggle-switch">'
+      + '<input type="checkbox" ' + checked + ' onchange="toggleRoom(\'' + eName + '\', this.checked)">'
+      + '<span class="toggle-slider"></span></label></td>'
+      + '<td>' + typeBadge + '</td>'
+      + '<td>' + escHtml(room.name) + '</td>'
+      + '<td>' + (cats || '<span class="muted" style="padding:0;">-</span>') + '</td>'
+      + '<td>' + escHtml(activeHours) + '</td>'
+      + '<td>' + escHtml(cooldown) + '</td>'
+      + '<td>' + escHtml(lastSent) + '</td>'
+      + '<td>'
+      + '<button class="btn btn-xs btn-save" onclick="startEditRoom(\'' + eName + '\')">수정</button> '
+      + '<button class="btn btn-xs btn-test-send" style="background:#3498DB;color:#fff;" onclick="testSendRoom(\'' + eName + '\')"'
+      + (_promotionActive ? '' : ' disabled title="홍보 중지 상태" style="background:#3498DB;color:#fff;opacity:0.4"') + '>테스트</button> '
+      + '<button class="btn btn-xs btn-stop" onclick="deleteRoom(\'' + eName + '\')">삭제</button>'
+      + '</td></tr>';
+  }
+
+  function renderEditRow(room) {
+    // 인라인 수정 행
+    const catsCheckboxes = _categories.map(c => {
+      const isChecked = (room.categories || []).includes(c) ? 'checked' : '';
+      return '<label style="font-size:11px;margin-right:4px;"><input type="checkbox" class="edit-cat-cb" value="' + escHtml(c) + '" ' + isChecked + '> ' + escHtml(c) + '</label>';
+    }).join('');
+
+    // 시작/종료 시간 파싱
+    const parts = (room.active_hours || '09:00~22:00').split('~');
+    const startTime = (parts[0] || '09:00').trim();
+    const endTime = (parts[1] || '22:00').trim();
+
+    // 시간 옵션 생성
+    let timeOptions = '';
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 30) {
+        const val = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+        timeOptions += '<option value="' + val + '">' + val + '</option>';
+      }
+    }
+
+    const curType = room.type || 'open';
+    return '<tr class="edit-row"><td colspan="8" style="padding: 12px;">'
+      + '<div class="form-row">'
+      + '<div class="form-group"><label>채팅방명</label>'
+      + '<input type="text" id="editRoomName" value="' + escHtml(room.name) + '" readonly style="background:#f0f0f0;"></div>'
+      + '<div class="form-group"><label>유형</label>'
+      + '<select id="editRoomType"><option value="open"' + (curType === 'open' ? ' selected' : '') + '>오픈채팅</option>'
+      + '<option value="normal"' + (curType === 'normal' ? ' selected' : '') + '>일반채팅</option></select></div>'
+      + '<div class="form-group"><label>발송주기 (분)</label>'
+      + '<input type="number" id="editRoomCooldown" value="' + (room.cooldown_minutes || 60) + '" min="1"></div>'
+      + '</div>'
+      + '<div class="form-group" style="margin-bottom:8px;"><label>카테고리</label>'
+      + '<div class="checkbox-grid" id="editRoomCats">' + catsCheckboxes + '</div></div>'
+      + '<div class="form-group" style="margin-bottom:12px;"><label>홍보가능시간</label>'
+      + '<div class="time-range">'
+      + '<select id="editRoomStart">' + timeOptions.replace('value="' + startTime + '"', 'value="' + startTime + '" selected') + '</select>'
+      + '<span>~</span>'
+      + '<select id="editRoomEnd">' + timeOptions.replace('value="' + endTime + '"', 'value="' + endTime + '" selected') + '</select>'
+      + '</div></div>'
+      + '<button class="btn btn-xs btn-save" onclick="saveEditRoom()">저장</button> '
+      + '<button class="btn btn-xs" style="background:#ccc;" onclick="cancelEditRoom()">취소</button>'
+      + '</td></tr>';
+  }
+
+  async function toggleRoom(name, enabled) {
+    await api('/api/chatrooms/' + encodeURIComponent(name), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: enabled }),
+    });
+  }
+
+  function startEditRoom(name) {
+    _editingRoom = name;
+    renderChatrooms();
+  }
+
+  function cancelEditRoom() {
+    _editingRoom = null;
+    renderChatrooms();
+  }
+
+  async function saveEditRoom() {
+    const name = document.getElementById('editRoomName').value;
+    const roomType = document.getElementById('editRoomType').value;
+    const cooldown = parseInt(document.getElementById('editRoomCooldown').value) || 60;
+    const startTime = document.getElementById('editRoomStart').value;
+    const endTime = document.getElementById('editRoomEnd').value;
+
+    const catCheckboxes = document.querySelectorAll('#editRoomCats .edit-cat-cb:checked');
+    const categories = Array.from(catCheckboxes).map(cb => cb.value);
+
+    const payload = {
+      type: roomType,
+      categories: categories,
+      active_hours: startTime + '~' + endTime,
+      cooldown_minutes: cooldown,
+    };
+
+    const data = await api('/api/chatrooms/' + encodeURIComponent(name), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    _editingRoom = null;
+
+    if (data.error) {
+      alert('수정 실패: ' + data.error);
+    }
+
+    await loadChatrooms();
+  }
+
+  async function deleteRoom(name) {
+    if (!confirm('"' + name + '" 채팅방을 삭제하시겠습니까?')) return;
+    const data = await api('/api/chatrooms/' + encodeURIComponent(name), { method: 'DELETE' });
+    if (data.error) {
+      alert('삭제 실패: ' + data.error);
+    }
+    await loadChatrooms();
+  }
+
+  async function testSendRoom(name) {
+    if (!_promotionActive) {
+      alert('홍보가 중지 상태입니다. 먼저 홍보를 시작하세요.');
+      return;
+    }
+    if (!confirm('"' + name + '" 채팅방에 테스트 메시지를 발송하시겠습니까?')) return;
+    const data = await api('/api/chatrooms/' + encodeURIComponent(name) + '/test', { method: 'POST' });
+    if (data.ok) {
+      alert('테스트 발송 완료');
+    } else {
+      alert('테스트 발송 실패: ' + (data.error || ''));
+    }
+  }
+
+  async function scanChatrooms(mode) {
+    const status = document.getElementById('scanStatus');
+    const label = mode === 'add' ? '추가' : '스캔';
+    status.textContent = label + ' 중...';
+    try {
+      const r = await fetch('/api/chatrooms/scan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ mode: mode })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        status.textContent = label + ' 요청 완료';
+        setTimeout(() => { loadChatrooms(); status.textContent = ''; }, 3000);
+      } else {
+        status.textContent = '실패: ' + (d.error || '');
+      }
+    } catch(e) {
+      status.textContent = '에러: ' + e.message;
+    }
+  }
+
+  async function addChatroom(e) {
+    e.preventDefault();
+    const form = document.getElementById('addRoomForm');
+    const statusEl = document.getElementById('addRoomStatus');
+
+    const name = form.querySelector('[name="name"]').value.trim();
+    if (!name) {
+      statusEl.textContent = '채팅방명을 입력하세요';
+      statusEl.style.color = '#E74C3C';
+      return;
+    }
+
+    const catCheckboxes = document.querySelectorAll('#addRoomCategories input[type="checkbox"]:checked');
+    const categories = Array.from(catCheckboxes).map(cb => cb.value);
+
+    const startTime = form.querySelector('[name="active_start"]').value;
+    const endTime = form.querySelector('[name="active_end"]').value;
+    const nextDay = document.getElementById('addRoomNextDay').checked;
+    const activeHours = startTime + '~' + endTime + (nextDay ? '(익일)' : '');
+
+    const cooldown = parseInt(form.querySelector('[name="cooldown_minutes"]').value) || 60;
+
+    const roomType = form.querySelector('[name="type"]').value;
+
+    const payload = {
+      name: name,
+      type: roomType,
+      categories: categories,
+      enabled: true,
+      active_hours: activeHours,
+      cooldown_minutes: cooldown,
+      last_sent: null,
+    };
+
+    statusEl.textContent = '추가 중...';
+    statusEl.style.color = '';
+
+    const data = await api('/api/chatrooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (data.error) {
+      statusEl.textContent = '실패: ' + data.error;
+      statusEl.style.color = '#E74C3C';
+    } else {
+      statusEl.textContent = '추가 완료';
+      statusEl.style.color = '#2ECC71';
+      form.reset();
+      populateTimeSelects();
+      await loadChatrooms();
+      setTimeout(() => { statusEl.textContent = ''; }, 2000);
+    }
+  }
+
+  // ═══════════════════════════ 홍보 제어 ═══════════════════════════
+  let _promotionActive = false;
+
+  async function updateStatus() {
+    const data = await api('/api/status');
+    if (data.error) return;
+
+    document.getElementById('serverTime').textContent = data.server_time || '--';
+
+    const sysEl = document.getElementById('systemStatusBadge');
+    if (sysEl) {
+      const connected = data.sheets_connected !== false; // 시스템 연결 상태
+      sysEl.textContent = connected ? '시스템: 연결됨' : '시스템: 미연결';
+      sysEl.className = 'badge ' + (connected ? 'badge-on' : 'badge-off');
+    }
+
+    const promoEl = document.getElementById('promotionStatusBadge');
+    if (promoEl) {
+      const active = data.promotion_active || false;
+      _promotionActive = active;
+      promoEl.textContent = active ? '홍보: 실행중' : '홍보: 중지';
+      promoEl.className = 'badge ' + (active ? 'badge-on' : 'badge-off');
+
+      document.getElementById('btnPromoStart').disabled = active;
+      document.getElementById('btnPromoStop').disabled = !active;
+
+      // 테스트 발송 버튼 활성/비활성
+      document.querySelectorAll('.btn-test-send').forEach(btn => {
+        btn.disabled = !active;
+        btn.title = active ? '' : '홍보 중지 상태에서는 발송할 수 없습니다';
+        btn.style.opacity = active ? '1' : '0.4';
+      });
+    }
+  }
+
+  async function startPromotion() {
+    const pw = prompt('홍보를 시작하려면 비밀번호를 입력하세요:');
+    if (pw === null) return; // 취소
+    const statusEl = document.getElementById('promotionControlStatus');
+    statusEl.textContent = '시작 중...';
+    const data = await api('/api/promotion/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    });
+    if (data.error) {
+      statusEl.textContent = '실패: ' + data.error;
+      statusEl.style.color = '#E74C3C';
+    } else {
+      statusEl.textContent = '홍보 시작됨';
+      statusEl.style.color = '#2ECC71';
+    }
+    updateStatus();
+  }
+
+  async function stopPromotion() {
+    const statusEl = document.getElementById('promotionControlStatus');
+    statusEl.textContent = '중지 중...';
+    const data = await api('/api/promotion/stop', { method: 'POST' });
+    if (data.error) {
+      statusEl.textContent = '실패: ' + data.error;
+      statusEl.style.color = '#E74C3C';
+    } else {
+      statusEl.textContent = '홍보 중지됨';
+      statusEl.style.color = '';
+    }
+    updateStatus();
+  }
+
+  // ═══════════════════════════ 대기 작업 ═══════════════════════════
+  async function loadPendingTasks() {
+    const data = await api('/api/task/pending');
+    const container = document.getElementById('pendingTaskList');
+    const countEl = document.getElementById('pendingTaskCount');
+
+    if (data.error) {
+      container.innerHTML = '<p class="muted">대기 작업 로딩 실패</p>';
+      countEl.textContent = '';
+      return;
+    }
+
+    const tasks = data.tasks || [];
+    if (tasks.length === 0) {
+      container.innerHTML = '<p class="muted">대기 중인 작업이 없습니다</p>';
+      countEl.textContent = '';
+      return;
+    }
+
+    countEl.textContent = tasks.length + '건 대기 중';
+
+    const priorityLabels = { 1: '긴급', 2: '일반', 3: '예약' };
+    const priorityClasses = { 1: 'priority-1', 2: 'priority-2', 3: 'priority-3' };
+
+    let html = '<table class="data-table"><thead><tr>'
+      + '<th>우선순위</th><th>유형</th><th>내용</th><th>등록시간</th><th>상태</th>'
+      + '</tr></thead><tbody>';
+
+    tasks.forEach(t => {
+      const p = t.priority || 2;
+      const pLabel = priorityLabels[p] || '일반';
+      const pClass = priorityClasses[p] || 'priority-2';
+      const content = (t.description || t.message || '-').substring(0, 60);
+      const created = t.created_at ? relativeTime(t.created_at) : '-';
+      const status = t.status || 'pending';
+
+      html += '<tr>'
+        + '<td><span class="priority-badge ' + pClass + '">' + escHtml(pLabel) + '</span></td>'
+        + '<td>' + escHtml(t.type || t.task_type || '-') + '</td>'
+        + '<td title="' + escHtml(t.description || t.message || '') + '">' + escHtml(content) + '</td>'
+        + '<td>' + escHtml(created) + '</td>'
+        + '<td>' + escHtml(status) + '</td>'
+        + '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  // ═══════════════════════════ 홍보 이력 ═══════════════════════════
+  async function loadPromotionHistory() {
+    const data = await api('/api/promotion/history?limit=20');
+    const container = document.getElementById('promotionHistory');
+
+    if (data.error) {
+      container.innerHTML = '<p class="muted">홍보 이력 로딩 실패</p>';
+      return;
+    }
+
+    const history = data.history || [];
+    if (history.length === 0) {
+      container.innerHTML = '<p class="muted">홍보 이력이 없습니다</p>';
+      return;
+    }
+
+    let html = '<table class="data-table"><thead><tr>'
+      + '<th>시간</th><th>캠페인</th><th>채팅방</th><th>결과</th>'
+      + '</tr></thead><tbody>';
+
+    history.forEach(h => {
+      const time = h.timestamp ? relativeTime(h.timestamp) : '-';
+      const campaign = h.campaign || '-';
+      const room = h.chatroom || h.room || '-';
+      const success = h.success || h.result === 'success';
+      const resultText = success ? '성공' : (h.error || '실패');
+      const resultClass = success ? 'result-success' : 'result-fail';
+
+      html += '<tr>'
+        + '<td>' + escHtml(time) + '</td>'
+        + '<td>' + escHtml(campaign) + '</td>'
+        + '<td>' + escHtml(room) + '</td>'
+        + '<td class="' + resultClass + '">' + escHtml(resultText) + '</td>'
+        + '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  // ═══════════════════════════ 로그 ═══════════════════════════
+  async function loadLogs() {
+    const levelFilter = document.getElementById('logLevelFilter') ? document.getElementById('logLevelFilter').value : '';
+    let url = '/api/logs?limit=50';
+    if (levelFilter) url += '&level=' + encodeURIComponent(levelFilter);
+
+    const data = await api(url);
+    const container = document.getElementById('logContainer');
+
+    if (data.error || !data.logs) {
+      container.innerHTML = '<p class="muted">로그 로딩 실패</p>';
+      return;
+    }
+
+    if (data.logs.length === 0) {
+      container.innerHTML = '<p class="muted">로그 없음</p>';
+      return;
+    }
+
+    let html = '';
+    data.logs.forEach(l => {
+      const levelClass = 'log-level-' + (l.level || 'INFO');
+      html += '<div class="log-entry">'
+        + '<span class="log-time">' + escHtml(l.timestamp || '') + '</span>'
+        + '<span class="' + levelClass + '">[' + escHtml(l.level || '') + ']</span> '
+        + '<span>' + escHtml(l.message || '') + '</span>'
+        + '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  // ═══════════════════════════ 자동 갱신 ═══════════════════════════
+  setInterval(updateStatus, 5000);
+  setInterval(() => {
+    // 현재 활성 탭이 홍보 현황이면 이력 자동 갱신
+    const promoTab = document.getElementById('tab-promotion');
+    if (promoTab && promoTab.classList.contains('active')) {
+      loadPromotionHistory();
+      loadPendingTasks();
+    }
+  }, 10000);
+  setInterval(() => {
+    // 현재 활성 탭이 로그이면 자동 갱신
+    const logTab = document.getElementById('tab-logs');
+    if (logTab && logTab.classList.contains('active')) {
+      loadLogs();
+    }
+  }, 10000);
+
+  // ═══════════════════════════ 초기 로드 ═══════════════════════════
+  populateTimeSelects();
+  updateStatus();
+  loadCategories();
+  loadChatrooms();
+  </script>
+</body>
+</html>
