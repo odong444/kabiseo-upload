@@ -232,10 +232,10 @@ def _judge(analysis: dict, capture_type: str) -> dict:
     """Gemini 분석 결과로 최종 판정"""
     problems = analysis.get("문제점", [])
     if not problems or problems == ["정상"]:
-        # 구매캡쳐: 배송유형 체크
+        # 구매캡쳐: 배송유형 체크 ("로켓" 포함이면 전부 차단)
         if capture_type == "purchase":
             delivery = analysis.get("배송유형", "")
-            if delivery in ("로켓배송", "로켓와우"):
+            if delivery and "로켓" in delivery:
                 return {
                     "result": "확인요청",
                     "reason": f"배송유형이 '{delivery}'입니다. 판매자배송으로 구매해야 합니다.",
