@@ -28,6 +28,13 @@ _GEMINI_BASE_URL = (
 PURCHASE_PROMPT_BASE = """이 이미지는 온라인 쇼핑몰(쿠팡/네이버/카카오 등)의 주문 상세 캡쳐입니다.
 다음 정보를 추출하고, 캠페인 기준 정보와 대조하여 검수해주세요.
 이미지에서 보이지 않거나 잘린 항목은 빈 문자열("")로 응답하세요.
+결제금액 등 숫자 값은 콤마 없이 숫자만 입력하세요 (예: "29000").
+
+[필수 추출 항목] - 반드시 확인해야 하는 정보:
+주문번호, 수취인명, 수취인연락처, 주소, 결제금액
+
+[선택 추출 항목] - 보이면 추출:
+상품명, 수량, 배송유형
 
 JSON 형식으로만 응답:
 {
@@ -36,6 +43,7 @@ JSON 형식으로만 응답:
     "수량": "",
     "결제금액": "",
     "수취인명": "",
+    "수취인연락처": "",
     "주소": "",
     "배송유형": "",
     "상품일치": true/false,
@@ -55,17 +63,20 @@ JSON 형식으로만 응답:
 대조 검수 규칙 (유연하게 판단):
 - 상품일치: 캠페인 상품과 동일/유사 상품인지 판단. 상품명이 약간 다르더라도(약어, 브랜드명 생략, 옵션 표기 차이, 용량/색상 표기 방식 차이 등) 실질적으로 같은 상품이면 true. 완전히 다른 상품이면 false.
 - 금액일치: 캠페인 기준 금액과 비교. 쿠폰/할인/적립금 적용으로 소폭 차이(기준 금액의 10% 이내)는 true. 10% 초과 차이는 false. 기준 금액이 제공되지 않은 경우는 true로 처리.
-- 금액비고: 금액일치가 true이더라도 기준 금액과 차이가 있으면 그 차이를 설명 (예: "기준 29,000원 → 실결제 26,500원, 쿠폰 적용 추정"). 차이가 없거나 기준 금액 미제공이면 빈 문자열.
+- 금액비고: 금액일치가 true이더라도 기준 금액과 차이가 있으면 그 차이를 설명 (예: "기준 29000원 → 실결제 26500원, 쿠폰 적용 추정"). 차이가 없거나 기준 금액 미제공이면 빈 문자열.
 - 플랫폼일치: 캡쳐 화면이 캠페인 지정 플랫폼의 주문 화면인지 확인. 플랫폼 정보가 제공되지 않은 경우는 true로 처리.
 
 문제점에는 다음 중 해당하는 것을 배열로 넣어주세요:
 - "상품정보_미확인": 상품명이나 이미지가 잘려서 뭘 구매했는지 확인 불가
 - "주문번호_미확인": 주문번호가 보이지 않음
-- "수취인_미확인": 수취인명이 보이지 않음
+- "수취인_미확인": 수취인명 또는 수취인연락처가 보이지 않음
+- "주소_미확인": 배송 주소가 보이지 않음
+- "결제금액_미확인": 결제금액이 보이지 않음
+- "배송유형_불일치": 추가 검수 지침에서 지정한 배송유형과 다른 배송유형으로 구매함 (예: 판매자배송 필수인데 로켓배송으로 구매)
 - "상품_불일치": 캠페인 상품과 다른 상품을 구매함
 - "금액_불일치": 결제금액이 캠페인 기준 금액과 크게 다름
 - "플랫폼_불일치": 캠페인 지정 플랫폼이 아닌 곳에서 구매함
-- "정상": 모든 정보가 정상적으로 확인됨
+- "정상": 모든 필수 정보가 정상적으로 확인됨
 
 문제점이 없으면 ["정상"]으로 응답하세요."""
 
@@ -220,6 +231,9 @@ _PROBLEM_MESSAGES = {
     "상품정보_미확인": "상품 정보가 확인되지 않습니다",
     "주문번호_미확인": "주문번호가 보이지 않습니다",
     "수취인_미확인": "수취인 정보가 보이지 않습니다",
+    "주소_미확인": "배송 주소가 확인되지 않습니다",
+    "결제금액_미확인": "결제금액이 확인되지 않습니다",
+    "배송유형_불일치": "지정된 배송유형과 다릅니다",
     "상품_불일치": "캠페인 상품과 다른 상품입니다",
     "금액_불일치": "결제금액이 캠페인 기준과 다릅니다",
     "플랫폼_불일치": "캠페인 지정 플랫폼이 아닙니다",
@@ -227,20 +241,16 @@ _PROBLEM_MESSAGES = {
     "리뷰_아님": "리뷰 캡쳐가 아닌 것으로 보입니다",
 }
 
+# 자동반려 대상 문제점 (심각한 위반 → 제출 자체 차단)
+_AUTO_REJECT_PROBLEMS = {"배송유형_불일치"}
+
 
 def _judge(analysis: dict, capture_type: str) -> dict:
     """Gemini 분석 결과로 최종 판정"""
     problems = analysis.get("문제점", [])
     if not problems or problems == ["정상"]:
-        # 구매캡쳐: 배송유형 체크 ("로켓" 포함이면 전부 차단)
+        # 금액 소폭 차이 → 확인요청
         if capture_type == "purchase":
-            delivery = analysis.get("배송유형", "")
-            if delivery and "로켓" in delivery:
-                return {
-                    "result": "확인요청",
-                    "reason": f"배송유형이 '{delivery}'입니다. 판매자배송으로 구매해야 합니다.",
-                }
-            # 금액 소폭 차이 → 확인요청
             price_note = analysis.get("금액비고", "")
             if price_note:
                 return {
@@ -249,6 +259,11 @@ def _judge(analysis: dict, capture_type: str) -> dict:
                 }
         return {"result": "AI검수통과", "reason": "정상"}
     else:
+        # 자동반려 대상 문제가 있으면 자동반려
+        reject_problems = [p for p in problems if p in _AUTO_REJECT_PROBLEMS]
+        if reject_problems:
+            reason_parts = [_PROBLEM_MESSAGES.get(p, p) for p in reject_problems]
+            return {"result": "자동반려", "reason": ". ".join(reason_parts)}
         reason_parts = [_PROBLEM_MESSAGES.get(p, p) for p in problems]
         return {"result": "확인요청", "reason": ". ".join(reason_parts)}
 
@@ -321,10 +336,14 @@ def verify_capture_from_bytes(image_bytes: bytes, mime_type: str,
     # 파싱 데이터 추출 (구매캡쳐일 때)
     parsed = {}
     if capture_type == "purchase":
+        # 결제금액 콤마 제거
+        raw_price = str(analysis.get("결제금액", ""))
+        clean_price = raw_price.replace(",", "").strip()
         parsed = {
             "주문번호": analysis.get("주문번호", ""),
             "수취인명": analysis.get("수취인명", ""),
-            "결제금액": analysis.get("결제금액", ""),
+            "수취인연락처": analysis.get("수취인연락처", ""),
+            "결제금액": clean_price,
             "주소": analysis.get("주소", ""),
             "배송유형": analysis.get("배송유형", ""),
             "상품명": analysis.get("상품명", ""),
@@ -354,8 +373,11 @@ def verify_capture_async(
                 progress_id, capture_type, result["result"],
             )
 
+            # 자동반려 처리 (로켓배송 등 심각한 문제)
+            if result["result"] == "자동반려":
+                _auto_reject(progress_id, capture_type, result["reason"], db_manager)
             # 양쪽 다 AI검수통과 + 리뷰제출 상태 → 자동 승인 (입금대기)
-            if result["result"] == "AI검수통과":
+            elif result["result"] == "AI검수통과":
                 _try_auto_approve(progress_id, db_manager)
 
         except Exception as e:
@@ -363,6 +385,30 @@ def verify_capture_async(
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
+
+
+def _auto_reject(progress_id: int, capture_type: str, reason: str, db_manager):
+    """AI 자동반려 처리 → 캡쳐 URL 삭제 + 상태 되돌림"""
+    try:
+        if capture_type == "purchase":
+            db_manager._execute(
+                """UPDATE progress SET purchase_capture_url = '',
+                   status = '구매캡쳐대기', remark = %s, updated_at = NOW()
+                   WHERE id = %s""",
+                (f"AI 자동반려: {reason}", progress_id),
+            )
+        else:
+            db_manager._execute(
+                """UPDATE progress SET review_capture_url = '',
+                   review_submit_date = NULL,
+                   status = '리뷰대기', remark = %s, updated_at = NOW()
+                   WHERE id = %s""",
+                (f"AI 자동반려: {reason}", progress_id),
+            )
+        logger.info("AI 자동반려: progress=%s type=%s reason=%s",
+                     progress_id, capture_type, reason)
+    except Exception as e:
+        logger.error("AI 자동반려 에러: %s", e)
 
 
 def _try_auto_approve(progress_id: int, db_manager):

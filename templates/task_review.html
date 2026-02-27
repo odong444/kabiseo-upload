@@ -162,6 +162,15 @@
 
         if (result.result === 'AI검수통과') {
             aiResult.innerHTML = `<div class="ai-result ai-pass">AI 검수 통과</div>`;
+        } else if (result.result === '자동반려') {
+            aiResult.innerHTML = `<div class="ai-result ai-reject">
+                <strong>반려</strong>
+                <p>${result.reason}</p>
+                <p class="ai-warn-note">이 캡쳐로는 제출할 수 없습니다. 다시 캡쳐해주세요.</p>
+            </div>`;
+            document.getElementById('reviewCapture').value = '';
+            document.getElementById('filePreview').style.display = 'none';
+            return;
         } else if (result.result === '확인요청') {
             aiResult.innerHTML = `<div class="ai-result ai-warn">
                 <strong>담당자 2차검수 필요</strong>

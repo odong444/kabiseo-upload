@@ -371,6 +371,17 @@
 
         if (result.result === 'AI검수통과') {
             aiResult.innerHTML = `<div class="ai-result ai-pass">AI 검수 통과</div>`;
+        } else if (result.result === '자동반려') {
+            aiResult.innerHTML = `<div class="ai-result ai-reject">
+                <strong>반려</strong>
+                <p>${result.reason}</p>
+                <p class="ai-warn-note">이 캡쳐로는 제출할 수 없습니다. 다시 캡쳐해주세요.</p>
+            </div>`;
+            // 자동반려 시 파일 선택 초기화, 폼 미표시
+            selectedFiles[sid] = null;
+            document.getElementById(`capture_${sid}`).value = '';
+            document.getElementById(`preview_${sid}`).style.display = 'none';
+            return;
         } else if (result.result === '확인요청') {
             aiResult.innerHTML = `<div class="ai-result ai-warn">
                 <strong>담당자 2차검수 필요</strong>
@@ -386,6 +397,7 @@
             const p = result.parsed;
             if (p['주문번호']) document.getElementById(`fOrder_${sid}`).value = p['주문번호'];
             if (p['수취인명']) document.getElementById(`fRecipient_${sid}`).value = p['수취인명'];
+            if (p['수취인연락처']) { const el = document.getElementById(`fPhone_${sid}`); if (el) el.value = p['수취인연락처']; }
             if (p['결제금액']) document.getElementById(`fAmount_${sid}`).value = p['결제금액'];
             if (p['주소']) document.getElementById(`fAddress_${sid}`).value = p['주소'];
         }
