@@ -11,10 +11,17 @@ app.py - Flask 메인 + SocketIO
 
 import eventlet
 eventlet.monkey_patch()
-eventlet.debug.hub_prevent_multiple_readers(False)
 
-from psycogreen.eventlet import patch_psycopg
-patch_psycopg()
+try:
+    eventlet.debug.hub_prevent_multiple_readers(False)
+except Exception:
+    pass
+
+try:
+    from psycogreen.eventlet import patch_psycopg
+    patch_psycopg()
+except Exception:
+    pass
 
 import os
 import logging
