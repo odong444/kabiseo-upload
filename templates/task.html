@@ -27,6 +27,13 @@
 .bank-preset-btn:hover { border-color: #fee500; background: #fffde7; }
 .bank-preset-btn .bp-bank { font-weight: 700; }
 .bank-preset-btn .bp-account { color: #666; }
+.photo-set-gallery { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.photo-set-item { flex: 0 0 auto; }
+.photo-set-item img {
+    width: 120px; height: 120px; object-fit: cover;
+    border-radius: 8px; border: 1px solid #ddd; cursor: pointer;
+}
+.photo-set-item img:hover { border-color: #fee500; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 </style>
 {% endblock %}
 
@@ -145,6 +152,24 @@
             guideHtml += `<div class="task-guide-section">
                 <h3>추가 안내</h3>
                 <div class="task-guide-content">${linkify(c.extra_info)}</div>
+            </div>`;
+        }
+
+        // === 참고 사진 세트 ===
+        const photoSet = taskData.photo_set || [];
+        if (photoSet.length > 0) {
+            let photosHtml = '<div class="photo-set-gallery">';
+            photoSet.forEach(function(url, idx) {
+                photosHtml += `<div class="photo-set-item">
+                    <a href="${url}" target="_blank" rel="noopener">
+                        <img src="${driveToThumb(url)}" alt="참고사진 ${idx+1}" onerror="this.parentNode.parentNode.style.display='none'">
+                    </a>
+                </div>`;
+            });
+            photosHtml += '</div>';
+            guideHtml += `<div class="task-guide-section">
+                <h3>참고 사진 (${photoSet.length}장)</h3>
+                ${photosHtml}
             </div>`;
         }
 

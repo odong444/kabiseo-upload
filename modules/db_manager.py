@@ -250,6 +250,18 @@ CREATE TABLE IF NOT EXISTS site_settings (
     value           TEXT DEFAULT '',
     updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS campaign_photos (
+    id              SERIAL PRIMARY KEY,
+    campaign_id     TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    set_number      INTEGER NOT NULL,
+    file_index      INTEGER NOT NULL DEFAULT 0,
+    drive_url       TEXT NOT NULL,
+    filename        TEXT DEFAULT '',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_campaign_photos_campaign ON campaign_photos(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_photos_set ON campaign_photos(campaign_id, set_number);
 """
 
 
@@ -325,6 +337,11 @@ class DBManager:
                 try:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS ai_purchase_instructions TEXT DEFAULT ''")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS ai_review_instructions TEXT DEFAULT ''")
+                except Exception:
+                    pass
+                # 사진 세트 할당 번호
+                try:
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS photo_set_number INTEGER")
                 except Exception:
                     pass
                 # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
@@ -861,6 +878,7 @@ class DBManager:
             "AI리뷰사유": row.get("ai_review_reason", ""),
             "AI검수시간": row["ai_verified_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("ai_verified_at") else "",
             "AI관리자판정": row.get("ai_override", ""),
+            "사진세트": row.get("photo_set_number"),
         }
         return result
 
@@ -1791,3 +1809,107 @@ class DBManager:
 
     def delete_quote(self, quote_id: int):
         self._execute("DELETE FROM quotes WHERE id = %s", (quote_id,))
+
+    # ─────────── 캠페인 사진 세트 ───────────
+
+    def add_campaign_photo(self, campaign_id: str, set_number: int, file_index: int,
+                           drive_url: str, filename: str = ""):
+        self._execute(
+            """INSERT INTO campaign_photos (campaign_id, set_number, file_index, drive_url, filename)
+               VALUES (%s, %s, %s, %s, %s)""",
+            (campaign_id, set_number, file_index, drive_url, filename),
+        )
+
+    def get_campaign_photo_sets(self, campaign_id: str) -> dict:
+        """캠페인 사진 세트 반환. {1: [{url, filename, file_index}], 2: [...], ...}"""
+        rows = self._fetchall(
+            "SELECT * FROM campaign_photos WHERE campaign_id = %s ORDER BY set_number, file_index",
+            (campaign_id,),
+        )
+        sets: dict[int, list] = {}
+        for r in rows:
+            sn = r["set_number"]
+            sets.setdefault(sn, []).append({
+                "url": r["drive_url"],
+                "filename": r["filename"],
+                "file_index": r["file_index"],
+            })
+        return sets
+
+    def delete_campaign_photos(self, campaign_id: str):
+        self._execute("DELETE FROM campaign_photos WHERE campaign_id = %s", (campaign_id,))
+
+    def get_next_photo_set_number(self, campaign_id: str) -> int | None:
+        """미할당된 가장 작은 세트 번호 반환. 없으면 None."""
+        row = self._fetchone(
+            """SELECT cp.set_number FROM campaign_photos cp
+               WHERE cp.campaign_id = %s
+               AND cp.set_number NOT IN (
+                   SELECT DISTINCT photo_set_number FROM progress
+                   WHERE campaign_id = %s AND photo_set_number IS NOT NULL
+                   AND status NOT IN ('타임아웃취소', '취소')
+               )
+               GROUP BY cp.set_number
+               ORDER BY cp.set_number
+               LIMIT 1""",
+            (campaign_id, campaign_id),
+        )
+        return row["set_number"] if row else None
+
+    def assign_photo_set(self, progress_ids: list[int], set_number: int):
+        """progress 목록에 사진 세트 번호 할당"""
+        if not progress_ids:
+            return
+        placeholders = ", ".join(["%s"] * len(progress_ids))
+        self._execute(
+            f"UPDATE progress SET photo_set_number = %s WHERE id IN ({placeholders})",
+            [set_number] + progress_ids,
+        )
+
+    def get_unassigned_active_progress(self, campaign_id: str) -> list[dict]:
+        """사진 세트 미할당 + 활성 상태 진행건 (reviewer 단위 그룹)
+        Returns: [{"reviewer_id": int, "name": str, "phone": str, "progress_ids": [int, ...], "status": str}, ...]
+        """
+        rows = self._fetchall(
+            """SELECT p.id, p.reviewer_id, p.status, r.name, r.phone
+               FROM progress p
+               JOIN reviewers r ON p.reviewer_id = r.id
+               WHERE p.campaign_id = %s
+               AND p.photo_set_number IS NULL
+               AND p.status NOT IN ('타임아웃취소', '취소', '입금완료')
+               ORDER BY p.created_at""",
+            (campaign_id,),
+        )
+        # reviewer 단위 그룹
+        groups: dict[int, dict] = {}
+        for r in rows:
+            rid = r["reviewer_id"]
+            if rid not in groups:
+                groups[rid] = {
+                    "reviewer_id": rid,
+                    "name": r["name"],
+                    "phone": r["phone"],
+                    "progress_ids": [],
+                    "statuses": set(),
+                }
+            groups[rid]["progress_ids"].append(r["id"])
+            groups[rid]["statuses"].add(r["status"])
+        return list(groups.values())
+
+    def get_photo_set_assignments(self, campaign_id: str) -> dict:
+        """세트별 할당 현황. {set_number: {"name": str, "phone": str} | None}"""
+        photo_sets = self.get_campaign_photo_sets(campaign_id)
+        if not photo_sets:
+            return {}
+        rows = self._fetchall(
+            """SELECT DISTINCT p.photo_set_number, r.name, r.phone
+               FROM progress p
+               JOIN reviewers r ON p.reviewer_id = r.id
+               WHERE p.campaign_id = %s AND p.photo_set_number IS NOT NULL
+               AND p.status NOT IN ('타임아웃취소', '취소')""",
+            (campaign_id,),
+        )
+        assigned = {}
+        for r in rows:
+            assigned[r["photo_set_number"]] = {"name": r["name"], "phone": r["phone"]}
+        return {sn: assigned.get(sn) for sn in photo_sets}

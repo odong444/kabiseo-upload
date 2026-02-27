@@ -347,6 +347,155 @@ def api_promotion_toggle():
     return jsonify({"ok": False, "error": result.get("error", "서버PC 연결 실패")}), 500
 
 
+import re as _re
+
+
+# ──────── 캠페인 사진 세트 ────────
+
+@admin_bp.route("/api/campaign/<campaign_id>/photo-sets", methods=["GET"])
+@admin_required
+def api_campaign_photo_sets(campaign_id):
+    """캠페인 사진 세트 + 할당 현황"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    try:
+        photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
+        assignments = models.db_manager.get_photo_set_assignments(campaign_id)
+        unassigned = models.db_manager.get_unassigned_active_progress(campaign_id)
+        result = {}
+        for sn, photos in photo_sets.items():
+            assigned_to = assignments.get(sn)
+            result[str(sn)] = {
+                "photos": photos,
+                "assigned_to": f"{assigned_to['name']} {assigned_to['phone']}" if assigned_to else None,
+            }
+        return jsonify({
+            "ok": True,
+            "sets": result,
+            "total_sets": len(photo_sets),
+            "unassigned_reviewers": len(unassigned),
+        })
+    except Exception as e:
+        logger.error(f"사진 세트 조회 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+def _parse_photo_set_filename(filename: str) -> tuple[int, int]:
+    """파일명에서 세트번호, 파일인덱스 추출.
+    '2-1.jpg' → (2, 1), '3.jpg' → (3, 0), '1.png' → (1, 0)
+    """
+    name = filename.rsplit(".", 1)[0] if "." in filename else filename
+    m = _re.match(r"^(\d+)(?:-(\d+))?$", name.strip())
+    if m:
+        set_num = int(m.group(1))
+        file_idx = int(m.group(2)) if m.group(2) else 0
+        return set_num, file_idx
+    return 0, 0
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/upload-photos", methods=["POST"])
+@admin_required
+def api_campaign_upload_photos(campaign_id):
+    """사진 세트 업로드 (기존 사진 덮어쓰기)"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    if not models.drive_uploader:
+        return jsonify({"ok": False, "error": "Drive 연결 안됨"}), 503
+
+    files = request.files.getlist("photos")
+    if not files:
+        return jsonify({"ok": False, "error": "파일이 없습니다"}), 400
+
+    try:
+        # 기존 사진 삭제
+        models.db_manager.delete_campaign_photos(campaign_id)
+
+        uploaded = []
+        sets_summary = {}
+        for f in files:
+            if not f or not f.filename:
+                continue
+            set_num, file_idx = _parse_photo_set_filename(f.filename)
+            if set_num <= 0:
+                continue
+
+            link = models.drive_uploader.upload_from_flask_file(
+                f, capture_type="purchase",
+                description=f"캠페인 사진세트 {campaign_id} / 세트{set_num}-{file_idx}",
+            )
+            models.db_manager.add_campaign_photo(campaign_id, set_num, file_idx, link, f.filename)
+            uploaded.append({"set": set_num, "index": file_idx, "url": link})
+            sets_summary.setdefault(set_num, 0)
+            sets_summary[set_num] += 1
+
+        return jsonify({
+            "ok": True,
+            "uploaded": len(uploaded),
+            "sets": {str(k): v for k, v in sorted(sets_summary.items())},
+        })
+    except Exception as e:
+        logger.error(f"사진 업로드 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/distribute-photos", methods=["POST"])
+@admin_required
+def api_campaign_distribute_photos(campaign_id):
+    """미할당 리뷰어에게 사진 세트 배분 + 카톡/웹챗 알림"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    try:
+        photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
+        if not photo_sets:
+            return jsonify({"ok": False, "error": "등록된 사진이 없습니다"}), 400
+
+        unassigned = models.db_manager.get_unassigned_active_progress(campaign_id)
+        if not unassigned:
+            return jsonify({"ok": True, "assigned": 0, "notified": 0, "message": "배분할 리뷰어가 없습니다"})
+
+        campaign = models.db_manager.get_campaign_by_id(campaign_id) or {}
+        campaign_name = campaign.get("캠페인명", "") or campaign.get("상품명", "")
+        web_url = os.environ.get("WEB_URL", "")
+
+        assigned_count = 0
+        notified_count = 0
+        from modules.signal_sender import request_notification
+
+        for group in unassigned:
+            next_set = models.db_manager.get_next_photo_set_number(campaign_id)
+            if next_set is None:
+                break
+
+            models.db_manager.assign_photo_set(group["progress_ids"], next_set)
+            assigned_count += 1
+
+            # 리뷰 미제출자에게만 알림 (리뷰제출, 입금대기, 입금완료 제외)
+            review_done_statuses = {"리뷰제출", "입금대기", "입금완료"}
+            if group["statuses"] & review_done_statuses:
+                continue
+
+            # 카카오톡 알림
+            first_pid = group["progress_ids"][0]
+            task_url = f"{web_url}/task/{first_pid}"
+            msg = (
+                f"[{campaign_name}] 참고 사진이 등록되었습니다.\n\n"
+                f"아래 링크에서 확인해주세요.\n{task_url}"
+                f"\n\n※ 본 메시지는 발신전용입니다."
+            )
+            ok = request_notification(group["name"], group["phone"], msg)
+            if ok:
+                notified_count += 1
+
+        return jsonify({
+            "ok": True,
+            "assigned": assigned_count,
+            "notified": notified_count,
+        })
+    except Exception as e:
+        logger.error(f"사진 배분 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @admin_bp.route("/api/campaigns/<campaign_id>", methods=["DELETE"])
 @admin_required
 def api_campaign_delete(campaign_id):

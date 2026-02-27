@@ -878,6 +878,27 @@ class StepMachine:
         except Exception:
             pass
 
+        # 사진 세트 자동 할당
+        try:
+            photo_sets = self.reviewers.db.get_campaign_photo_sets(campaign_id)
+            if photo_sets:
+                next_set = self.reviewers.db.get_next_photo_set_number(campaign_id)
+                if next_set is not None:
+                    reviewer_obj = self.reviewers.db.get_reviewer(state.name, state.phone)
+                    if reviewer_obj:
+                        pid_rows = self.reviewers.db._fetchall(
+                            """SELECT id FROM progress
+                               WHERE reviewer_id = %s AND campaign_id = %s
+                               AND status NOT IN ('타임아웃취소', '취소')""",
+                            (reviewer_obj["id"], campaign_id),
+                        )
+                        pids = [r["id"] for r in pid_rows]
+                        if pids:
+                            self.reviewers.db.assign_photo_set(pids, next_set)
+                            logger.info("사진세트 %d 할당: %s (%d건)", next_set, state.name, len(pids))
+        except Exception as e:
+            logger.warning("사진세트 자동할당 실패: %s", e)
+
         # 서버PC에 친구추가 요청 (이미 친구가 아닌 경우만)
         try:
             reviewer = self.reviewers.db.get_reviewer(state.name, state.phone)

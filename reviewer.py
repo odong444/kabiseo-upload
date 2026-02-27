@@ -426,6 +426,19 @@ def api_task(progress_id):
         } if campaign else {},
         "siblings": siblings,
     }
+
+    # 사진 세트
+    photo_set_number = row.get("사진세트")
+    if photo_set_number and campaign_id:
+        try:
+            all_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
+            photos = all_sets.get(photo_set_number, [])
+            result["photo_set"] = [p["url"] for p in photos]
+        except Exception:
+            result["photo_set"] = []
+    else:
+        result["photo_set"] = []
+
     return jsonify(result)
 
 

@@ -283,6 +283,9 @@
                                    class="admin-btn admin-btn-sm" onclick="event.stopPropagation();">수정</a>
                                 <a href="{{ url_for('admin.campaign_new', copy=c.get('캠페인ID', '')) }}"
                                    class="admin-btn admin-btn-sm" onclick="event.stopPropagation();" style="background:#f0f4ff;color:#4a6cf7;">복사</a>
+                                <button type="button" class="admin-btn admin-btn-sm"
+                                        onclick="event.stopPropagation(); openPhotoModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');"
+                                        style="background:#fef3c7;color:#92400e;">사진</button>
                                 {% if c.get('상태', '모집중') == '중지' %}
                                 <button type="button" class="admin-btn admin-btn-sm admin-btn-resume"
                                         onclick="event.stopPropagation(); campaignResume('{{ c.get('캠페인ID', '') }}', this);">재개</button>
@@ -375,6 +378,38 @@
         {% else %}
         <p class="admin-empty">등록된 캠페인이 없습니다.</p>
         {% endif %}
+
+        <!-- 사진 세트 모달 -->
+        <div id="photoModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto;">
+            <div style="max-width:640px;margin:40px auto;background:#fff;border-radius:12px;padding:24px;position:relative;">
+                <button onclick="closePhotoModal()" style="position:absolute;top:12px;right:16px;border:none;background:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
+                <h2 style="margin:0 0 4px;" id="photoModalTitle">사진 세트 관리</h2>
+                <p style="color:#64748b;font-size:13px;margin:0 0 16px;" id="photoModalSub"></p>
+
+                <!-- 현황 -->
+                <div id="photoSetsInfo" style="margin-bottom:16px;">
+                    <p style="color:#94a3b8;font-size:13px;">로딩 중...</p>
+                </div>
+
+                <!-- 업로드 -->
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:16px;">
+                    <h3 style="font-size:14px;margin:0 0 8px;color:#334155;">사진 업로드</h3>
+                    <p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">파일명 규칙: 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg ... (세트번호-인덱스)</p>
+                    <input type="file" id="photoFiles" multiple accept="image/*" style="margin-bottom:8px;font-size:13px;">
+                    <div id="photoPreview" style="font-size:12px;color:#64748b;margin-bottom:8px;"></div>
+                    <button onclick="uploadPhotos()" class="admin-btn admin-btn-primary" style="font-size:13px;padding:6px 16px;" id="btnUploadPhotos">업로드</button>
+                    <span id="uploadStatus" style="font-size:13px;margin-left:8px;"></span>
+                </div>
+
+                <!-- 배분 -->
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;">
+                    <h3 style="font-size:14px;margin:0 0 8px;color:#166534;">배분 + 알림</h3>
+                    <p style="font-size:12px;color:#64748b;margin:0 0 8px;">미할당 리뷰어에게 세트를 순차 배분하고, 리뷰 미제출자에게 카톡 알림을 보냅니다.</p>
+                    <button onclick="distributePhotos()" class="admin-btn" style="font-size:13px;padding:6px 16px;background:#16a34a;color:#fff;border-color:#16a34a;" id="btnDistribute">배분 + 알림</button>
+                    <span id="distributeStatus" style="font-size:13px;margin-left:8px;"></span>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script>
@@ -592,6 +627,145 @@
             }
         });
     })();
+
+    // ──── 사진 세트 모달 ────
+
+    var _photoModalCampaignId = '';
+
+    function openPhotoModal(campaignId, campaignName) {
+        _photoModalCampaignId = campaignId;
+        document.getElementById('photoModalTitle').textContent = '사진 세트 관리';
+        document.getElementById('photoModalSub').textContent = campaignName;
+        document.getElementById('photoFiles').value = '';
+        document.getElementById('photoPreview').textContent = '';
+        document.getElementById('uploadStatus').textContent = '';
+        document.getElementById('distributeStatus').textContent = '';
+        document.getElementById('photoModal').style.display = 'block';
+        loadPhotoSets();
+    }
+
+    function closePhotoModal() {
+        document.getElementById('photoModal').style.display = 'none';
+    }
+
+    // 모달 배경 클릭으로 닫기
+    document.getElementById('photoModal').addEventListener('click', function(e) {
+        if (e.target === this) closePhotoModal();
+    });
+
+    function loadPhotoSets() {
+        var container = document.getElementById('photoSetsInfo');
+        container.innerHTML = '<p style="color:#94a3b8;font-size:13px;">로딩 중...</p>';
+        fetch('/admin/api/campaign/' + _photoModalCampaignId + '/photo-sets')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.ok) { container.innerHTML = '<p style="color:#ef4444;">조회 실패</p>'; return; }
+                var sets = data.sets || {};
+                var keys = Object.keys(sets).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+                if (keys.length === 0) {
+                    container.innerHTML = '<p style="color:#94a3b8;font-size:13px;">등록된 사진이 없습니다.</p>';
+                    document.getElementById('btnDistribute').disabled = true;
+                    return;
+                }
+                document.getElementById('btnDistribute').disabled = false;
+                var html = '<div style="font-size:13px;margin-bottom:8px;"><strong>' + data.total_sets + '세트</strong> 등록 / <strong>' + data.unassigned_reviewers + '명</strong> 미할당</div>';
+                html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
+                html += '<thead><tr style="border-bottom:1px solid #e2e8f0;"><th style="text-align:left;padding:4px 8px;">세트</th><th style="text-align:left;padding:4px 8px;">사진 수</th><th style="text-align:left;padding:4px 8px;">할당</th></tr></thead><tbody>';
+                keys.forEach(function(sn) {
+                    var s = sets[sn];
+                    var assignText = s.assigned_to ? '<span style="color:#16a34a;">' + s.assigned_to + '</span>' : '<span style="color:#94a3b8;">미할당</span>';
+                    html += '<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:4px 8px;">세트 ' + sn + '</td><td style="padding:4px 8px;">' + s.photos.length + '장</td><td style="padding:4px 8px;">' + assignText + '</td></tr>';
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            })
+            .catch(function() { container.innerHTML = '<p style="color:#ef4444;">연결 실패</p>'; });
+    }
+
+    // 파일 선택 시 미리보기
+    document.getElementById('photoFiles').addEventListener('change', function() {
+        var files = this.files;
+        if (!files || files.length === 0) { document.getElementById('photoPreview').textContent = ''; return; }
+        var setMap = {};
+        for (var i = 0; i < files.length; i++) {
+            var name = files[i].name.replace(/\.[^.]+$/, '').trim();
+            var m = name.match(/^(\d+)(?:-(\d+))?$/);
+            if (m) {
+                var sn = parseInt(m[1]);
+                setMap[sn] = (setMap[sn] || 0) + 1;
+            }
+        }
+        var keys = Object.keys(setMap).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+        if (keys.length === 0) {
+            document.getElementById('photoPreview').textContent = '파일명 형식이 맞지 않습니다 (예: 1.jpg, 2-1.jpg)';
+            document.getElementById('photoPreview').style.color = '#ef4444';
+            return;
+        }
+        var summary = keys.map(function(k) { return '세트' + k + ': ' + setMap[k] + '장'; }).join(', ');
+        document.getElementById('photoPreview').textContent = keys.length + '세트 — ' + summary;
+        document.getElementById('photoPreview').style.color = '#64748b';
+    });
+
+    function uploadPhotos() {
+        var files = document.getElementById('photoFiles').files;
+        if (!files || files.length === 0) { alert('파일을 선택하세요'); return; }
+        var btn = document.getElementById('btnUploadPhotos');
+        var status = document.getElementById('uploadStatus');
+        btn.disabled = true;
+        status.textContent = '업로드 중...';
+        status.style.color = '#64748b';
+
+        var formData = new FormData();
+        for (var i = 0; i < files.length; i++) {
+            formData.append('photos', files[i]);
+        }
+
+        fetch('/admin/api/campaign/' + _photoModalCampaignId + '/upload-photos', {
+            method: 'POST',
+            body: formData,
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.ok) {
+                status.textContent = data.uploaded + '장 업로드 완료';
+                status.style.color = '#16a34a';
+                loadPhotoSets();
+            } else {
+                status.textContent = '실패: ' + (data.error || '');
+                status.style.color = '#ef4444';
+            }
+        })
+        .catch(function() { btn.disabled = false; status.textContent = '연결 실패'; status.style.color = '#ef4444'; });
+    }
+
+    function distributePhotos() {
+        var btn = document.getElementById('btnDistribute');
+        var status = document.getElementById('distributeStatus');
+        if (!confirm('미할당 리뷰어에게 사진 세트를 배분하고 카톡 알림을 보내시겠습니까?')) return;
+        btn.disabled = true;
+        status.textContent = '배분 중...';
+        status.style.color = '#64748b';
+
+        fetch('/admin/api/campaign/' + _photoModalCampaignId + '/distribute-photos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.ok) {
+                status.textContent = data.assigned + '명 배분, ' + data.notified + '명 카톡 알림 완료';
+                status.style.color = '#16a34a';
+                if (data.message) status.textContent = data.message;
+                loadPhotoSets();
+            } else {
+                status.textContent = '실패: ' + (data.error || '');
+                status.style.color = '#ef4444';
+            }
+        })
+        .catch(function() { btn.disabled = false; status.textContent = '연결 실패'; status.style.color = '#ef4444'; });
+    }
     </script>
 </body>
 </html>
