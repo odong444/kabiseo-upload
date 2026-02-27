@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}캠페인 신청 - 카비서{% endblock %}
+{% block head %}
+<script src="{{ url_for('static', filename='js/reviewer.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <a href="/c/{{ campaign_id }}" class="back-link-top">&lt; 캠페인 상세</a>
+    <h1 class="page-title">캠페인 신청</h1>
+
+    <div id="applyContainer" class="loading">불러오는 중...</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const campaignId = '{{ campaign_id }}';
+    const user = Reviewer.requireLogin();
+    if (!user) return;
+
+    let campaign = null;
+    let usedIds = [];
+    let accountCount = 1;
+
+    async function load() {
+        const [campaignData, idsData] = await Promise.all([
+            Reviewer.apiGet(`/api/campaign/${campaignId}`),
+            Reviewer.apiGet('/api/user/store-ids'),
+        ]);
+
+        campaign = campaignData;
+        usedIds = (idsData.ids || []);
+
+        if (campaign.error) {
+            document.getElementById('applyContainer').innerHTML =
+                '<div class="empty-state"><p>캠페인을 찾을 수 없습니다.</p></div>';
+            return;
+        }
+
+        renderStep1();
+    }
+
+    function renderStep1() {
+        const container = document.getElementById('applyContainer');
+        const maxCount = Math.min(campaign.remaining, campaign.daily_remaining >= 0 ? campaign.daily_remaining : 99);
+
+        container.innerHTML = `
+            <div class="apply-campaign-info">
+                <h2 class="apply-campaign-name">${campaign.name}</h2>
+                <p class="apply-campaign-store">${campaign.store || ''}</p>
+                <p class="apply-campaign-remaining">잔여 ${campaign.remaining}자리</p>
+            </div>
+
+            <div class="apply-step">
+                <h3 class="apply-step-title">참여 계정 수</h3>
+                <div class="apply-count-selector">
+                    <button type="button" class="count-btn count-minus" onclick="changeCount(-1)">-</button>
+                    <span id="countDisplay" class="count-display">1</span>
+                    <button type="button" class="count-btn count-plus" onclick="changeCount(1)">+</button>
+                </div>
+                <p class="apply-count-hint">최대 ${maxCount}개</p>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-full" onclick="goStep2()">다음</button>
+        `;
+
+        window.changeCount = function(delta) {
+            accountCount = Math.max(1, Math.min(maxCount, accountCount + delta));
+            document.getElementById('countDisplay').textContent = accountCount;
+        };
+
+        window.goStep2 = renderStep2;
+    }
+
+    function renderStep2() {
+        const container = document.getElementById('applyContainer');
+        let inputsHtml = '';
+
+        for (let i = 0; i < accountCount; i++) {
+            const suggestHtml = usedIds.length > 0 && i === 0
+                ? `<div class="apply-id-suggest">
+                    <span class="suggest-label">이전 아이디:</span>
+                    ${usedIds.map(id => `<button type="button" class="suggest-btn" onclick="fillId(${i},'${id}')">${id}</button>`).join('')}
+                   </div>`
+                : '';
+
+            inputsHtml += `
+                <div class="apply-id-group">
+                    <label>아이디 ${accountCount > 1 ? (i + 1) : ''}</label>
+                    <input type="text" id="storeId${i}" class="apply-id-input"
+                           placeholder="쿠팡/네이버 아이디 입력" autocomplete="off">
+                    ${suggestHtml}
+                </div>
+            `;
+        }
+
+        container.innerHTML = `
+            <div class="apply-campaign-info">
+                <h2 class="apply-campaign-name">${campaign.name}</h2>
+                <p class="apply-campaign-store">${campaign.store || ''} | ${accountCount}개 계정</p>
+            </div>
+
+            <div class="apply-step">
+                <h3 class="apply-step-title">아이디 입력</h3>
+                ${inputsHtml}
+            </div>
+
+            <div class="apply-actions">
+                <button type="button" class="btn btn-outline" onclick="goBack()">이전</button>
+                <button type="button" id="submitBtn" class="btn btn-primary" onclick="submitApply()" style="flex:1">신청하기</button>
+            </div>
+        `;
+
+        window.fillId = function(idx, id) {
+            document.getElementById('storeId' + idx).value = id;
+        };
+
+        window.goBack = renderStep1;
+    }
+
+    window.submitApply = async function() {
+        const storeIds = [];
+        for (let i = 0; i < accountCount; i++) {
+            const val = document.getElementById('storeId' + i).value.trim();
+            if (!val) {
+                Reviewer.toast('아이디를 모두 입력해주세요.', 'error');
+                return;
+            }
+            storeIds.push(val);
+        }
+
+        // 중복 체크
+        const unique = new Set(storeIds);
+        if (unique.size !== storeIds.length) {
+            Reviewer.toast('중복된 아이디가 있습니다.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.textContent = '신청 중...';
+
+        const result = await Reviewer.apiPost('/api/apply', {
+            name: user.name,
+            phone: user.phone,
+            campaign_id: campaignId,
+            store_ids: storeIds,
+        });
+
+        if (result.ok) {
+            // 성공 시 task 페이지로 이동
+            const successIds = result.results.filter(r => r.ok);
+            if (successIds.length === 1) {
+                window.location.href = `/task/${successIds[0].progress_id}`;
+            } else {
+                // 복수 건 → 내 작업 페이지
+                Reviewer.toast(result.message, 'success');
+                setTimeout(() => { window.location.href = '/my'; }, 1000);
+            }
+        } else {
+            Reviewer.toast(result.error || result.message || '신청 실패', 'error');
+            btn.disabled = false;
+            btn.textContent = '신청하기';
+
+            // 부분 성공 표시
+            if (result.results) {
+                for (const r of result.results) {
+                    if (!r.ok) {
+                        Reviewer.toast(`${r.store_id}: ${r.error}`, 'error');
+                    }
+                }
+            }
+        }
+    };
+
+    load();
+})();
+</script>
+{% endblock %}

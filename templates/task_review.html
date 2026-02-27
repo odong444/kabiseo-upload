@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}리뷰 제출 - 카비서{% endblock %}
+{% block head %}
+<script src="{{ url_for('static', filename='js/reviewer.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <div id="reviewContainer" class="loading">불러오는 중...</div>
+</div>
+{% endblock %}
+
+{% block nav %}
+<nav class="bottom-nav">
+    <a href="/campaigns" class="nav-item">
+        <span class="nav-icon">&#x1f4cb;</span>
+        <span class="nav-label">캠페인</span>
+    </a>
+    <a href="/my" class="nav-item">
+        <span class="nav-icon">&#x1f4dd;</span>
+        <span class="nav-label">내작업</span>
+    </a>
+    <a href="/upload" class="nav-item">
+        <span class="nav-icon">&#x1f4f7;</span>
+        <span class="nav-label">리뷰제출</span>
+    </a>
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#x1f4ac;</span>
+        <span class="nav-label">문의</span>
+    </a>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const progressId = {{ progress_id }};
+    const user = Reviewer.requireLogin();
+    if (!user) return;
+
+    let taskData = null;
+
+    async function load() {
+        taskData = await Reviewer.apiCall(`/api/task/${progressId}`);
+        const container = document.getElementById('reviewContainer');
+
+        if (taskData.error) {
+            container.innerHTML = '<div class="empty-state"><p>건을 찾을 수 없습니다.</p><a href="/my" class="back-link">내 작업으로</a></div>';
+            return;
+        }
+
+        // 이미 리뷰 제출 완료인 경우
+        if (['리뷰제출', '입금대기', '입금완료'].includes(taskData.status)) {
+            container.innerHTML = `
+                <div class="task-done">
+                    <h2>리뷰 제출 완료</h2>
+                    <p>${taskData.product_name} (${taskData.store_id})</p>
+                    <p>현재 상태: ${taskData.status}</p>
+                    <a href="/my" class="back-link">내 작업으로</a>
+                </div>
+            `;
+            return;
+        }
+
+        renderReview();
+    }
+
+    function renderReview() {
+        const container = document.getElementById('reviewContainer');
+        const c = taskData.campaign || {};
+
+        let reviewGuide = '';
+        if (c.review_guide) {
+            reviewGuide = `<div class="task-guide-section">
+                <h3>리뷰 가이드</h3>
+                <div class="task-guide-content">${c.review_guide.replace(/\n/g, '<br>')}</div>
+            </div>`;
+        }
+
+        // 반려 사유 표시
+        let rejectNotice = '';
+        if (taskData.remark && taskData.remark.startsWith('반려')) {
+            rejectNotice = `<div class="task-reject-notice">${taskData.remark}</div>`;
+        }
+
+        container.innerHTML = `
+            <a href="/my" class="back-link-top">&lt; 내 작업</a>
+
+            <div class="task-header">
+                <h2 class="task-title">${taskData.product_name}</h2>
+                <p class="task-subtitle">${taskData.store_name || ''} | ${taskData.store_id}</p>
+                ${Reviewer.statusBadge(taskData.status)}
+            </div>
+
+            ${rejectNotice}
+            ${reviewGuide}
+
+            <div class="task-divider"></div>
+
+            <div class="task-capture-section">
+                <h3>리뷰 캡쳐 업로드</h3>
+                <p class="task-capture-hint">작성한 리뷰 화면을 캡쳐해주세요.</p>
+
+                <div class="task-capture-upload">
+                    <label class="file-select-label">
+                        <input type="file" id="captureFile" accept="image/*" class="file-input" onchange="onFileSelect(this)">
+                        <span id="fileSelectBtn" class="file-select-btn">캡쳐 선택</span>
+                    </label>
+                    <div id="filePreview" style="display:none"></div>
+                </div>
+
+                <div id="aiResult" style="display:none"></div>
+
+                <button type="button" id="submitReview" class="btn btn-primary btn-full" onclick="submitReview()" disabled style="margin-top:16px">
+                    리뷰 캡쳐 제출
+                </button>
+            </div>
+        `;
+    }
+
+    let selectedFile = null;
+
+    window.onFileSelect = function(input) {
+        const file = input.files[0];
+        if (!file) return;
+        selectedFile = file;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('filePreview').innerHTML =
+                `<img src="${e.target.result}" class="capture-preview">`;
+            document.getElementById('filePreview').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+
+        document.getElementById('fileSelectBtn').textContent = file.name;
+
+        // AI 검수
+        runAiVerify(file);
+    };
+
+    async function runAiVerify(file) {
+        const aiResult = document.getElementById('aiResult');
+        aiResult.style.display = 'block';
+        aiResult.innerHTML = `<div class="ai-verifying">
+            <div class="reviewer-spinner-sm"></div>
+            <span>AI 검수중...</span>
+        </div>`;
+
+        const formData = new FormData();
+        formData.append('capture', file);
+        formData.append('capture_type', 'review');
+        formData.append('campaign_id', taskData.campaign_id);
+
+        const result = await Reviewer.apiPostForm('/api/verify-capture', formData);
+
+        if (!result.ok) {
+            aiResult.innerHTML = `<div class="ai-result ai-error">AI 검수 실패: ${result.error || '알 수 없는 오류'}</div>`;
+            document.getElementById('submitReview').disabled = false;
+            return;
+        }
+
+        if (result.result === 'AI검수통과') {
+            aiResult.innerHTML = `<div class="ai-result ai-pass">AI 검수 통과</div>`;
+        } else if (result.result === '확인요청') {
+            aiResult.innerHTML = `<div class="ai-result ai-warn">
+                <strong>담당자 2차검수 필요</strong>
+                <p>${result.reason}</p>
+                <p class="ai-warn-note">제출은 가능하지만, 담당자 확인이 필요합니다.</p>
+            </div>`;
+        } else {
+            aiResult.innerHTML = `<div class="ai-result ai-error">검수 오류: ${result.reason}</div>`;
+        }
+
+        document.getElementById('submitReview').disabled = false;
+    }
+
+    window.submitReview = async function() {
+        if (!selectedFile) {
+            Reviewer.toast('캡쳐를 먼저 선택해주세요.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('submitReview');
+        btn.disabled = true;
+        btn.textContent = '제출 중...';
+
+        const formData = new FormData();
+        formData.append('capture', selectedFile);
+
+        const result = await Reviewer.apiPostForm(`/api/task/${progressId}/review`, formData);
+
+        if (result.ok) {
+            Reviewer.toast('리뷰 캡쳐 제출 완료!', 'success');
+            setTimeout(() => { window.location.href = '/my'; }, 1200);
+        } else {
+            Reviewer.toast(result.error || '제출 실패', 'error');
+            btn.disabled = false;
+            btn.textContent = '리뷰 캡쳐 제출';
+        }
+    };
+
+    load();
+})();
+</script>
+{% endblock %}

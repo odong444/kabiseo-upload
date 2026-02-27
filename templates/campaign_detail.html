@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}캠페인 상세 - 카비서{% endblock %}
+{% block head %}
+<script src="{{ url_for('static', filename='js/reviewer.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-content">
+    <div id="campaignDetail" class="loading">불러오는 중...</div>
+</div>
+{% endblock %}
+
+{% block nav %}
+<nav class="bottom-nav">
+    <a href="/campaigns" class="nav-item">
+        <span class="nav-icon">&#x1f4cb;</span>
+        <span class="nav-label">캠페인</span>
+    </a>
+    <a href="/my" class="nav-item">
+        <span class="nav-icon">&#x1f4dd;</span>
+        <span class="nav-label">내작업</span>
+    </a>
+    <a href="/upload" class="nav-item">
+        <span class="nav-icon">&#x1f4f7;</span>
+        <span class="nav-label">리뷰제출</span>
+    </a>
+    <a href="/chat" class="nav-item">
+        <span class="nav-icon">&#x1f4ac;</span>
+        <span class="nav-label">문의</span>
+    </a>
+</nav>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const campaignId = '{{ campaign_id }}';
+    const user = Reviewer.getUser();
+
+    async function load() {
+        const c = await Reviewer.apiGet(`/api/campaign/${campaignId}`);
+        const container = document.getElementById('campaignDetail');
+
+        if (c.error === 'not_found') {
+            container.innerHTML = '<div class="empty-state"><p>캠페인을 찾을 수 없습니다.</p><a href="/campaigns" class="back-link">목록으로</a></div>';
+            return;
+        }
+
+        const closed = c.remaining <= 0 || c.status === '마감' || c.status === '중지';
+        const dailyClosed = c.daily_remaining === 0;
+        const buyTimeClosed = !c.buy_time_active && c.buy_time;
+
+        let guideHtml = '';
+        if (c.campaign_guide) {
+            guideHtml += `<div class="detail-section">
+                <h3 class="detail-section-title">캠페인 가이드</h3>
+                <div class="detail-guide-text">${c.campaign_guide.replace(/\n/g, '<br>')}</div>
+            </div>`;
+        }
+
+        let infoRows = '';
+        if (c.platform) infoRows += `<div class="detail-info-row"><span class="label">플랫폼</span><span>${c.platform}</span></div>`;
+        if (c.keyword) infoRows += `<div class="detail-info-row"><span class="label">키워드</span><span>${c.keyword}</span></div>`;
+        if (c.options) infoRows += `<div class="detail-info-row"><span class="label">옵션</span><span>${c.options}</span></div>`;
+        if (c.product_price) infoRows += `<div class="detail-info-row"><span class="label">상품금액</span><span>${Reviewer.formatNumber(c.product_price)}원</span></div>`;
+        if (c.payment_amount) infoRows += `<div class="detail-info-row"><span class="label">결제금액</span><span>${Reviewer.formatNumber(c.payment_amount)}원</span></div>`;
+        if (c.review_fee) infoRows += `<div class="detail-info-row"><span class="label">리뷰비</span><span>${Reviewer.formatNumber(c.review_fee)}원</span></div>`;
+        if (c.dwell_time) infoRows += `<div class="detail-info-row"><span class="label">체류시간</span><span>${c.dwell_time}</span></div>`;
+        if (c.buy_time) infoRows += `<div class="detail-info-row"><span class="label">구매시간</span><span>${c.buy_time}</span></div>`;
+        if (c.entry_method) infoRows += `<div class="detail-info-row"><span class="label">유입방식</span><span>${c.entry_method}</span></div>`;
+        if (c.bookmark_required === 'Y') infoRows += `<div class="detail-info-row"><span class="label">상품찜</span><span>필수</span></div>`;
+        if (c.alert_required === 'Y') infoRows += `<div class="detail-info-row"><span class="label">알림받기</span><span>필수</span></div>`;
+        if (c.ship_memo_required === 'Y') {
+            infoRows += `<div class="detail-info-row"><span class="label">배송메모</span><span>${c.ship_memo_content || '필수'}</span></div>`;
+        }
+
+        let myIdsHtml = '';
+        if (c.my_ids && c.my_ids.length > 0) {
+            myIdsHtml = `<div class="detail-my-ids">
+                <span class="label">내 진행 아이디:</span> ${c.my_ids.join(', ')}
+            </div>`;
+        }
+
+        let actionHtml = '';
+        if (closed) {
+            actionHtml = '<button class="btn btn-primary btn-full" disabled>모집 마감</button>';
+        } else if (dailyClosed) {
+            actionHtml = '<button class="btn btn-primary btn-full" disabled>금일 마감</button>';
+        } else if (buyTimeClosed) {
+            actionHtml = `<button class="btn btn-primary btn-full" disabled>구매가능시간 외 (${c.buy_time})</button>`;
+        } else if (!user) {
+            actionHtml = `<a href="/" class="btn btn-primary btn-full">로그인 후 신청</a>`;
+        } else {
+            actionHtml = `<a href="/apply/${campaignId}" class="btn btn-primary btn-full">신청하기</a>`;
+        }
+
+        container.innerHTML = `
+            <a href="/campaigns" class="back-link-top">&lt; 캠페인 목록</a>
+
+            ${c.product_image ? `<div class="detail-image"><img src="${c.product_image}" alt="상품 이미지"></div>` : ''}
+
+            <h1 class="detail-title">${c.name}</h1>
+            <p class="detail-store">${c.store || ''}</p>
+
+            <div class="detail-stats">
+                <div class="detail-stat">
+                    <span class="detail-stat-number">${c.remaining}</span>
+                    <span class="detail-stat-label">잔여</span>
+                </div>
+                <div class="detail-stat">
+                    <span class="detail-stat-number">${c.total}</span>
+                    <span class="detail-stat-label">총수량</span>
+                </div>
+                ${c.review_fee ? `<div class="detail-stat">
+                    <span class="detail-stat-number">${Reviewer.formatNumber(c.review_fee)}</span>
+                    <span class="detail-stat-label">리뷰비</span>
+                </div>` : ''}
+            </div>
+
+            <div class="detail-info">${infoRows}</div>
+
+            ${guideHtml}
+
+            ${c.extra_info ? `<div class="detail-section">
+                <h3 class="detail-section-title">추가 안내</h3>
+                <div class="detail-guide-text">${c.extra_info.replace(/\n/g, '<br>')}</div>
+            </div>` : ''}
+
+            ${myIdsHtml}
+
+            <div class="detail-action">${actionHtml}</div>
+        `;
+    }
+
+    load();
+})();
+</script>
+{% endblock %}

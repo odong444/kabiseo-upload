@@ -36,7 +36,7 @@
         try {
             const user = JSON.parse(saved);
             if (user.name && user.phone) {
-                window.location.href = '/chat';
+                window.location.href = '/campaigns';
                 return;
             }
         } catch(e) {}
@@ -66,7 +66,7 @@
         }
 
         localStorage.setItem('kabiseo_user', JSON.stringify({name, phone}));
-        window.location.href = '/chat';
+        window.location.href = '/campaigns';
     });
 })();
 </script>

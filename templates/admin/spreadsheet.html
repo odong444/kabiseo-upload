@@ -137,6 +137,95 @@
         font-weight: 600;
     }
     .btn-kakao:hover { background: #e6cf00; }
+    .btn-capture {
+        display: inline-block;
+        padding: 2px 6px;
+        border: none;
+        border-radius: 4px;
+        font-size: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        margin: 1px;
+    }
+    .btn-capture.purchase {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+    .btn-capture.purchase:hover { background: #bfdbfe; }
+    .btn-capture.review {
+        background: #dcfce7;
+        color: #15803d;
+    }
+    .btn-capture.review:hover { background: #bbf7d0; }
+    .capture-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.6);
+        z-index: 2000;
+        justify-content: center;
+        align-items: center;
+    }
+    .capture-modal-overlay.open { display: flex; }
+    .capture-modal {
+        background: #fff;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 800px;
+        height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    }
+    .capture-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 20px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .capture-modal-header h3 { margin: 0; font-size: 16px; }
+    .capture-modal-close {
+        border: none; background: none; font-size: 22px; cursor: pointer; color: #666;
+    }
+    .capture-modal-body {
+        flex: 1;
+        padding: 16px;
+        overflow: hidden;
+        min-height: 0;
+    }
+    .capture-modal-body .img-col {
+        width: 100%;
+        height: 100%;
+    }
+    .capture-modal-body .img-col #captureImg {
+        width: 100%;
+        height: 100%;
+    }
+    .capture-modal-body .img-col #captureImg iframe {
+        width: 100%;
+        height: 100%;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fafafa;
+    }
+    .capture-modal-body .img-col iframe {
+        width: 100%;
+        height: 100%;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fafafa;
+    }
+    .capture-modal-body .img-col .no-img {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #9ca3af;
+        font-size: 14px;
+        border: 1px dashed #ddd;
+        border-radius: 8px;
+    }
     .bulk-bar {
         display: flex;
         gap: 8px;
@@ -245,9 +334,11 @@
             <div id="timeoutList"></div>
         </div>
 
-        <div class="result-count" style="display:flex;align-items:center;gap:16px;">
+        <div class="result-count" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
             <span>검색 결과: <strong>{{ items|default([])|length }}</strong>건</span>
             <button class="btn-kakao" style="font-size:13px;padding:6px 16px;" onclick="bulkKakao()">선택 카톡 발송</button>
+            <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:600;cursor:pointer;" onclick="runAiBatch()">AI 일괄검수</button>
+            <span id="aiBatchResult" style="font-size:13px;color:#888;"></span>
         </div>
 
         <!-- Table -->
@@ -258,7 +349,7 @@
                     <tr>
                         <th style="width:30px;"><input type="checkbox" id="checkAll"></th>
                         <th>ID</th>
-                        <th>날짜</th>
+                        <th>신청일시</th>
                         <th>제품명</th>
                         <th>진행자</th>
                         <th>수취인명</th>
@@ -274,6 +365,7 @@
                         <th>리뷰기한</th>
                         <th>리뷰비</th>
                         <th>입금금액</th>
+                        <th>AI검수</th>
                         <th>비고</th>
                         <th></th>
                     </tr>
@@ -305,7 +397,26 @@
                         <td class="editable" data-field="리뷰기한">{{ item.get('리뷰기한', '') }}</td>
                         <td class="editable" data-field="리뷰비">{{ item.get('리뷰비', '') }}</td>
                         <td class="editable" data-field="입금금액">{{ item.get('입금금액', '') }}</td>
-                        <td class="editable" data-field="비고">{{ item.get('비고', '') }}</td>
+                        <td class="readonly" style="white-space:nowrap;">
+                            {% set ai_p = item.get('AI구매검수', '') %}
+                            {% set ai_r = item.get('AI리뷰검수', '') %}
+                            {% if ai_p == '확인요청' or ai_r == '확인요청' %}
+                                <span style="background:#fef2f2;color:#dc2626;padding:1px 4px;border-radius:3px;font-size:10px;font-weight:600;" title="{{ item.get('AI구매사유', '') }} {{ item.get('AI리뷰사유', '') }}">확인요청</span>
+                            {% elif ai_p == 'AI검수통과' or ai_r == 'AI검수통과' %}
+                                <span style="color:#16a34a;font-size:10px;font-weight:600;">통과</span>
+                            {% elif ai_p or ai_r %}
+                                <span style="color:#888;font-size:10px;">{{ ai_p or ai_r }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="editable" data-field="비고" style="max-width:250px;">
+                            <span class="remark-text">{{ item.get('비고', '') }}</span>
+                            {% if item.get('구매캡쳐링크') %}
+                            <button class="btn-capture purchase" onclick="event.stopPropagation();openCapture({{ item.get('_row_idx', 0) }},'purchase')" title="구매내역 캡쳐 보기">구매캡쳐</button>
+                            {% endif %}
+                            {% if item.get('리뷰캡쳐링크') %}
+                            <button class="btn-capture review" onclick="event.stopPropagation();openCapture({{ item.get('_row_idx', 0) }},'review')" title="리뷰 캡쳐 보기">리뷰사진</button>
+                            {% endif %}
+                        </td>
                         <td style="white-space:nowrap;">
                             <button class="btn-kakao" onclick="sendKakao({{ item.get('_row_idx', 0) }})">카톡</button>
                             <button class="btn-delete" onclick="deleteRow(this, '{{ item.get('_row_idx', '') }}')">삭제</button>
@@ -336,7 +447,68 @@
         </div>
     </div>
 
+    <!-- 캡쳐 이미지 모달 -->
+    <div id="captureModal" class="capture-modal-overlay">
+        <div class="capture-modal">
+            <div class="capture-modal-header">
+                <h3 id="captureModalTitle">캡쳐 보기</h3>
+                <button class="capture-modal-close" onclick="closeCapture()">&times;</button>
+            </div>
+            <div class="capture-modal-body">
+                <div class="img-col" style="flex:1;">
+                    <div id="captureImg"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
+    // --- Capture Data ---
+    var CAPTURE_DATA = {
+        {% for item in items %}
+        {{ item.get('_row_idx', 0) }}: {
+            purchase: {{ item.get('구매캡쳐링크', '')|tojson }},
+            review: {{ item.get('리뷰캡쳐링크', '')|tojson }}
+        },
+        {% endfor %}
+    };
+
+    function drivePreviewUrl(link) {
+        if (!link) return '';
+        var m = link.match(/\/d\/([^\/]+)/);
+        if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
+        return link;
+    }
+
+    function renderCaptureFrame(containerId, link) {
+        var el = document.getElementById(containerId);
+        var previewUrl = drivePreviewUrl(link);
+        if (previewUrl) {
+            el.innerHTML = '<iframe src="' + previewUrl + '" frameborder="0" allowfullscreen></iframe>';
+        } else {
+            el.innerHTML = '<div class="no-img">미제출</div>';
+        }
+    }
+
+    function openCapture(progressId, type) {
+        var data = CAPTURE_DATA[progressId];
+        if (!data) return;
+        var title = type === 'purchase' ? '구매내역 캡쳐' : '리뷰 캡쳐';
+        var link = type === 'purchase' ? data.purchase : data.review;
+        document.getElementById('captureModalTitle').textContent = title + ' (ID: ' + progressId + ')';
+        renderCaptureFrame('captureImg', link);
+        document.getElementById('captureModal').classList.add('open');
+    }
+
+    function closeCapture() {
+        document.getElementById('captureModal').classList.remove('open');
+        document.getElementById('captureImg').innerHTML = '';
+    }
+
+    document.getElementById('captureModal').addEventListener('click', function(e) {
+        if (e.target === this) closeCapture();
+    });
+
     // --- Kakao Send ---
     var _kakaoIds = [];
 
@@ -345,6 +517,32 @@
         document.getElementById('kakaoTarget').textContent = '대상: 1건';
         document.getElementById('kakaoMessage').value = '';
         document.getElementById('kakaoModal').style.display = 'flex';
+    }
+
+    function runAiBatch() {
+        if (!confirm('캡쳐 URL이 있고 AI 검수가 안 된 건을 일괄 검수합니다.\n진행하시겠습니까?')) return;
+        var el = document.getElementById('aiBatchResult');
+        el.textContent = '검수 실행 중...';
+        el.style.color = '#1d4ed8';
+        fetch('/admin/api/ai-verify/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ limit: 100 })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                el.textContent = data.message + ' (백그라운드 처리 중, 잠시 후 새로고침)';
+                el.style.color = '#16a34a';
+            } else {
+                el.textContent = '오류: ' + (data.message || '');
+                el.style.color = '#dc2626';
+            }
+        })
+        .catch(function() {
+            el.textContent = '네트워크 오류';
+            el.style.color = '#dc2626';
+        });
     }
 
     function bulkKakao() {
@@ -435,13 +633,28 @@
 
     // --- Inline Edit (double-click) ---
     document.querySelectorAll('#spreadsheetTable td.editable').forEach(function(td) {
-        td.addEventListener('dblclick', function() {
+        td.addEventListener('dblclick', function(e) {
+            // 캡쳐 버튼 클릭 시 편집 모드 진입 방지
+            if (e.target.classList.contains('btn-capture')) return;
             if (td.querySelector('input')) return; // already editing
 
-            var oldValue = td.textContent.trim();
             var field = td.getAttribute('data-field');
             var row = td.closest('tr');
             var progressId = row.getAttribute('data-id');
+
+            // 비고 필드: remark-text 부분만 편집, 캡쳐 버튼 보존
+            var isRemark = field === '비고';
+            var captureButtons = [];
+            var oldValue;
+            if (isRemark) {
+                var remarkSpan = td.querySelector('.remark-text');
+                oldValue = remarkSpan ? remarkSpan.textContent.trim() : td.textContent.trim();
+                td.querySelectorAll('.btn-capture').forEach(function(btn) {
+                    captureButtons.push(btn.cloneNode(true));
+                });
+            } else {
+                oldValue = td.textContent.trim();
+            }
 
             var input = document.createElement('input');
             input.type = 'text';
@@ -453,14 +666,27 @@
             input.focus();
             input.select();
 
+            function restoreCell(value) {
+                td.textContent = '';
+                if (isRemark) {
+                    var span = document.createElement('span');
+                    span.className = 'remark-text';
+                    span.textContent = value;
+                    td.appendChild(span);
+                    captureButtons.forEach(function(btn) {
+                        td.appendChild(btn);
+                    });
+                } else {
+                    td.textContent = value;
+                }
+            }
+
             function commit() {
                 var newValue = input.value.trim();
                 if (newValue === oldValue) {
-                    // No change, revert
-                    td.textContent = oldValue;
+                    restoreCell(oldValue);
                     return;
                 }
-                // Save via API
                 fetch('/admin/api/progress/update', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -473,16 +699,16 @@
                 .then(function(r) { return r.json(); })
                 .then(function(d) {
                     if (d.ok) {
-                        td.textContent = newValue;
+                        restoreCell(newValue);
                         td.classList.add('cell-saved');
                         setTimeout(function() { td.classList.remove('cell-saved'); }, 900);
                     } else {
-                        td.textContent = oldValue;
+                        restoreCell(oldValue);
                         alert('저장 실패: ' + (d.message || '알 수 없는 오류'));
                     }
                 })
                 .catch(function(e) {
-                    td.textContent = oldValue;
+                    restoreCell(oldValue);
                     alert('저장 에러: ' + e.message);
                 });
             }
@@ -493,12 +719,11 @@
                     input.blur();
                 }
                 if (e.key === 'Escape') {
-                    td.textContent = oldValue;
+                    restoreCell(oldValue);
                 }
             });
 
             input.addEventListener('blur', function() {
-                // Small delay to allow Escape to fire first
                 setTimeout(function() {
                     if (td.querySelector('input')) {
                         commit();
