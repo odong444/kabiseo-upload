@@ -184,15 +184,35 @@ def _trigger_ai_verify(capture_type: str, progress_id: int, drive_link: str):
     """업로드 완료 후 AI 검수 백그라운드 트리거"""
     try:
         from modules.capture_verifier import verify_capture_async
-        # 캠페인별 AI 지침 조회
         ai_instructions = ""
+        campaign_info = None
         row_data = models.db_manager.get_row_dict(progress_id)
         campaign_id = row_data.get("캠페인ID", "")
         if campaign_id:
             campaign = models.db_manager.get_campaign_by_id(campaign_id)
             if campaign:
-                ai_instructions = campaign.get("AI검수지침", "")
-        verify_capture_async(drive_link, capture_type, progress_id, models.db_manager, ai_instructions)
+                # 글로벌 + 캠페인별 AI 지침 조합
+                parts = []
+                global_key = "ai_global_purchase" if capture_type == "purchase" else "ai_global_review"
+                global_instr = models.db_manager.get_setting(global_key, "")
+                if global_instr:
+                    parts.append(global_instr)
+                field = "AI구매검수지침" if capture_type == "purchase" else "AI리뷰검수지침"
+                camp_instr = campaign.get(field, "") or campaign.get("AI검수지침", "")
+                if camp_instr:
+                    parts.append(camp_instr)
+                ai_instructions = "\n".join(parts)
+                campaign_info = {
+                    "상품명": campaign.get("상품명", ""),
+                    "업체명": campaign.get("업체명", ""),
+                    "플랫폼": campaign.get("플랫폼", ""),
+                    "상품금액": campaign.get("상품금액", ""),
+                    "결제금액": campaign.get("결제금액", ""),
+                    "옵션": campaign.get("옵션", ""),
+                    "캠페인유형": campaign.get("캠페인유형", ""),
+                }
+        verify_capture_async(drive_link, capture_type, progress_id,
+                             models.db_manager, ai_instructions, campaign_info)
     except Exception as e:
         logger.warning(f"AI 검수 트리거 실패 (무시): {e}")
 
