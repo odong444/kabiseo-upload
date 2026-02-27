@@ -1242,11 +1242,16 @@ class DBManager:
     def get_inquiries(self, status: str = None) -> list[dict]:
         """문의 목록 (최신순). status 지정 시 필터."""
         if status:
-            return self._fetchall(
+            rows = self._fetchall(
                 "SELECT * FROM inquiries WHERE status = %s ORDER BY created_at DESC",
                 (status,)
             )
-        return self._fetchall("SELECT * FROM inquiries ORDER BY created_at DESC")
+        else:
+            rows = self._fetchall("SELECT * FROM inquiries ORDER BY created_at DESC")
+        for r in (rows or []):
+            if r.get("created_at") and hasattr(r["created_at"], "astimezone"):
+                r["created_at"] = r["created_at"].astimezone(KST)
+        return rows or []
 
     def get_inquiry(self, inquiry_id: int) -> dict:
         """문의 단건 조회."""
@@ -1357,6 +1362,11 @@ class DBManager:
             (limit,)
         )
 
+        def _to_kst(dt):
+            if dt and hasattr(dt, 'astimezone'):
+                return dt.astimezone(KST)
+            return dt
+
         activities = []
         for c in (chats or []):
             activities.append({
@@ -1364,7 +1374,7 @@ class DBManager:
                 "icon": "💬",
                 "who": c.get("reviewer_id", ""),
                 "content": c.get("message", ""),
-                "ts": c.get("ts"),
+                "ts": _to_kst(c.get("ts")),
             })
         for p in (progresses or []):
             status = p.get("status", "")
@@ -1384,7 +1394,7 @@ class DBManager:
                 "who": f"{name}",
                 "status": status,
                 "content": content,
-                "ts": p.get("ts"),
+                "ts": _to_kst(p.get("ts")),
             })
 
         activities.sort(key=lambda x: x["ts"] if x["ts"] else "", reverse=True)
@@ -1728,10 +1738,15 @@ class DBManager:
 
     def get_quotes(self, status: str | None = None) -> list[dict]:
         if status:
-            return self._fetchall(
+            rows = self._fetchall(
                 "SELECT * FROM quotes WHERE status = %s ORDER BY created_at DESC", (status,)
             )
-        return self._fetchall("SELECT * FROM quotes ORDER BY created_at DESC")
+        else:
+            rows = self._fetchall("SELECT * FROM quotes ORDER BY created_at DESC")
+        for r in (rows or []):
+            if r.get("created_at") and hasattr(r["created_at"], "astimezone"):
+                r["created_at"] = r["created_at"].astimezone(KST)
+        return rows or []
 
     def get_quote(self, quote_id: int) -> dict | None:
         return self._fetchone("SELECT * FROM quotes WHERE id = %s", (quote_id,))
