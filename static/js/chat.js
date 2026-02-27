@@ -109,7 +109,6 @@
     // ──────── 퀵 버튼 (메뉴) ────────
 
     var quickMenuItems = [
-        { label: '체험단 신청', value: '1' },
         { label: '진행 상황', value: '2' },
         { label: '사진 제출', value: '3' },
         { label: '입금 현황', value: '4' },

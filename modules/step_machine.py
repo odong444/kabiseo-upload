@@ -58,10 +58,6 @@ class StepMachine:
         state = self.states.get(name, phone)
         state.touch()  # 타임아웃 타이머 갱신
 
-        # 서버 재시작 후 DB에서 세션 자동 복구
-        if state.step == 0 and not state.temp_data:
-            self._try_recover_session(state)
-
         self.chat_logger.log(state.reviewer_id, "user", message)
 
         try:
@@ -81,33 +77,13 @@ class StepMachine:
     def get_welcome(self, name: str, phone: str):
         """접속 시 환영 메시지"""
         state = self.states.get(name, phone)
-        if state.step == 0:
-            # 서버 재시작 후 DB에서 세션 복구 시도
-            if self._try_recover_session(state):
-                campaign = state.temp_data.get("campaign", {})
-                product = self._display_name(campaign)
-                header = f"📌 진행 중인 신청이 있습니다.\n📦 {product}" if product else "📌 진행 중인 신청이 있습니다."
-                return _resp(
-                    f"{header}\n\n이어서 진행하시겠습니까?",
-                    buttons=[
-                        {"label": "이어하기", "value": "__resume__"},
-                        {"label": "새로 시작", "value": "__cancel__", "style": "danger"},
-                    ]
-                )
-            return _resp(
-                tpl.WELCOME_BACK.format(name=name),
-                buttons=self._menu_buttons()
-            )
-        # 진행 중인 세션이 있으면 이어하기/새로 시작 선택
-        campaign = state.temp_data.get("campaign", {})
-        product = self._display_name(campaign)
-        header = f"📌 진행 중인 신청이 있습니다.\n📦 {product}" if product else "📌 진행 중인 신청이 있습니다."
+        # 캠페인 신청은 웹에서 진행 → 기존 채팅 세션 초기화
+        if state.step in (1, 2, 3, 4, 5, 6, 7, 8):
+            state.step = 0
+            state.temp_data = {}
         return _resp(
-            f"{header}\n\n이어서 진행하시겠습니까?",
-            buttons=[
-                {"label": "이어하기", "value": "__resume__"},
-                {"label": "새로 시작", "value": "__cancel__", "style": "danger"},
-            ]
+            tpl.WELCOME_BACK.format(name=name),
+            buttons=self._menu_buttons()
         )
 
     def _try_recover_session(self, state: ReviewerState) -> bool:
@@ -178,10 +154,10 @@ class StepMachine:
 
     def _menu_buttons(self):
         return [
-            {"label": "캠페인 목록", "value": "1"},
             {"label": "내 진행현황", "value": "2"},
             {"label": "사진 제출", "value": "3"},
             {"label": "입금 확인", "value": "4"},
+            {"label": "기타 문의", "value": "5"},
             {"label": "정보 수정", "value": "6"},
         ]
 
@@ -320,22 +296,15 @@ class StepMachine:
 
         if step == 0:
             return self._step0_menu(state, msg)
-        elif step == 1:
-            return self._step1_campaign(state, msg)
-        elif step == 2:
-            return self._step2_account_count(state, msg)
-        elif step == 3:
-            return self._step3_collect_ids(state, msg)
-        elif step == 4:
-            return self._step4_guide_and_form(state, msg)
-        elif step == 5:
-            return self._step5_form(state, msg)
-        elif step == 6:
-            return self._step6_purchase(state, msg)
-        elif step == 7:
-            return self._step7_review(state, msg)
-        elif step == 8:
-            return self._step8_done(state, msg)
+        elif step in (1, 2, 3, 4, 5, 6, 7, 8):
+            # 캠페인 신청/진행은 웹에서만 → 메뉴로 복귀
+            state.step = 0
+            state.temp_data = {}
+            campaigns_url = f"{self.web_url}/campaigns" if self.web_url else "/campaigns"
+            return _resp(
+                f"캠페인 신청은 웹페이지에서 진행해주세요!\n🔗 {campaigns_url}",
+                buttons=self._menu_buttons()
+            )
         elif step == 9:
             return self._step9_inquiry_ai(state, msg)
         elif step == 10:
@@ -472,12 +441,11 @@ class StepMachine:
         choice = parse_menu_choice(message)
 
         if choice == 1:
-            state.step = 1
-            cards = self.campaigns.build_campaign_cards(state.name, state.phone)
-            if not cards:
-                state.step = 0
-                return _resp(tpl.NO_CAMPAIGNS, buttons=self._menu_buttons())
-            return _resp("현재 모집 중인 체험단입니다:", cards=cards)
+            campaigns_url = f"{self.web_url}/campaigns" if self.web_url else "/campaigns"
+            return _resp(
+                f"캠페인 신청은 웹페이지에서 진행해주세요!\n🔗 {campaigns_url}",
+                buttons=self._menu_buttons()
+            )
 
         elif choice == 2:
             items = self.reviewers.get_items(state.name, state.phone)

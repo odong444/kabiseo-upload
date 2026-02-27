@@ -288,6 +288,11 @@ def api_apply():
         if models.reviewer_manager.check_duplicate(campaign_id, sid):
             results.append({"store_id": sid, "ok": False, "error": "이미 등록된 아이디"})
             continue
+        # 동시진행그룹 중복 체크
+        group_conflict = models.db_manager.check_exclusive_group_duplicate(campaign_id, sid)
+        if group_conflict:
+            results.append({"store_id": sid, "ok": False, "error": f"동시진행 캠페인 [{group_conflict}]에서 사용 중"})
+            continue
 
         try:
             progress_id = models.reviewer_manager.register(name, phone, campaign, sid)
@@ -651,11 +656,24 @@ def api_task_review(progress_id):
 
 @reviewer_bp.route("/api/user/store-ids")
 def api_user_store_ids():
-    """리뷰어가 사용한 모든 아이디 목록"""
+    """리뷰어가 사용한 모든 아이디 목록 + 사용불가 아이디"""
     name = request.args.get("name", "").strip()
     phone = request.args.get("phone", "").strip()
+    campaign_id = request.args.get("campaign_id", "").strip()
     if not name or not phone or not models.db_manager:
         return jsonify({"ids": []})
 
-    ids = list(models.db_manager.get_used_store_ids(name, phone))
-    return jsonify({"ids": sorted(ids)})
+    ids = sorted(models.db_manager.get_used_store_ids(name, phone))
+
+    # 캠페인별 사용불가 아이디 (캠페인 내 중복 + 동시진행그룹)
+    disabled = {}
+    if campaign_id:
+        active_ids = models.db_manager.get_active_ids_for_campaign(name, phone, campaign_id)
+        group_ids = models.db_manager.get_exclusive_group_active_ids(campaign_id)
+        for sid in ids:
+            if sid in active_ids:
+                disabled[sid] = "진행중"
+            elif sid in group_ids:
+                disabled[sid] = "동시진행중"
+
+    return jsonify({"ids": ids, "disabled": disabled})

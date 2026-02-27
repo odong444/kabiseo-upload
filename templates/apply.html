@@ -2,6 +2,21 @@
 {% block title %}캠페인 신청 - 카비서{% endblock %}
 {% block head %}
 <script src="{{ url_for('static', filename='js/reviewer.js') }}"></script>
+<style>
+.suggest-disabled {
+    opacity: 0.5;
+    text-decoration: line-through;
+    cursor: not-allowed !important;
+    background: #f0f0f0 !important;
+    color: #999 !important;
+}
+.suggest-disabled small {
+    font-size: 0.75em;
+    text-decoration: none;
+    display: inline;
+    color: #e74c3c;
+}
+</style>
 {% endblock %}
 
 {% block content %}
@@ -22,16 +37,18 @@
 
     let campaign = null;
     let usedIds = [];
+    let disabledIds = {};
     let accountCount = 1;
 
     async function load() {
         const [campaignData, idsData] = await Promise.all([
             Reviewer.apiGet(`/api/campaign/${campaignId}`),
-            Reviewer.apiGet('/api/user/store-ids'),
+            Reviewer.apiGet(`/api/user/store-ids?campaign_id=${campaignId}`),
         ]);
 
         campaign = campaignData;
         usedIds = (idsData.ids || []);
+        disabledIds = (idsData.disabled || {});
 
         if (campaign.error) {
             document.getElementById('applyContainer').innerHTML =
@@ -85,7 +102,13 @@
             const suggestHtml = usedIds.length > 0
                 ? `<div class="apply-id-suggest">
                     <span class="suggest-label">이전 아이디:</span>
-                    ${usedIds.map(id => `<button type="button" class="suggest-btn" onclick="fillId(${i},'${id}')">${id}</button>`).join('')}
+                    ${usedIds.map(id => {
+                        const reason = disabledIds[id];
+                        if (reason) {
+                            return `<button type="button" class="suggest-btn suggest-disabled" disabled title="${reason}">${id} <small>(${reason})</small></button>`;
+                        }
+                        return `<button type="button" class="suggest-btn" onclick="fillId(${i},'${id}')">${id}</button>`;
+                    }).join('')}
                    </div>`
                 : '';
 
@@ -132,6 +155,15 @@
                 return;
             }
             storeIds.push(val);
+        }
+
+        // disabled ID 체크
+        for (const sid of storeIds) {
+            const reason = disabledIds[sid];
+            if (reason) {
+                Reviewer.toast(`${sid}: ${reason} - 사용할 수 없습니다.`, 'error');
+                return;
+            }
         }
 
         // 중복 체크
