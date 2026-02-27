@@ -52,15 +52,23 @@
             return;
         }
 
-        // 상태별 분류
+        // 캠페인별 그룹화
+        const groups = {};
+        for (const item of data.items) {
+            const key = item.campaign_id || item.id;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(item);
+        }
+
         const inProgress = [];
         const completed = [];
 
-        for (const item of data.items) {
-            if (['입금완료'].includes(item.status)) {
-                completed.push(item);
+        for (const [cid, items] of Object.entries(groups)) {
+            const allDone = items.every(i => i.status === '입금완료');
+            if (allDone) {
+                completed.push(items);
             } else {
-                inProgress.push(item);
+                inProgress.push(items);
             }
         }
 
@@ -68,63 +76,81 @@
 
         if (inProgress.length > 0) {
             html += '<h2 class="section-title">진행중</h2>';
-            for (const item of inProgress) {
-                html += renderItem(item);
+            for (const group of inProgress) {
+                html += renderGroup(group);
             }
         }
 
         if (completed.length > 0) {
             html += '<h2 class="section-title">완료</h2>';
-            for (const item of completed) {
-                html += renderItem(item, true);
+            for (const group of completed) {
+                html += renderGroup(group, true);
             }
         }
 
         container.innerHTML = html;
     }
 
-    function renderItem(item, done = false) {
-        let actionBtn = '';
-        switch (item.status) {
-            case '신청':
-            case '가이드전달':
-                actionBtn = `<a href="/task/${item.id}" class="btn btn-primary btn-sm">가이드 보기</a>`;
-                break;
-            case '구매캡쳐대기':
-                actionBtn = `<a href="/task/${item.id}" class="btn btn-primary btn-sm">구매캡쳐 제출</a>`;
-                break;
-            case '리뷰대기':
-                actionBtn = `<a href="/task/${item.id}/review" class="btn btn-primary btn-sm">리뷰캡쳐 제출</a>`;
-                break;
-            case '리뷰제출':
-                actionBtn = '<span class="my-status-text">검수 대기중</span>';
-                break;
-            case '입금대기':
-                actionBtn = '<span class="my-status-text">입금 대기중</span>';
-                break;
-            case '입금완료':
-                actionBtn = '<span class="my-status-text done">입금 완료</span>';
-                break;
+    function renderGroup(items, done = false) {
+        const first = items[0];
+        const hasRejected = items.some(i => i.remark && i.remark.startsWith('반려'));
+
+        // 아이디별 상태 행
+        let idsHtml = '';
+        for (const item of items) {
+            let actionBtn = '';
+            switch (item.status) {
+                case '신청':
+                case '가이드전달':
+                case '구매캡쳐대기':
+                    actionBtn = `<a href="/task/${item.id}" class="btn btn-primary btn-xs">제출</a>`;
+                    break;
+                case '리뷰대기':
+                    actionBtn = `<a href="/task/${item.id}/review" class="btn btn-primary btn-xs">리뷰</a>`;
+                    break;
+                case '리뷰제출':
+                    actionBtn = '<span class="my-status-text-sm">검수중</span>';
+                    break;
+                case '입금대기':
+                    actionBtn = '<span class="my-status-text-sm">입금대기</span>';
+                    break;
+                case '입금완료':
+                    actionBtn = '<span class="my-status-text-sm done">완료</span>';
+                    break;
+            }
+            const remarkHtml = item.remark && item.remark.startsWith('반려')
+                ? `<span class="id-remark">${item.remark}</span>` : '';
+
+            idsHtml += `
+                <div class="id-row">
+                    <span class="id-name">${item.store_id}</span>
+                    ${Reviewer.statusBadge(item.status)}
+                    ${remarkHtml}
+                    <span class="id-action">${actionBtn}</span>
+                </div>`;
         }
 
-        const remarkHtml = item.remark && item.remark.startsWith('반려')
-            ? `<div class="my-item-remark">${item.remark}</div>`
+        // 가이드 보기 버튼 (한 번만)
+        const needsGuide = items.some(i => ['신청', '가이드전달', '구매캡쳐대기'].includes(i.status));
+        const guideBtn = needsGuide
+            ? `<a href="/task/${first.id}" class="btn btn-primary btn-sm" style="width:100%">가이드 보기</a>`
             : '';
 
         return `
-            <div class="status-card ${done ? 'completed' : ''} ${item.remark && item.remark.startsWith('반려') ? 'rejected' : ''}">
+            <div class="status-card ${done ? 'completed' : ''} ${hasRejected ? 'rejected' : ''}">
                 <div class="status-card-header">
-                    <span class="product-name">${item.product_name}</span>
-                    ${Reviewer.statusBadge(item.status)}
+                    <span class="product-name">${first.product_name}</span>
                 </div>
                 <div class="status-card-body">
-                    <div class="info-row"><span class="label">업체</span><span>${item.store_name || ''}</span></div>
-                    <div class="info-row"><span class="label">아이디</span><span>${item.store_id}</span></div>
-                    <div class="info-row"><span class="label">날짜</span><span>${item.date}</span></div>
-                    ${item.review_fee ? `<div class="info-row"><span class="label">리뷰비</span><span>${Reviewer.formatNumber(item.review_fee)}원</span></div>` : ''}
-                    ${remarkHtml}
+                    <div class="info-row"><span class="label">업체</span><span>${first.store_name || ''}</span></div>
+                    <div class="info-row"><span class="label">날짜</span><span>${first.date}</span></div>
+                    ${first.review_fee ? `<div class="info-row"><span class="label">리뷰비</span><span>${Reviewer.formatNumber(first.review_fee)}원</span></div>` : ''}
+                    <div class="id-list-section">
+                        <span class="label">아이디 (${items.length})</span>
+                        ${idsHtml}
+                    </div>
                 </div>
-                <div class="my-item-action">${actionBtn}</div>
+                <div class="my-item-action">${guideBtn}</div>
             </div>
         `;
     }

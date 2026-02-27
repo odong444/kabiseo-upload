@@ -2,6 +2,23 @@
 {% block title %}구매 가이드 - 카비서{% endblock %}
 {% block head %}
 <script src="{{ url_for('static', filename='js/reviewer.js') }}"></script>
+<style>
+.id-tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+.id-tab {
+    padding: 6px 14px; border: 1px solid #ddd; border-radius: 20px;
+    font-size: 13px; cursor: pointer; background: #fff; color: #555;
+}
+.id-tab.active { background: #fee500; border-color: #e6cf00; font-weight: 700; color: #3c1e1e; }
+.id-tab.done { background: #e8f5e9; border-color: #a5d6a7; color: #2e7d32; }
+.id-form-panel { display: none; }
+.id-form-panel.active { display: block; }
+.id-status-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: #f5f5f5; border-radius: 8px; margin-bottom: 12px;
+    font-size: 13px;
+}
+.id-status-bar .sid { font-weight: 700; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -39,6 +56,7 @@
     if (!user) return;
 
     let taskData = null;
+    let selectedFiles = {}; // per sibling id
 
     async function load() {
         taskData = await Reviewer.apiCall(`/api/task/${progressId}`);
@@ -49,17 +67,24 @@
             return;
         }
 
-        // 이미 구매완료인 경우
-        if (['리뷰대기', '리뷰제출', '입금대기', '입금완료'].includes(taskData.status)) {
+        const siblings = taskData.siblings || [];
+        const pendingSiblings = siblings.filter(s => ['신청', '가이드전달', '구매캡쳐대기'].includes(s.status));
+        const allDone = pendingSiblings.length === 0;
+
+        if (allDone) {
+            // 모든 아이디 구매완료
+            let sibHtml = siblings.map(s => {
+                let action = '';
+                if (s.status === '리뷰대기') action = `<a href="/task/${s.id}/review" class="btn btn-primary btn-xs">리뷰제출</a>`;
+                return `<div class="id-status-bar"><span class="sid">${s.store_id}</span>${Reviewer.statusBadge(s.status)} ${action}</div>`;
+            }).join('');
+
             container.innerHTML = `
                 <div class="task-done">
                     <h2>구매 완료</h2>
-                    <p>${taskData.product_name} (${taskData.store_id})</p>
-                    <p>현재 상태: ${taskData.status}</p>
-                    ${taskData.status === '리뷰대기'
-                        ? `<a href="/task/${progressId}/review" class="btn btn-primary btn-full" style="margin-top:16px">리뷰 캡쳐 제출</a>`
-                        : ''}
-                    <a href="/my" class="back-link">내 작업으로</a>
+                    <p>${taskData.product_name}</p>
+                    ${sibHtml}
+                    <a href="/my" class="back-link" style="margin-top:16px;display:block">내 작업으로</a>
                 </div>
             `;
             return;
@@ -72,8 +97,9 @@
         const container = document.getElementById('taskContainer');
         const c = taskData.campaign || {};
         const prev = taskData.prev_info || {};
+        const siblings = taskData.siblings || [{ id: taskData.id, store_id: taskData.store_id, status: taskData.status }];
 
-        // 가이드 섹션
+        // === 가이드 섹션 (공통 1회) ===
         let guideHtml = '';
         if (c.campaign_guide) {
             guideHtml += `<div class="task-guide-section">
@@ -111,106 +137,136 @@
             </div>`;
         }
 
+        // === 아이디별 탭 + 양식 ===
+        const pendingSiblings = siblings.filter(s => ['신청', '가이드전달', '구매캡쳐대기'].includes(s.status));
+        const doneSiblings = siblings.filter(s => !['신청', '가이드전달', '구매캡쳐대기'].includes(s.status));
+
+        let tabsHtml = '';
+        let panelsHtml = '';
+
+        if (pendingSiblings.length > 1) {
+            // 탭 표시
+            tabsHtml = '<div class="id-tabs">';
+            for (let i = 0; i < pendingSiblings.length; i++) {
+                const s = pendingSiblings[i];
+                tabsHtml += `<div class="id-tab ${i === 0 ? 'active' : ''}" onclick="switchTab(${i})">${s.store_id}</div>`;
+            }
+            // 완료된 아이디 탭도 표시
+            for (const s of doneSiblings) {
+                tabsHtml += `<div class="id-tab done">${s.store_id} (${s.status})</div>`;
+            }
+            tabsHtml += '</div>';
+        }
+
+        for (let i = 0; i < pendingSiblings.length; i++) {
+            const s = pendingSiblings[i];
+            const sid = s.id;
+            panelsHtml += `
+            <div class="id-form-panel ${i === 0 ? 'active' : ''}" data-panel="${i}">
+                <div class="id-status-bar">
+                    <span class="sid">${s.store_id}</span>
+                    ${Reviewer.statusBadge(s.status)}
+                    ${s.remark && s.remark.startsWith('반려') ? `<span style="color:#e74c3c;font-size:12px;">${s.remark}</span>` : ''}
+                </div>
+
+                <div class="task-capture-section">
+                    <h3>구매 캡쳐 업로드</h3>
+                    <p class="task-capture-hint">주문 상세 화면을 캡쳐해주세요.</p>
+                    <div class="task-capture-upload">
+                        <label class="file-select-label">
+                            <input type="file" accept="image/*" class="file-input" onchange="onFileSelect(this, ${sid})">
+                            <span id="fileBtn_${sid}" class="file-select-btn">캡쳐 선택</span>
+                        </label>
+                        <div id="preview_${sid}" style="display:none"></div>
+                    </div>
+                    <div id="aiResult_${sid}" style="display:none"></div>
+                </div>
+
+                <div id="formSection_${sid}" class="task-form-section" style="display:none">
+                    <h3>구매 정보</h3>
+                    <div class="form-group">
+                        <label>주문번호</label>
+                        <input type="text" id="fOrder_${sid}" placeholder="주문번호" value="${s.order_number || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>수취인명</label>
+                        <input type="text" id="fRecipient_${sid}" placeholder="수취인명" value="${s.recipient_name || prev['수취인명'] || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>주소</label>
+                        <input type="text" id="fAddress_${sid}" placeholder="배송지 주소" value="${s.address || prev['주소'] || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>결제금액</label>
+                        <input type="text" id="fAmount_${sid}" placeholder="결제금액" value="${s.payment_amount || c.payment_amount || ''}">
+                    </div>
+                    <div class="task-divider"></div>
+                    <h4 class="task-form-subtitle">계좌 정보</h4>
+                    <div class="form-group">
+                        <label>은행</label>
+                        <input type="text" id="fBank_${sid}" placeholder="은행명" value="${s.bank || prev['은행'] || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>계좌번호</label>
+                        <input type="text" id="fAccount_${sid}" placeholder="계좌번호" value="${s.account || prev['계좌'] || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>예금주</label>
+                        <input type="text" id="fDepositor_${sid}" placeholder="예금주" value="${s.depositor || prev['예금주'] || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>닉네임</label>
+                        <input type="text" id="fNickname_${sid}" placeholder="닉네임" value="${s.nickname || ''}">
+                    </div>
+                    <button type="button" class="btn btn-primary btn-full" onclick="submitPurchase(${sid})">
+                        ${s.store_id} 구매완료 제출
+                    </button>
+                </div>
+            </div>`;
+        }
+
         container.innerHTML = `
             <a href="/my" class="back-link-top">&lt; 내 작업</a>
 
             <div class="task-header">
                 <h2 class="task-title">${taskData.product_name}</h2>
-                <p class="task-subtitle">${taskData.store_name || ''} | ${taskData.store_id}</p>
-                ${Reviewer.statusBadge(taskData.status)}
+                <p class="task-subtitle">${taskData.store_name || ''}</p>
             </div>
 
             ${guideHtml}
 
             <div class="task-divider"></div>
 
-            <div class="task-capture-section">
-                <h3>구매 캡쳐 업로드</h3>
-                <p class="task-capture-hint">주문 상세 화면을 캡쳐해주세요. AI가 자동으로 정보를 추출합니다.</p>
-
-                <div class="task-capture-upload">
-                    <label class="file-select-label">
-                        <input type="file" id="captureFile" accept="image/*" class="file-input" onchange="onFileSelect(this)">
-                        <span id="fileSelectBtn" class="file-select-btn">캡쳐 선택</span>
-                    </label>
-                    <div id="filePreview" style="display:none"></div>
-                </div>
-
-                <div id="aiResult" style="display:none"></div>
-            </div>
-
-            <div id="formSection" class="task-form-section" style="display:none">
-                <h3>구매 정보</h3>
-                <p class="task-form-hint">AI가 자동입력한 정보를 확인하고, 계좌정보를 입력해주세요.</p>
-
-                <div class="form-group">
-                    <label>주문번호</label>
-                    <input type="text" id="fOrderNumber" placeholder="주문번호" value="${taskData.order_number || ''}">
-                </div>
-                <div class="form-group">
-                    <label>수취인명</label>
-                    <input type="text" id="fRecipientName" placeholder="수취인명" value="${taskData.recipient_name || prev['수취인명'] || ''}">
-                </div>
-                <div class="form-group">
-                    <label>주소</label>
-                    <input type="text" id="fAddress" placeholder="배송지 주소" value="${taskData.address || prev['주소'] || ''}">
-                </div>
-                <div class="form-group">
-                    <label>결제금액</label>
-                    <input type="text" id="fPaymentAmount" placeholder="결제금액" value="${taskData.payment_amount || c.payment_amount || ''}">
-                </div>
-
-                <div class="task-divider"></div>
-                <h4 class="task-form-subtitle">계좌 정보 (직접 입력)</h4>
-
-                <div class="form-group">
-                    <label>은행</label>
-                    <input type="text" id="fBank" placeholder="은행명" value="${taskData.bank || prev['은행'] || ''}">
-                </div>
-                <div class="form-group">
-                    <label>계좌번호</label>
-                    <input type="text" id="fAccount" placeholder="계좌번호" value="${taskData.account || prev['계좌'] || ''}">
-                </div>
-                <div class="form-group">
-                    <label>예금주</label>
-                    <input type="text" id="fDepositor" placeholder="예금주" value="${taskData.depositor || prev['예금주'] || ''}">
-                </div>
-                <div class="form-group">
-                    <label>닉네임</label>
-                    <input type="text" id="fNickname" placeholder="쿠팡/네이버 닉네임" value="${taskData.nickname || ''}">
-                </div>
-
-                <button type="button" id="submitPurchase" class="btn btn-primary btn-full" onclick="submitPurchase()">
-                    구매완료 제출
-                </button>
-            </div>
+            ${pendingSiblings.length > 1 ? `<p style="font-size:13px;color:#666;margin-bottom:8px;">${pendingSiblings.length}개 아이디 각각 제출해주세요.</p>` : ''}
+            ${tabsHtml}
+            ${panelsHtml}
         `;
     }
 
-    let selectedFile = null;
+    window.switchTab = function(idx) {
+        document.querySelectorAll('.id-tab:not(.done)').forEach((t, i) => t.classList.toggle('active', i === idx));
+        document.querySelectorAll('.id-form-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+    };
 
-    window.onFileSelect = function(input) {
+    window.onFileSelect = function(input, sid) {
         const file = input.files[0];
         if (!file) return;
-        selectedFile = file;
+        selectedFiles[sid] = file;
 
-        // 미리보기
         const reader = new FileReader();
         reader.onload = function(e) {
-            document.getElementById('filePreview').innerHTML =
+            document.getElementById(`preview_${sid}`).innerHTML =
                 `<img src="${e.target.result}" class="capture-preview">`;
-            document.getElementById('filePreview').style.display = 'block';
+            document.getElementById(`preview_${sid}`).style.display = 'block';
         };
         reader.readAsDataURL(file);
 
-        document.getElementById('fileSelectBtn').textContent = file.name;
-
-        // AI 검수 실행
-        runAiVerify(file);
+        document.getElementById(`fileBtn_${sid}`).textContent = file.name;
+        runAiVerify(file, sid);
     };
 
-    async function runAiVerify(file) {
-        const aiResult = document.getElementById('aiResult');
+    async function runAiVerify(file, sid) {
+        const aiResult = document.getElementById(`aiResult_${sid}`);
         aiResult.style.display = 'block';
         aiResult.innerHTML = `<div class="ai-verifying">
             <div class="reviewer-spinner-sm"></div>
@@ -226,8 +282,7 @@
 
         if (!result.ok) {
             aiResult.innerHTML = `<div class="ai-result ai-error">AI 검수 실패: ${result.error || '알 수 없는 오류'}</div>`;
-            // 폼은 보여주되 경고 표시
-            document.getElementById('formSection').style.display = 'block';
+            document.getElementById(`formSection_${sid}`).style.display = 'block';
             return;
         }
 
@@ -245,39 +300,38 @@
 
         // 파싱 데이터 자동입력
         if (result.parsed) {
-            const parsed = result.parsed;
-            if (parsed['주문번호']) document.getElementById('fOrderNumber').value = parsed['주문번호'];
-            if (parsed['수취인명']) document.getElementById('fRecipientName').value = parsed['수취인명'];
-            if (parsed['결제금액']) document.getElementById('fPaymentAmount').value = parsed['결제금액'];
+            const p = result.parsed;
+            if (p['주문번호']) document.getElementById(`fOrder_${sid}`).value = p['주문번호'];
+            if (p['수취인명']) document.getElementById(`fRecipient_${sid}`).value = p['수취인명'];
+            if (p['결제금액']) document.getElementById(`fAmount_${sid}`).value = p['결제금액'];
         }
 
-        // 폼 표시
-        document.getElementById('formSection').style.display = 'block';
+        document.getElementById(`formSection_${sid}`).style.display = 'block';
     }
 
-    window.submitPurchase = async function() {
-        if (!selectedFile) {
+    window.submitPurchase = async function(sid) {
+        if (!selectedFiles[sid]) {
             Reviewer.toast('캡쳐를 먼저 선택해주세요.', 'error');
             return;
         }
 
-        const btn = document.getElementById('submitPurchase');
+        const btn = event.target;
         btn.disabled = true;
         btn.textContent = '제출 중...';
 
         const formData = new FormData();
-        formData.append('capture', selectedFile);
-        formData.append('recipient_name', document.getElementById('fRecipientName').value.trim());
-        formData.append('phone', document.getElementById('fRecipientName').value.trim() ? (taskData.phone || '') : '');
-        formData.append('bank', document.getElementById('fBank').value.trim());
-        formData.append('account', document.getElementById('fAccount').value.trim());
-        formData.append('depositor', document.getElementById('fDepositor').value.trim());
-        formData.append('address', document.getElementById('fAddress').value.trim());
-        formData.append('order_number', document.getElementById('fOrderNumber').value.trim());
-        formData.append('payment_amount', document.getElementById('fPaymentAmount').value.trim());
-        formData.append('nickname', document.getElementById('fNickname').value.trim());
+        formData.append('capture', selectedFiles[sid]);
+        formData.append('recipient_name', document.getElementById(`fRecipient_${sid}`).value.trim());
+        formData.append('phone', taskData.phone || '');
+        formData.append('bank', document.getElementById(`fBank_${sid}`).value.trim());
+        formData.append('account', document.getElementById(`fAccount_${sid}`).value.trim());
+        formData.append('depositor', document.getElementById(`fDepositor_${sid}`).value.trim());
+        formData.append('address', document.getElementById(`fAddress_${sid}`).value.trim());
+        formData.append('order_number', document.getElementById(`fOrder_${sid}`).value.trim());
+        formData.append('payment_amount', document.getElementById(`fAmount_${sid}`).value.trim());
+        formData.append('nickname', document.getElementById(`fNickname_${sid}`).value.trim());
 
-        const result = await Reviewer.apiPostForm(`/api/task/${progressId}/purchase`, formData);
+        const result = await Reviewer.apiPostForm(`/api/task/${sid}/purchase`, formData);
 
         if (result.ok) {
             Reviewer.toast('구매 캡쳐 제출 완료!', 'success');

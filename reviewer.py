@@ -333,6 +333,27 @@ def api_task(progress_id):
     phone = row.get("진행자연락처", "")
     prev_info = models.db_manager.get_user_prev_info(name, phone) if name and phone else {}
 
+    # 같은 캠페인의 형제 아이디들 로드
+    siblings = []
+    if campaign_id and name and phone:
+        all_items = models.db_manager.search_by_name_phone(name, phone)
+        for item in all_items:
+            if item.get("캠페인ID") == campaign_id and item.get("상태") not in ("타임아웃취소", "취소"):
+                siblings.append({
+                    "id": item.get("id"),
+                    "store_id": item.get("아이디", ""),
+                    "status": item.get("상태", ""),
+                    "order_number": item.get("주문번호", ""),
+                    "recipient_name": item.get("수취인명", ""),
+                    "payment_amount": item.get("결제금액", ""),
+                    "address": item.get("주소", ""),
+                    "bank": item.get("은행", ""),
+                    "account": item.get("계좌", ""),
+                    "depositor": item.get("예금주", ""),
+                    "nickname": item.get("닉네임", ""),
+                    "remark": item.get("비고", ""),
+                })
+
     result = {
         "id": progress_id,
         "campaign_id": campaign_id,
@@ -377,6 +398,7 @@ def api_task(progress_id):
             "ship_memo_link": campaign.get("배송메모안내링크", ""),
             "review_fee": campaign.get("리뷰비", ""),
         } if campaign else {},
+        "siblings": siblings,
     }
     return jsonify(result)
 

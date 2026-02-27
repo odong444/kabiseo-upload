@@ -1808,6 +1808,20 @@ body {
 }
 .my-status-text.done { color: #4caf50; }
 
+/* 아이디별 행 (그룹 카드) */
+.id-list-section { margin-top: 8px; }
+.id-list-section > .label { font-size: 12px; color: #999; display: block; margin-bottom: 4px; }
+.id-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; background: #f9f9f9; border-radius: 6px; margin-bottom: 4px;
+}
+.id-row .id-name { font-weight: 600; font-size: 14px; min-width: 80px; }
+.id-row .id-action { margin-left: auto; }
+.id-remark { color: #e74c3c; font-size: 11px; }
+.btn-xs { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+.my-status-text-sm { font-size: 11px; color: #888; }
+.my-status-text-sm.done { color: #4caf50; }
+
 /* ──────── 토스트 ──────── */
 .reviewer-toast {
     position: fixed;
