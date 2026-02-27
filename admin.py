@@ -370,23 +370,28 @@ def api_campaign_photo_sets(campaign_id):
                 "assigned_to": f"{assigned_to['name']} {assigned_to['phone']}" if assigned_to else None,
             }
 
-        # 리뷰어별 상세 (세트 할당된 리뷰어 목록 + 상태)
+        # 진행건별 상세 (세트 할당된 계정 목록 + 상태)
         reviewer_rows = models.db_manager._fetchall(
-            """SELECT DISTINCT ON (p.reviewer_id)
-                   p.id, p.photo_set_number, p.status, r.name, r.phone
+            """SELECT p.id, p.photo_set_number, p.status, p.store_id,
+                      p.recipient_name, r.name, r.phone
                FROM progress p
                JOIN reviewers r ON p.reviewer_id = r.id
                WHERE p.campaign_id = %s AND p.photo_set_number IS NOT NULL
                AND p.status NOT IN ('타임아웃취소', '취소')
-               ORDER BY p.reviewer_id, p.created_at""",
+               ORDER BY p.photo_set_number""",
             (campaign_id,),
         )
         reviewers = []
         review_done = {"리뷰제출", "입금대기", "입금완료"}
         for r in reviewer_rows:
+            label = r["name"]
+            if r.get("store_id"):
+                label += f" ({r['store_id']})"
+            elif r.get("recipient_name"):
+                label += f" ({r['recipient_name']})"
             reviewers.append({
                 "progress_id": r["id"],
-                "name": r["name"],
+                "name": label,
                 "phone": r["phone"],
                 "set_number": r["photo_set_number"],
                 "status": r["status"],
@@ -476,7 +481,8 @@ def api_campaign_notify_photo(campaign_id):
             return jsonify({"ok": False, "error": "progress_id 필요"}), 400
 
         row = models.db_manager._fetchone(
-            """SELECT p.id, p.campaign_id, p.photo_set_number, r.name, r.phone
+            """SELECT p.id, p.campaign_id, p.photo_set_number, p.store_id,
+                      p.recipient_name, r.name, r.phone
                FROM progress p JOIN reviewers r ON p.reviewer_id = r.id
                WHERE p.id = %s""",
             (int(progress_id),),
@@ -489,10 +495,12 @@ def api_campaign_notify_photo(campaign_id):
         web_url = os.environ.get("WEB_URL", "")
         photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
 
+        account_info = _account_label(row)
         task_url = f"{web_url}/task/{row['id']}"
         photo_links = _photo_set_links(photo_sets, row["photo_set_number"])
         msg = (
-            f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n\n"
+            f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n"
+            f"계정: {account_info}\n\n"
             f"아래 링크에서 사진을 저장 후 리뷰에 사용해주세요.\n{task_url}\n\n"
             f"{photo_links}"
             f"사진 첨부 부탁드립니다. 사진 미첨부 시 리뷰제출이 거부될 수 있습니다."
@@ -515,6 +523,19 @@ def _photo_set_links(photo_sets: dict, set_number: int | None) -> str:
         return ""
     lines = [f"사진{i+1}: {p['url']}" for i, p in enumerate(photos)]
     return "\n".join(lines) + "\n\n"
+
+
+def _account_label(row: dict) -> str:
+    """진행건에서 계정/수취인 식별 문자열 생성."""
+    sid = row.get("store_id") or ""
+    rname = row.get("recipient_name") or ""
+    if sid and rname:
+        return f"{sid} / 수취인 {rname}"
+    if sid:
+        return sid
+    if rname:
+        return f"수취인 {rname}"
+    return row.get("name", "")
 
 
 @admin_bp.route("/api/campaign/<campaign_id>/distribute-photos", methods=["POST"])
@@ -540,23 +561,25 @@ def api_campaign_distribute_photos(campaign_id):
         from modules.signal_sender import request_notification
 
         if notify_only:
-            # 알림만 재발송: 세트 할당됐고 리뷰 미제출인 리뷰어에게
+            # 알림만 재발송: 세트 할당됐고 리뷰 미제출인 진행건(계정 단위)
             rows = models.db_manager._fetchall(
-                """SELECT DISTINCT ON (p.reviewer_id)
-                       p.id, p.photo_set_number, r.name, r.phone, p.status
+                """SELECT p.id, p.photo_set_number, p.store_id, p.recipient_name,
+                          r.name, r.phone, p.status
                    FROM progress p
                    JOIN reviewers r ON p.reviewer_id = r.id
                    WHERE p.campaign_id = %s
                    AND p.photo_set_number IS NOT NULL
                    AND p.status NOT IN ('리뷰제출', '입금대기', '입금완료', '타임아웃취소', '취소')
-                   ORDER BY p.reviewer_id, p.created_at""",
+                   ORDER BY p.created_at""",
                 (campaign_id,),
             )
             for r in rows:
+                account_info = _account_label(r)
                 task_url = f"{web_url}/task/{r['id']}"
                 photo_links = _photo_set_links(photo_sets, r.get("photo_set_number"))
                 msg = (
-                    f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n\n"
+                    f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n"
+                    f"계정: {account_info}\n\n"
                     f"아래 링크에서 사진을 저장 후 리뷰에 사용해주세요.\n{task_url}\n\n"
                     f"{photo_links}"
                     f"사진 첨부 부탁드립니다. 사진 미첨부 시 리뷰제출이 거부될 수 있습니다."
@@ -572,31 +595,31 @@ def api_campaign_distribute_photos(campaign_id):
         if not unassigned:
             return jsonify({"ok": True, "assigned": 0, "notified": 0, "message": "배분할 리뷰어가 없습니다"})
 
-        for group in unassigned:
+        for prog in unassigned:
             next_set = models.db_manager.get_next_photo_set_number(campaign_id)
             if next_set is None:
                 break
 
-            models.db_manager.assign_photo_set(group["progress_ids"], next_set)
+            models.db_manager.assign_photo_set([prog["progress_id"]], next_set)
             assigned_count += 1
 
             # 리뷰 미제출자에게만 알림 (리뷰제출, 입금대기, 입금완료 제외)
-            review_done_statuses = {"리뷰제출", "입금대기", "입금완료"}
-            if group["statuses"] & review_done_statuses:
+            if prog["status"] in ("리뷰제출", "입금대기", "입금완료"):
                 continue
 
             # 카카오톡 알림
-            first_pid = group["progress_ids"][0]
-            task_url = f"{web_url}/task/{first_pid}"
+            account_info = _account_label(prog)
+            task_url = f"{web_url}/task/{prog['progress_id']}"
             photo_links = _photo_set_links(photo_sets, next_set)
             msg = (
-                f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n\n"
+                f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n"
+                f"계정: {account_info}\n\n"
                 f"아래 링크에서 사진을 저장 후 리뷰에 사용해주세요.\n{task_url}\n\n"
                 f"{photo_links}"
                 f"사진 첨부 부탁드립니다. 사진 미첨부 시 리뷰제출이 거부될 수 있습니다."
                 f"\n\n※ 본 메시지는 발신전용입니다."
             )
-            ok = request_notification(group["name"], group["phone"], msg)
+            ok = request_notification(prog["name"], prog["phone"], msg)
             if ok:
                 notified_count += 1
 

@@ -1867,11 +1867,10 @@ class DBManager:
         )
 
     def get_unassigned_active_progress(self, campaign_id: str) -> list[dict]:
-        """사진 세트 미할당 + 활성 상태 진행건 (reviewer 단위 그룹)
-        Returns: [{"reviewer_id": int, "name": str, "phone": str, "progress_ids": [int, ...], "status": str}, ...]
-        """
+        """사진 세트 미할당 + 활성 상태 진행건 (계정/progress 단위)"""
         rows = self._fetchall(
-            """SELECT p.id, p.reviewer_id, p.status, r.name, r.phone
+            """SELECT p.id, p.reviewer_id, p.status, p.store_id, p.recipient_name,
+                      r.name, r.phone
                FROM progress p
                JOIN reviewers r ON p.reviewer_id = r.id
                WHERE p.campaign_id = %s
@@ -1880,21 +1879,18 @@ class DBManager:
                ORDER BY p.created_at""",
             (campaign_id,),
         )
-        # reviewer 단위 그룹
-        groups: dict[int, dict] = {}
-        for r in rows:
-            rid = r["reviewer_id"]
-            if rid not in groups:
-                groups[rid] = {
-                    "reviewer_id": rid,
-                    "name": r["name"],
-                    "phone": r["phone"],
-                    "progress_ids": [],
-                    "statuses": set(),
-                }
-            groups[rid]["progress_ids"].append(r["id"])
-            groups[rid]["statuses"].add(r["status"])
-        return list(groups.values())
+        return [
+            {
+                "progress_id": r["id"],
+                "reviewer_id": r["reviewer_id"],
+                "name": r["name"],
+                "phone": r["phone"],
+                "status": r["status"],
+                "store_id": r.get("store_id", ""),
+                "recipient_name": r.get("recipient_name", ""),
+            }
+            for r in rows
+        ]
 
     def get_photo_set_assignments(self, campaign_id: str) -> dict:
         """세트별 할당 현황. {set_number: {"name": str, "phone": str} | None}"""
