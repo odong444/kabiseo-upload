@@ -1075,6 +1075,7 @@ class DBManager:
             "구매캡쳐링크": "purchase_capture_url",
             "리뷰캡쳐링크": "review_capture_url",
             "리뷰제출일": "review_submit_date",
+            "등록일": "created_at",
         }
         db_col = field_map.get(field, field)
         self._execute(
