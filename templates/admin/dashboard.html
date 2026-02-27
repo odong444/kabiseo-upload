@@ -270,17 +270,27 @@
             </div>
         </div>
 
-        <h2>최근 대화</h2>
-        <div class="recent-messages">
-            {% for msg in recent_messages %}
-            <div class="recent-msg">
-                <span class="msg-reviewer">{{ msg.reviewer_id }}</span>
-                <span class="msg-sender {% if msg.sender == 'bot' %}bot{% else %}user{% endif %}">{{ msg.sender }}</span>
-                <span class="msg-text">{{ msg.message[:80] }}{% if msg.message|length > 80 %}...{% endif %}</span>
+        <h2>최근 활동</h2>
+        <div class="recent-activities">
+            {% for act in recent_activities %}
+            <div class="activity-item {{ act.type }}">
+                <span class="act-icon">{{ act.icon }}</span>
+                <div class="act-body">
+                    <div class="act-main">
+                        {% if act.type == 'chat' %}
+                            <span class="act-who">{{ act.who }}</span>
+                            <span class="act-text">{{ act.content[:80] }}{% if act.content|length > 80 %}...{% endif %}</span>
+                        {% else %}
+                            <span class="act-status-badge {{ act.status }}">{{ act.status }}</span>
+                            <span class="act-text">{{ act.content }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="act-time">{{ act.ts.strftime('%m/%d %H:%M') if act.ts else '' }}</div>
+                </div>
             </div>
             {% endfor %}
-            {% if not recent_messages %}
-            <p class="admin-empty">아직 대화가 없습니다.</p>
+            {% if not recent_activities %}
+            <p class="admin-empty">아직 활동이 없습니다.</p>
             {% endif %}
         </div>
         {% endif %}

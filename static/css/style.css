@@ -895,7 +895,7 @@ body {
 .stat-number { font-size: 32px; font-weight: 800; color: #3c1e1e; }
 .stat-label { font-size: 13px; color: #888; margin-top: 4px; }
 
-/* 최근 메시지 */
+/* 최근 메시지 (레거시) */
 .recent-messages { display: flex; flex-direction: column; gap: 4px; }
 .recent-msg {
     display: flex;
@@ -917,6 +917,33 @@ body {
 .msg-sender.bot { background: #e3f2fd; color: #1565c0; }
 .msg-sender.user { background: #fff8e1; color: #f57f17; }
 .msg-text { color: #666; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 최근 활동 피드 */
+.recent-activities { display: flex; flex-direction: column; gap: 2px; }
+.activity-item {
+    display: flex; gap: 10px; padding: 10px 12px;
+    background: #fff; border-radius: 8px; font-size: 13px; align-items: flex-start;
+}
+.activity-item.status { border-left: 3px solid #e0e0e0; }
+.activity-item.chat { border-left: 3px solid #fff8e1; }
+.act-icon { font-size: 16px; flex-shrink: 0; line-height: 1.4; }
+.act-body { flex: 1; min-width: 0; }
+.act-main { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.act-who { font-weight: 600; white-space: nowrap; }
+.act-text { color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-time { font-size: 11px; color: #aaa; margin-top: 2px; }
+.act-status-badge {
+    font-size: 11px; padding: 1px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap;
+}
+.act-status-badge.신청 { background: #e3f2fd; color: #1565c0; }
+.act-status-badge.가이드전달 { background: #e8f5e9; color: #2e7d32; }
+.act-status-badge.구매캡쳐대기 { background: #fff3e0; color: #e65100; }
+.act-status-badge.리뷰대기 { background: #f3e5f5; color: #7b1fa2; }
+.act-status-badge.리뷰제출 { background: #e8eaf6; color: #283593; }
+.act-status-badge.입금대기 { background: #fff8e1; color: #f57f17; }
+.act-status-badge.입금완료 { background: #e8f5e9; color: #2e7d32; }
+.act-status-badge.취소 { background: #ffebee; color: #c62828; }
+.act-status-badge.타임아웃취소 { background: #fbe9e7; color: #bf360c; }
 
 /* 관리자 테이블 */
 .admin-table-wrap { overflow-x: auto; margin-bottom: 20px; }

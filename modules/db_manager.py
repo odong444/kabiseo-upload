@@ -1285,6 +1285,65 @@ class DBManager:
             "total": total["cnt"] if total else 0,
         }
 
+    def get_recent_activities(self, limit: int = 30) -> list[dict]:
+        """최근 활동 통합 피드 (대화 + 상태변경)"""
+        # 최근 대화
+        chats = self._fetchall(
+            """SELECT 'chat' as type, reviewer_id, sender, message,
+                      created_at as ts
+               FROM chat_messages
+               WHERE sender = 'user'
+               ORDER BY created_at DESC LIMIT %s""",
+            (limit,)
+        )
+        # 최근 상태 변경 (신청, 취소, 구매완료, 리뷰제출 등)
+        progresses = self._fetchall(
+            """SELECT 'status' as type,
+                      COALESCE(r.name, '') as reviewer_name,
+                      COALESCE(r.phone, '') as reviewer_phone,
+                      p.store_id, p.status,
+                      COALESCE(c.campaign_name, c.product_name, '') as campaign_name,
+                      p.updated_at as ts
+               FROM progress p
+               LEFT JOIN reviewers r ON p.reviewer_id = r.id
+               LEFT JOIN campaigns c ON p.campaign_id = c.campaign_id
+               ORDER BY p.updated_at DESC LIMIT %s""",
+            (limit,)
+        )
+
+        activities = []
+        for c in (chats or []):
+            activities.append({
+                "type": "chat",
+                "icon": "💬",
+                "who": c.get("reviewer_id", ""),
+                "content": c.get("message", ""),
+                "ts": c.get("ts"),
+            })
+        for p in (progresses or []):
+            status = p.get("status", "")
+            icon_map = {
+                "신청": "📋", "가이드전달": "📤", "구매캡쳐대기": "🛒",
+                "리뷰대기": "📝", "리뷰제출": "📸", "입금대기": "💰",
+                "입금완료": "✅", "취소": "❌", "타임아웃취소": "⏰",
+            }
+            icon = icon_map.get(status, "🔄")
+            name = p.get("reviewer_name", "")
+            sid = p.get("store_id", "")
+            camp = p.get("campaign_name", "")
+            content = f"{name} ({sid}) - {camp}" if camp else f"{name} ({sid})"
+            activities.append({
+                "type": "status",
+                "icon": icon,
+                "who": f"{name}",
+                "status": status,
+                "content": content,
+                "ts": p.get("ts"),
+            })
+
+        activities.sort(key=lambda x: x["ts"] if x["ts"] else "", reverse=True)
+        return activities[:limit]
+
     # ─────────── step_machine 호환 헬퍼 ───────────
 
     def update_status_by_id(self, name: str, phone: str, campaign_id: str,

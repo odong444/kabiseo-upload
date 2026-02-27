@@ -111,11 +111,11 @@ def logout():
 @admin_required
 def dashboard():
     stats = {}
-    recent_messages = []
+    recent_activities = []
     if models.db_manager:
         stats = models.db_manager.get_today_stats()
-    recent_messages = models.chat_logger.get_recent_messages(20)
-    return render_template("admin/dashboard.html", stats=stats, recent_messages=recent_messages)
+        recent_activities = models.db_manager.get_recent_activities(30)
+    return render_template("admin/dashboard.html", stats=stats, recent_activities=recent_activities)
 
 
 # ──────── 캠페인 관리 ────────
