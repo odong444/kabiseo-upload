@@ -90,7 +90,8 @@ def api_campaigns():
         except Exception:
             pass
 
-    from datetime import date as _date, datetime as _datetime
+    from datetime import datetime as _datetime
+    from modules.utils import now_kst as _now_kst
 
     cards = []
     for c in all_campaigns:
@@ -105,7 +106,7 @@ def api_campaigns():
         if start_str:
             try:
                 start_date = _datetime.strptime(start_str, "%Y-%m-%d").date()
-                if start_date > _date.today():
+                if start_date > _now_kst().date():
                     continue
             except ValueError:
                 pass

@@ -209,7 +209,8 @@ class CampaignManager:
     def _get_today_target(self, campaign: dict) -> int:
         """오늘 목표 수량. 일정이 있으면 해당 날짜 목표, 없으면 일수량 최대값."""
         import re
-        from datetime import date, datetime
+        from datetime import datetime
+        from modules.utils import now_kst
 
         schedule = campaign.get("일정", [])
         start_date_str = campaign.get("시작일", "").strip()
@@ -217,7 +218,7 @@ class CampaignManager:
         if schedule and start_date_str:
             try:
                 start = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-                day_index = (date.today() - start).days
+                day_index = (now_kst().date() - start).days
                 if 0 <= day_index < len(schedule):
                     return safe_int(schedule[day_index])
                 elif day_index >= len(schedule):

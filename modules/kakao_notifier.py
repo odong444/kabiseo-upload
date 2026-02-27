@@ -6,7 +6,8 @@ signal_sender를 통해 서버PC에 태스크를 전송합니다.
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
+from modules.utils import now_kst
 
 from modules import kakao_templates as ktpl
 from modules.signal_sender import request_notification, request_reminder
@@ -172,7 +173,7 @@ class KakaoNotifier:
 
     def send_review_deadline_reminders(self) -> int:
         """D-3, D-1 리뷰 기한 리마인더. 발송 건수 반환."""
-        today = date.today()
+        today = now_kst().date()
         d3 = today + timedelta(days=3)
         d1 = today + timedelta(days=1)
 

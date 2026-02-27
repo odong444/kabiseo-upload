@@ -1039,7 +1039,7 @@ class DBManager:
 
             self._execute(
                 f"""UPDATE progress SET review_capture_url = %s, status = %s,
-                    review_submit_date = CURRENT_DATE, updated_at = NOW(){remark_update}
+                    review_submit_date = (NOW() AT TIME ZONE 'Asia/Seoul')::date, updated_at = NOW(){remark_update}
                     WHERE id = %s""",
                 (drive_link, STATUS_REVIEW_DONE, progress_id)
             )
@@ -1102,7 +1102,8 @@ class DBManager:
         """정산 처리"""
         self._execute(
             """UPDATE progress SET status = %s, payment_total = %s,
-               settlement_date = CURRENT_DATE, settled_date = CURRENT_DATE,
+               settlement_date = (NOW() AT TIME ZONE 'Asia/Seoul')::date,
+               settled_date = (NOW() AT TIME ZONE 'Asia/Seoul')::date,
                updated_at = NOW()
                WHERE id = %s""",
             (STATUS_SETTLED, self._safe_int(amount), progress_id)
