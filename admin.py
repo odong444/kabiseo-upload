@@ -449,9 +449,8 @@ def api_campaign_distribute_photos(campaign_id):
         if not photo_sets:
             return jsonify({"ok": False, "error": "등록된 사진이 없습니다"}), 400
 
-        unassigned = models.db_manager.get_unassigned_active_progress(campaign_id)
-        if not unassigned:
-            return jsonify({"ok": True, "assigned": 0, "notified": 0, "message": "배분할 리뷰어가 없습니다"})
+        data = request.get_json(silent=True) or {}
+        notify_only = data.get("notify_only", False)
 
         campaign = models.db_manager.get_campaign_by_id(campaign_id) or {}
         campaign_name = campaign.get("캠페인명", "") or campaign.get("상품명", "")
@@ -460,6 +459,37 @@ def api_campaign_distribute_photos(campaign_id):
         assigned_count = 0
         notified_count = 0
         from modules.signal_sender import request_notification
+
+        if notify_only:
+            # 알림만 재발송: 세트 할당됐고 리뷰 미제출인 리뷰어에게
+            rows = models.db_manager._fetchall(
+                """SELECT DISTINCT ON (p.reviewer_id)
+                       p.id, r.name, r.phone, p.status
+                   FROM progress p
+                   JOIN reviewers r ON p.reviewer_id = r.id
+                   WHERE p.campaign_id = %s
+                   AND p.photo_set_number IS NOT NULL
+                   AND p.status NOT IN ('리뷰제출', '입금대기', '입금완료', '타임아웃취소', '취소')
+                   ORDER BY p.reviewer_id, p.created_at""",
+                (campaign_id,),
+            )
+            for r in rows:
+                task_url = f"{web_url}/task/{r['id']}"
+                msg = (
+                    f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n\n"
+                    f"아래 링크에서 사진을 저장 후 리뷰에 사용해주세요.\n{task_url}\n\n"
+                    f"사진 첨부 부탁드립니다. 사진 미첨부 시 리뷰제출이 거부될 수 있습니다."
+                    f"\n\n※ 본 메시지는 발신전용입니다."
+                )
+                ok = request_notification(r["name"], r["phone"], msg)
+                if ok:
+                    notified_count += 1
+            return jsonify({"ok": True, "assigned": 0, "notified": notified_count})
+
+        # 일반 배분: 미할당 리뷰어에게 세트 할당 + 알림
+        unassigned = models.db_manager.get_unassigned_active_progress(campaign_id)
+        if not unassigned:
+            return jsonify({"ok": True, "assigned": 0, "notified": 0, "message": "배분할 리뷰어가 없습니다"})
 
         for group in unassigned:
             next_set = models.db_manager.get_next_photo_set_number(campaign_id)

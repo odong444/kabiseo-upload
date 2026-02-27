@@ -406,6 +406,7 @@
                     <h3 style="font-size:14px;margin:0 0 8px;color:#166534;">배분 + 알림</h3>
                     <p style="font-size:12px;color:#64748b;margin:0 0 8px;">미할당 리뷰어에게 세트를 순차 배분하고, 리뷰 미제출자에게 카톡 알림을 보냅니다.</p>
                     <button onclick="distributePhotos()" class="admin-btn" style="font-size:13px;padding:6px 16px;background:#16a34a;color:#fff;border-color:#16a34a;" id="btnDistribute">배분 + 알림</button>
+                    <button onclick="resendPhotoNotify()" class="admin-btn" style="font-size:13px;padding:6px 16px;background:#f59e0b;color:#fff;border-color:#f59e0b;margin-left:4px;" id="btnResend">알림 재발송</button>
                     <span id="distributeStatus" style="font-size:13px;margin-left:8px;"></span>
                 </div>
             </div>
@@ -759,6 +760,33 @@
                 status.style.color = '#16a34a';
                 if (data.message) status.textContent = data.message;
                 loadPhotoSets();
+            } else {
+                status.textContent = '실패: ' + (data.error || '');
+                status.style.color = '#ef4444';
+            }
+        })
+        .catch(function() { btn.disabled = false; status.textContent = '연결 실패'; status.style.color = '#ef4444'; });
+    }
+
+    function resendPhotoNotify() {
+        var btn = document.getElementById('btnResend');
+        var status = document.getElementById('distributeStatus');
+        if (!confirm('세트 할당된 리뷰어(리뷰 미제출자)에게 카톡 알림을 재발송하시겠습니까?')) return;
+        btn.disabled = true;
+        status.textContent = '알림 발송 중...';
+        status.style.color = '#64748b';
+
+        fetch('/admin/api/campaign/' + _photoModalCampaignId + '/distribute-photos', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({notify_only: true}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.ok) {
+                status.textContent = data.notified + '명 카톡 알림 재발송 완료';
+                status.style.color = '#16a34a';
             } else {
                 status.textContent = '실패: ' + (data.error || '');
                 status.style.color = '#ef4444';
