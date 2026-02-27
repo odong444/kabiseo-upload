@@ -63,6 +63,18 @@
     let taskData = null;
     let selectedFiles = {}; // per sibling id
 
+    function driveToThumb(url) {
+        if (!url) return url;
+        var m = url.match(/\/file\/d\/([^\/]+)/);
+        if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400';
+        return url;
+    }
+
+    function linkify(text) {
+        if (!text) return '';
+        return text.replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#4a90d9;word-break:break-all;">$1</a>');
+    }
+
     async function load() {
         taskData = await Reviewer.apiCall(`/api/task/${progressId}`);
         const container = document.getElementById('taskContainer');
@@ -109,7 +121,7 @@
         if (c.campaign_guide) {
             guideHtml += `<div class="task-guide-section">
                 <h3>캠페인 가이드</h3>
-                <div class="task-guide-content">${c.campaign_guide.replace(/\n/g, '<br>')}</div>
+                <div class="task-guide-content">${linkify(c.campaign_guide)}</div>
             </div>`;
         }
 
@@ -138,7 +150,7 @@
         if (c.extra_info) {
             guideHtml += `<div class="task-guide-section">
                 <h3>추가 안내</h3>
-                <div class="task-guide-content">${c.extra_info.replace(/\n/g, '<br>')}</div>
+                <div class="task-guide-content">${linkify(c.extra_info)}</div>
             </div>`;
         }
 
@@ -246,6 +258,8 @@
                 <h2 class="task-title">${taskData.product_name}</h2>
                 <p class="task-subtitle">${taskData.store_name || ''}</p>
             </div>
+
+            ${c.product_image ? `<div class="detail-image"><img src="${driveToThumb(c.product_image)}" alt="상품 이미지" onerror="this.parentNode.style.display='none'"></div>` : ''}
 
             ${guideHtml}
 
