@@ -18,6 +18,15 @@
     font-size: 13px;
 }
 .id-status-bar .sid { font-weight: 700; }
+.bank-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.bank-preset-btn {
+    padding: 6px 12px; border: 1px solid #ddd; border-radius: 8px;
+    font-size: 12px; cursor: pointer; background: #fff; color: #333;
+    line-height: 1.4; text-align: left;
+}
+.bank-preset-btn:hover { border-color: #fee500; background: #fffde7; }
+.bank-preset-btn .bp-bank { font-weight: 700; }
+.bank-preset-btn .bp-account { color: #666; }
 </style>
 {% endblock %}
 
@@ -202,6 +211,7 @@
                     </div>
                     <div class="task-divider"></div>
                     <h4 class="task-form-subtitle">계좌 정보</h4>
+                    ${bankPresetsHtml(sid)}
                     <div class="form-group">
                         <label>은행</label>
                         <input type="text" id="fBank_${sid}" placeholder="은행명" value="${s.bank || prev['은행'] || ''}">
@@ -242,6 +252,27 @@
             ${panelsHtml}
         `;
     }
+
+    function bankPresetsHtml(sid) {
+        const presets = taskData.bank_presets || [];
+        if (presets.length === 0) return '';
+        let btns = presets.map((p, i) =>
+            `<button type="button" class="bank-preset-btn" onclick="applyBankPreset(${sid}, ${i})">
+                <span class="bp-bank">${p['은행']}</span> <span class="bp-account">${p['계좌']}</span><br>
+                <span class="bp-depositor">${p['예금주']}</span>
+            </button>`
+        ).join('');
+        return `<div class="bank-presets">${btns}</div>`;
+    }
+
+    window.applyBankPreset = function(sid, idx) {
+        const p = (taskData.bank_presets || [])[idx];
+        if (!p) return;
+        document.getElementById(`fBank_${sid}`).value = p['은행'];
+        document.getElementById(`fAccount_${sid}`).value = p['계좌'];
+        document.getElementById(`fDepositor_${sid}`).value = p['예금주'];
+        Reviewer.toast('계좌 정보 적용됨', 'success');
+    };
 
     window.switchTab = function(idx) {
         document.querySelectorAll('.id-tab:not(.done)').forEach((t, i) => t.classList.toggle('active', i === idx));

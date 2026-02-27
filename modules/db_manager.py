@@ -938,6 +938,20 @@ class DBManager:
                 result[k] = val
         return result
 
+    def get_user_bank_presets(self, name: str, phone: str) -> list[dict]:
+        """유저의 과거 계좌 정보 목록 (중복 제거)"""
+        reviewer = self.get_reviewer(name, phone)
+        if not reviewer:
+            return []
+        rows = self._fetchall(
+            """SELECT DISTINCT ON (bank, account) bank, account, depositor
+               FROM progress
+               WHERE reviewer_id = %s AND bank != '' AND account != ''
+               ORDER BY bank, account, created_at DESC""",
+            (reviewer["id"],)
+        )
+        return [{"은행": r["bank"], "계좌": r["account"], "예금주": r["depositor"] or ""} for r in rows]
+
     def get_user_campaign_ids(self, name: str, phone: str, campaign_id: str) -> list[str]:
         """특정 캠페인에 해당 유저가 실제 진행 중인 아이디 목록"""
         reviewer = self.get_reviewer(name, phone)

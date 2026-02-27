@@ -377,6 +377,8 @@ def api_task(progress_id):
         "nickname": row.get("닉네임", ""),
         # 이전 정보 (자동입력용)
         "prev_info": prev_info,
+        # 계좌 프리셋 (과거 등록 계좌 목록)
+        "bank_presets": models.db_manager.get_user_bank_presets(name, phone) if name and phone else [],
         # 캠페인 가이드
         "campaign": {
             "name": campaign.get("캠페인명", "") or campaign.get("상품명", ""),
