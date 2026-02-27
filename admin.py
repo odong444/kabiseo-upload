@@ -355,7 +355,7 @@ import re as _re
 @admin_bp.route("/api/campaign/<campaign_id>/photo-sets", methods=["GET"])
 @admin_required
 def api_campaign_photo_sets(campaign_id):
-    """캠페인 사진 세트 + 할당 현황"""
+    """캠페인 사진 세트 + 할당 현황 + 리뷰어별 상태"""
     if not models.db_manager:
         return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
     try:
@@ -369,11 +369,36 @@ def api_campaign_photo_sets(campaign_id):
                 "photos": photos,
                 "assigned_to": f"{assigned_to['name']} {assigned_to['phone']}" if assigned_to else None,
             }
+
+        # 리뷰어별 상세 (세트 할당된 리뷰어 목록 + 상태)
+        reviewer_rows = models.db_manager._fetchall(
+            """SELECT DISTINCT ON (p.reviewer_id)
+                   p.id, p.photo_set_number, p.status, r.name, r.phone
+               FROM progress p
+               JOIN reviewers r ON p.reviewer_id = r.id
+               WHERE p.campaign_id = %s AND p.photo_set_number IS NOT NULL
+               AND p.status NOT IN ('타임아웃취소', '취소')
+               ORDER BY p.reviewer_id, p.created_at""",
+            (campaign_id,),
+        )
+        reviewers = []
+        review_done = {"리뷰제출", "입금대기", "입금완료"}
+        for r in reviewer_rows:
+            reviewers.append({
+                "progress_id": r["id"],
+                "name": r["name"],
+                "phone": r["phone"],
+                "set_number": r["photo_set_number"],
+                "status": r["status"],
+                "review_done": r["status"] in review_done,
+            })
+
         return jsonify({
             "ok": True,
             "sets": result,
             "total_sets": len(photo_sets),
             "unassigned_reviewers": len(unassigned),
+            "reviewers": reviewers,
         })
     except Exception as e:
         logger.error(f"사진 세트 조회 에러: {e}")
@@ -435,6 +460,49 @@ def api_campaign_upload_photos(campaign_id):
         })
     except Exception as e:
         logger.error(f"사진 업로드 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/notify-photo", methods=["POST"])
+@admin_required
+def api_campaign_notify_photo(campaign_id):
+    """개별 리뷰어에게 사진 알림 전송"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    try:
+        data = request.get_json(silent=True) or {}
+        progress_id = data.get("progress_id")
+        if not progress_id:
+            return jsonify({"ok": False, "error": "progress_id 필요"}), 400
+
+        row = models.db_manager._fetchone(
+            """SELECT p.id, p.campaign_id, p.photo_set_number, r.name, r.phone
+               FROM progress p JOIN reviewers r ON p.reviewer_id = r.id
+               WHERE p.id = %s""",
+            (int(progress_id),),
+        )
+        if not row or not row.get("photo_set_number"):
+            return jsonify({"ok": False, "error": "사진 세트 미할당"}), 400
+
+        campaign = models.db_manager.get_campaign_by_id(campaign_id) or {}
+        campaign_name = campaign.get("캠페인명", "") or campaign.get("상품명", "")
+        web_url = os.environ.get("WEB_URL", "")
+        photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
+
+        task_url = f"{web_url}/task/{row['id']}"
+        photo_links = _photo_set_links(photo_sets, row["photo_set_number"])
+        msg = (
+            f"[{campaign_name}] 리뷰용 참고 사진이 등록되었습니다.\n\n"
+            f"아래 링크에서 사진을 저장 후 리뷰에 사용해주세요.\n{task_url}\n\n"
+            f"{photo_links}"
+            f"사진 첨부 부탁드립니다. 사진 미첨부 시 리뷰제출이 거부될 수 있습니다."
+            f"\n\n※ 본 메시지는 발신전용입니다."
+        )
+        from modules.signal_sender import request_notification
+        ok = request_notification(row["name"], row["phone"], msg)
+        return jsonify({"ok": ok, "message": "알림 전송 요청" if ok else "알림 전송 실패"})
+    except Exception as e:
+        logger.error(f"개별 사진 알림 에러: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
