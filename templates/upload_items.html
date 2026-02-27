@@ -45,7 +45,7 @@
         {% for item in items %}
         {% set remark = item.get('비고', '') %}
         {% set is_rejected = remark.startswith('반려') %}
-        <div class="item-card{{ ' rejected' if is_rejected else '' }}" data-row="{{ item['_row_idx'] }}" id="card-{{ item['_row_idx'] }}">
+        <div class="item-card{{ ' rejected' if is_rejected else '' }}" data-row="{{ item['_row_idx'] }}" data-campaign="{{ item.get('캠페인ID', '') }}" id="card-{{ item['_row_idx'] }}">
             <div class="item-info">
                 <div class="item-product">{{ item.get('제품명', '') }}</div>
                 <div class="item-detail">아이디: {{ item.get('아이디', '') }}</div>
@@ -65,6 +65,8 @@
                         <span class="file-select-btn">&#128247; 사진 선택</span>
                     </label>
                 </div>
+                <!-- AI 검수 결과 -->
+                <div class="ai-check-area" id="aiCheck-{{ item['_row_idx'] }}" style="display:none;"></div>
                 <!-- File selected indicator (hidden by default) -->
                 <div class="file-selected-area" id="selectedArea-{{ item['_row_idx'] }}" style="display:none;">
                     <span class="file-selected-info">
@@ -97,24 +99,56 @@
 const CAPTURE_TYPE = "{{ capture_type }}";
 
 /**
- * Handle file selection on an item card.
+ * Handle file selection on an item card + AI 사전검수.
  */
-function onFileSelect(input, cardEl) {
+async function onFileSelect(input, cardEl) {
     if (!input.files || !input.files.length) return;
 
     const row = cardEl.dataset.row;
+    const campaignId = cardEl.dataset.campaign || '';
     const selectArea = document.getElementById('selectArea-' + row);
     const selectedArea = document.getElementById('selectedArea-' + row);
     const selectedText = document.getElementById('selectedText-' + row);
+    const aiCheck = document.getElementById('aiCheck-' + row);
+
+    // AI 사전검수
+    aiCheck.style.display = 'block';
+    aiCheck.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:8px;font-size:13px;color:#888;"><div class="reviewer-spinner-sm" style="width:16px;height:16px;border-width:2px;"></div> AI 검수중...</div>';
+    selectArea.style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('capture', input.files[0]);
+    formData.append('capture_type', CAPTURE_TYPE);
+    formData.append('campaign_id', campaignId);
+
+    try {
+        const resp = await fetch('/api/verify-capture', { method: 'POST', body: formData });
+        const result = await resp.json();
+
+        if (result.ok && result.result === '자동반려') {
+            aiCheck.innerHTML = '<div class="ai-result ai-reject"><strong>반려</strong><p>' + result.reason + '</p><p class="ai-warn-note">이 캡쳐로는 제출할 수 없습니다. 다시 캡쳐해주세요.</p></div>';
+            input.value = '';
+            selectArea.style.display = 'block';
+            cardEl.classList.add('ai-blocked');
+            updateStickyBar();
+            return;
+        } else if (result.ok && result.result === '확인요청') {
+            aiCheck.innerHTML = '<div class="ai-result ai-warn"><strong>담당자 2차검수 필요</strong><p>' + result.reason + '</p><p class="ai-warn-note">제출은 가능하지만, 담당자 확인이 필요합니다.</p></div>';
+        } else if (result.ok && result.result === 'AI검수통과') {
+            aiCheck.innerHTML = '<div class="ai-result ai-pass">AI 검수 통과</div>';
+        } else {
+            aiCheck.style.display = 'none';
+        }
+    } catch(e) {
+        aiCheck.style.display = 'none';
+    }
 
     // Show selected state
     const fileName = input.files[0].name;
-    const fileCount = input.files.length;
-    selectedText.textContent = fileCount + '장 등록됨';
+    selectedText.textContent = '1장 등록됨';
     selectedText.title = fileName;
-
-    selectArea.style.display = 'none';
     selectedArea.style.display = 'flex';
+    cardEl.classList.remove('ai-blocked');
 
     updateStickyBar();
 }
@@ -135,13 +169,16 @@ function removeFile(cardEl) {
     const fileInput = cardEl.querySelector('.file-input');
     const selectArea = document.getElementById('selectArea-' + row);
     const selectedArea = document.getElementById('selectedArea-' + row);
+    const aiCheck = document.getElementById('aiCheck-' + row);
 
     // Reset the file input
     fileInput.value = '';
 
-    // Show select area, hide selected area
+    // Show select area, hide selected area and AI result
     selectArea.style.display = 'block';
     selectedArea.style.display = 'none';
+    if (aiCheck) { aiCheck.style.display = 'none'; aiCheck.innerHTML = ''; }
+    cardEl.classList.remove('ai-blocked');
 
     updateStickyBar();
 }
@@ -150,7 +187,7 @@ function removeFile(cardEl) {
  * Get all cards that have files selected (and are not already uploaded).
  */
 function getSelectedCards() {
-    const cards = document.querySelectorAll('.item-card:not(.uploaded)');
+    const cards = document.querySelectorAll('.item-card:not(.uploaded):not(.ai-blocked)');
     const selected = [];
     cards.forEach(card => {
         const input = card.querySelector('.file-input');
