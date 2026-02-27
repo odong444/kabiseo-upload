@@ -33,6 +33,18 @@
     const campaignId = '{{ campaign_id }}';
     const user = Reviewer.getUser();
 
+    function driveToThumb(url) {
+        if (!url) return url;
+        var m = url.match(/\/file\/d\/([^\/]+)/);
+        if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400';
+        return url;
+    }
+
+    function linkify(text) {
+        if (!text) return '';
+        return text.replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener" style="color:#4a90d9;word-break:break-all;">$1</a>');
+    }
+
     async function load() {
         const c = await Reviewer.apiGet(`/api/campaign/${campaignId}`);
         const container = document.getElementById('campaignDetail');
@@ -50,7 +62,7 @@
         if (c.campaign_guide) {
             guideHtml += `<div class="detail-section">
                 <h3 class="detail-section-title">캠페인 가이드</h3>
-                <div class="detail-guide-text">${c.campaign_guide.replace(/\n/g, '<br>')}</div>
+                <div class="detail-guide-text">${linkify(c.campaign_guide)}</div>
             </div>`;
         }
 
@@ -94,7 +106,7 @@
         container.innerHTML = `
             <a href="/campaigns" class="back-link-top">&lt; 캠페인 목록</a>
 
-            ${c.product_image ? `<div class="detail-image"><img src="${c.product_image}" alt="상품 이미지"></div>` : ''}
+            ${c.product_image ? `<div class="detail-image"><img src="${driveToThumb(c.product_image)}" alt="상품 이미지" onerror="this.parentNode.style.display='none'"></div>` : ''}
 
             <h1 class="detail-title">${c.name}</h1>
             <p class="detail-store">${c.store || ''}</p>
@@ -120,7 +132,7 @@
 
             ${c.extra_info ? `<div class="detail-section">
                 <h3 class="detail-section-title">추가 안내</h3>
-                <div class="detail-guide-text">${c.extra_info.replace(/\n/g, '<br>')}</div>
+                <div class="detail-guide-text">${linkify(c.extra_info)}</div>
             </div>` : ''}
 
             ${myIdsHtml}
