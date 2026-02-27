@@ -128,12 +128,12 @@ class TimeoutManager:
             elapsed = time.time() - baseline
             rid = state.reviewer_id
 
-            # 20분 초과 → 취소
+            # 30분 초과 → 취소
             if elapsed >= self.timeout:
                 self._do_timeout_cancel(state)
                 continue
 
-            # 15분 초과 → 경고 (1회만)
+            # 25분 초과 → 경고 (1회만)
             if elapsed >= self.warning and rid not in self._warned:
                 self._send_warning(state)
                 self._warned.add(rid)
@@ -163,7 +163,7 @@ class TimeoutManager:
                 logger.warning(f"카톡 타임아웃 경고 실패: {e}")
 
     def _do_timeout_cancel(self, state):
-        """20분 타임아웃 취소 처리"""
+        """30분 타임아웃 취소 처리"""
         rid = state.reviewer_id
         campaign = state.temp_data.get("campaign", {})
         campaign_id = campaign.get("캠페인ID", "")
@@ -182,7 +182,7 @@ class TimeoutManager:
                 logger.error(f"DB 취소 에러: {e}")
 
         # 알림 메시지
-        msg = "⏰ 20분이 경과하여 신청이 자동 취소되었습니다.\n자리가 있으면 다시 신청 가능합니다.\n\n'메뉴'를 입력해주세요."
+        msg = "⏰ 30분이 경과하여 신청이 자동 취소되었습니다.\n자리가 있으면 다시 신청 가능합니다.\n\n'메뉴'를 입력해주세요."
 
         if self._chat_logger:
             self._chat_logger.log(rid, "bot", msg)
@@ -232,14 +232,14 @@ class TimeoutManager:
             logger.warning("모집중 복원 체크 실패: %s", e)
 
     def _check_db_stale(self):
-        """DB에서 오래된 건 처리: 20분 초과 타임아웃 취소 + 취소 행 삭제
+        """DB에서 오래된 건 처리: 30분 초과 타임아웃 취소 + 취소 행 삭제
 
         인메모리 세션 없는 경우(서버 재시작 등)에도
-        DB created_at 기준 20분 초과 시 자동 취소.
+        DB created_at 기준 30분 초과 시 자동 취소.
         """
         if not self._db_manager:
             return
-        # 20분(=1200초) 기준으로 DB 타임아웃 (기존 1시간 → timeout 설정값 사용)
+        # 30분(=1800초) 기준으로 DB 타임아웃
         from datetime import timedelta
         from modules.utils import now_kst
         cutoff = now_kst() - timedelta(seconds=self.timeout)
