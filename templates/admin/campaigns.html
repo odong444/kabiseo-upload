@@ -257,6 +257,9 @@
                             <div class="campaign-actions">
                                 <a href="{{ url_for('admin.spreadsheet', campaign=c.get('캠페인ID', '')) }}"
                                    class="admin-btn admin-btn-sm" onclick="event.stopPropagation();" style="background:#e3f2fd;color:#1565c0;">진행현황</a>
+                                <button type="button" class="admin-btn admin-btn-sm"
+                                        onclick="event.stopPropagation(); copyLink('{{ c.get('캠페인ID', '') }}', this);"
+                                        style="background:#f0fdf4;color:#16a34a;">링크</button>
                                 <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
                                    class="admin-btn admin-btn-sm" onclick="event.stopPropagation();">수정</a>
                                 <a href="{{ url_for('admin.campaign_new', copy=c.get('캠페인ID', '')) }}"
@@ -356,6 +359,21 @@
     </main>
 
     <script>
+    function copyLink(campaignId, btn) {
+        var url = location.origin + '/campaign/' + campaignId;
+        navigator.clipboard.writeText(url).then(function() {
+            var orig = btn.textContent;
+            btn.textContent = '복사됨!';
+            btn.style.background = '#16a34a';
+            btn.style.color = '#fff';
+            setTimeout(function() {
+                btn.textContent = orig;
+                btn.style.background = '#f0fdf4';
+                btn.style.color = '#16a34a';
+            }, 1500);
+        });
+    }
+
     function toggleDetail(idx) {
         var row = document.getElementById('detailRow' + idx);
         var btn = document.getElementById('toggleBtn' + idx);
