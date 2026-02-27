@@ -650,6 +650,48 @@ def api_campaign_delete(campaign_id):
         return jsonify({"ok": False, "message": str(e)})
 
 
+# ──────── 동시진행 그룹 ────────
+
+@admin_bp.route("/api/campaigns/exclusive-group", methods=["POST"])
+@admin_required
+def api_exclusive_group_set():
+    """선택한 캠페인들을 동시진행 그룹으로 묶기"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    data = request.get_json(silent=True) or {}
+    campaign_ids = data.get("campaign_ids", [])
+    if len(campaign_ids) < 2:
+        return jsonify({"ok": False, "error": "2개 이상 캠페인을 선택하세요"}), 400
+    import uuid
+    group_id = uuid.uuid4().hex[:8]
+    try:
+        for cid in campaign_ids:
+            models.db_manager.update_campaign(cid, {"동시진행그룹": group_id})
+        return jsonify({"ok": True, "group_id": group_id, "count": len(campaign_ids)})
+    except Exception as e:
+        logger.error(f"동시진행그룹 설정 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/campaigns/exclusive-group/remove", methods=["POST"])
+@admin_required
+def api_exclusive_group_remove():
+    """선택한 캠페인들의 동시진행 그룹 해제"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    data = request.get_json(silent=True) or {}
+    campaign_ids = data.get("campaign_ids", [])
+    if not campaign_ids:
+        return jsonify({"ok": False, "error": "캠페인을 선택하세요"}), 400
+    try:
+        for cid in campaign_ids:
+            models.db_manager.update_campaign(cid, {"동시진행그룹": ""})
+        return jsonify({"ok": True, "count": len(campaign_ids)})
+    except Exception as e:
+        logger.error(f"동시진행그룹 해제 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ──────── 캠페인 신규 등록 ────────
 
 @admin_bp.route("/campaigns/new", methods=["GET"])

@@ -155,6 +155,9 @@
     .admin-status-badge.중지 { background: #fff7ed; color: #ea580c; }
     .admin-status-badge.당일마감 { background: #fef2f2; color: #dc2626; font-size: 11px; margin-left: 4px; }
 
+    /* 동시진행 그룹 배지 */
+    .exclusive-group-badge { display: inline-block; vertical-align: middle; }
+
     /* 토글 슬라이더 */
     #promoSlider:before {
         position: absolute; content: ""; height: 18px; width: 18px;
@@ -201,6 +204,8 @@
 
         <div style="margin-bottom: 16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
             <a href="{{ url_for('admin.campaign_new') }}" class="admin-btn admin-btn-primary">신규 등록</a>
+            <button type="button" id="btnGroupLink" class="admin-btn" style="display:none;background:#8b5cf6;color:#fff;border-color:#8b5cf6;font-size:13px;" onclick="linkExclusiveGroup()">동시진행 그룹 묶기</button>
+            <button type="button" id="btnGroupUnlink" class="admin-btn" style="display:none;background:#f59e0b;color:#fff;border-color:#f59e0b;font-size:13px;" onclick="unlinkExclusiveGroup()">그룹 해제</button>
             <div style="display:flex;align-items:center;gap:8px;margin-left:auto;padding:8px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
                 <span style="font-size:13px;font-weight:600;color:#64748b;">카톡 홍보</span>
                 <label class="toggle-switch" style="position:relative;display:inline-block;width:44px;height:24px;">
@@ -216,6 +221,7 @@
             <table class="admin-table" id="campaignTable">
                 <thead>
                     <tr>
+                        <th style="width:28px;"><input type="checkbox" id="checkAll" onclick="toggleCheckAll(this)" title="전체 선택"></th>
                         <th style="width:28px;"></th>
                         <th>캠페인명</th>
                         <th>업체명</th>
@@ -241,9 +247,15 @@
                     {% set rate = ((active / total * 100)|round(1)) if total > 0 else 0 %}
                     {% set rate_class = 'high' if rate >= 70 else ('mid' if rate >= 40 else 'low') %}
                     <!-- 메인 행 -->
-                    <tr class="campaign-row" data-idx="{{ loop.index0 }}" onclick="toggleDetail({{ loop.index0 }})">
+                    <tr class="campaign-row" data-idx="{{ loop.index0 }}" data-cid="{{ c.get('캠페인ID', '') }}" data-group="{{ c.get('동시진행그룹', '') }}" onclick="toggleDetail({{ loop.index0 }})">
+                        <td onclick="event.stopPropagation();"><input type="checkbox" class="campaign-check" value="{{ c.get('캠페인ID', '') }}" onchange="updateGroupButtons()"></td>
                         <td><button type="button" class="toggle-btn" id="toggleBtn{{ loop.index0 }}">&#9660;</button></td>
-                        <td style="font-weight:600;">{{ c.get('캠페인명', '') or c.get('상품명', '') }}</td>
+                        <td style="font-weight:600;">
+                            {{ c.get('캠페인명', '') or c.get('상품명', '') }}
+                            {% if c.get('동시진행그룹', '') %}
+                            <span class="exclusive-group-badge" data-group="{{ c.get('동시진행그룹', '') }}" style="font-size:10px;padding:2px 6px;border-radius:10px;margin-left:4px;font-weight:500;cursor:help;" title="동시진행 그룹 (같은 아이디 사용 불가)">그룹</span>
+                            {% endif %}
+                        </td>
                         <td>{{ c.get('업체명', '') }}</td>
                         <td class="num-cell">{{ total }}</td>
                         <td class="num-cell">
@@ -300,7 +312,7 @@
                     </tr>
                     <!-- 상세 펼침 행 -->
                     <tr class="detail-row" id="detailRow{{ loop.index0 }}">
-                        <td colspan="11" class="detail-cell">
+                        <td colspan="12" class="detail-cell">
                             <div class="detail-grid">
                                 <div class="detail-item">
                                     <div class="detail-label">플랫폼</div>
@@ -828,6 +840,98 @@
         })
         .catch(function() { btn.disabled = false; status.textContent = '연결 실패'; status.style.color = '#ef4444'; });
     }
+
+    // ──── 동시진행 그룹 ────
+
+    function toggleCheckAll(el) {
+        document.querySelectorAll('.campaign-check').forEach(function(cb) { cb.checked = el.checked; });
+        updateGroupButtons();
+    }
+
+    function getCheckedIds() {
+        var ids = [];
+        document.querySelectorAll('.campaign-check:checked').forEach(function(cb) { ids.push(cb.value); });
+        return ids;
+    }
+
+    function updateGroupButtons() {
+        var ids = getCheckedIds();
+        var btnLink = document.getElementById('btnGroupLink');
+        var btnUnlink = document.getElementById('btnGroupUnlink');
+        if (ids.length >= 2) {
+            btnLink.style.display = '';
+            btnLink.textContent = '동시진행 그룹 묶기 (' + ids.length + ')';
+        } else {
+            btnLink.style.display = 'none';
+        }
+        // 해제 버튼: 선택 중 그룹 있는게 하나라도 있으면 표시
+        var hasGroup = false;
+        document.querySelectorAll('.campaign-check:checked').forEach(function(cb) {
+            var row = cb.closest('tr');
+            if (row && row.getAttribute('data-group')) hasGroup = true;
+        });
+        btnUnlink.style.display = (ids.length >= 1 && hasGroup) ? '' : 'none';
+    }
+
+    function linkExclusiveGroup() {
+        var ids = getCheckedIds();
+        if (ids.length < 2) { alert('2개 이상 선택하세요'); return; }
+        if (!confirm(ids.length + '개 캠페인을 동시진행 그룹으로 묶으시겠습니까?\n(같은 아이디로 동시 진행이 차단됩니다)')) return;
+        fetch('/admin/api/campaigns/exclusive-group', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({campaign_ids: ids}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                alert(data.count + '개 캠페인이 동시진행 그룹으로 묶였습니다.');
+                location.reload();
+            } else {
+                alert('실패: ' + (data.error || ''));
+            }
+        })
+        .catch(function() { alert('연결 실패'); });
+    }
+
+    function unlinkExclusiveGroup() {
+        var ids = getCheckedIds();
+        if (!ids.length) return;
+        if (!confirm('선택한 캠페인의 동시진행 그룹을 해제하시겠습니까?')) return;
+        fetch('/admin/api/campaigns/exclusive-group/remove', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({campaign_ids: ids}),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                alert(data.count + '개 캠페인 그룹 해제 완료');
+                location.reload();
+            } else {
+                alert('실패: ' + (data.error || ''));
+            }
+        })
+        .catch(function() { alert('연결 실패'); });
+    }
+
+    // 그룹 배지 색상 지정 (같은 그룹이면 같은 색)
+    (function() {
+        var colors = ['#8b5cf6','#ec4899','#06b6d4','#f97316','#10b981','#6366f1','#f43f5e','#14b8a6'];
+        var groupMap = {};
+        var colorIdx = 0;
+        document.querySelectorAll('.exclusive-group-badge').forEach(function(badge) {
+            var g = badge.getAttribute('data-group');
+            if (!g) return;
+            if (!groupMap[g]) {
+                groupMap[g] = colors[colorIdx % colors.length];
+                colorIdx++;
+            }
+            badge.style.background = groupMap[g] + '22';
+            badge.style.color = groupMap[g];
+            badge.style.border = '1px solid ' + groupMap[g] + '44';
+        });
+    })();
 
     function notifyOne(progressId, btnEl) {
         btnEl.disabled = true;

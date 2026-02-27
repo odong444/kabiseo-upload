@@ -250,11 +250,13 @@
                     </select>
                 </div>
 
+                {% if campaign.get('동시진행그룹', '') %}
                 <div class="form-group">
                     <label>동시진행그룹</label>
-                    <input type="text" name="동시진행그룹" value="{{ campaign.get('동시진행그룹', '') }}" placeholder="예: A업체">
-                    <small style="color:#888;font-size:12px;">같은 그룹명의 캠페인끼리 동일 아이디 사용 불가</small>
+                    <span style="font-size:13px;color:#8b5cf6;font-weight:600;">설정됨</span>
+                    <small style="color:#888;font-size:12px;">캠페인 목록에서 체크 후 묶기/해제 가능</small>
                 </div>
+                {% endif %}
 
                 <div class="form-group">
                     <label>상품링크</label>
