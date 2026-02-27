@@ -6,6 +6,8 @@
     <title>카비서 관리자 - 캠페인</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
+    .admin-table-wrap { overflow-x: auto; }
+    #campaignTable { min-width: 1100px; }
     .admin-status-badge.모집중 { background: #e3f2fd; color: #1565c0; }
     .admin-status-badge.진행중 { background: #e8f5e9; color: #2e7d32; }
     .admin-status-badge.마감 { background: #fff8e1; color: #f57f17; }
@@ -135,7 +137,8 @@
     .num-cell { text-align: center; font-variant-numeric: tabular-nums; }
 
     /* 캠페인 관리 버튼 */
-    .campaign-actions { display: flex; gap: 4px; align-items: center; }
+    .campaign-actions { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; }
+    .campaign-actions .admin-btn-sm { white-space: nowrap; padding: 4px 8px; font-size: 12px; }
     .admin-btn-pause {
         background: #fff7ed; color: #ea580c; border-color: #fdba74;
     }
