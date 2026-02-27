@@ -250,6 +250,12 @@
                     <div class="form-group form-group-full">
                         <div class="calc-hint hidden" id="calcHint"></div>
                     </div>
+                    <div class="form-group form-group-full hidden" id="scheduleWrap">
+                        <label>일별 진행일정</label>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;" id="schedulePreview"></div>
+                        <input type="text" name="일정" id="scheduleInput" placeholder="예: 3, 5, 4, 3, 4, 2 (쉼표 구분)">
+                        <small style="color:#888;font-size:12px;">자동 생성된 일정을 직접 수정할 수 있습니다</small>
+                    </div>
                     <div class="form-group form-group-full">
                         <label>모집 및 구매진행시간</label>
                         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -513,6 +519,46 @@
             el.addEventListener('input', updateCalcHint);
         });
 
+        const scheduleWrap = document.getElementById('scheduleWrap');
+        const scheduleInput = document.getElementById('scheduleInput');
+        const schedulePreview = document.getElementById('schedulePreview');
+
+        function generateSchedule(total, lo, hi, days) {
+            let distribution = [], remaining = total;
+            for (let i = 0; i < days; i++) {
+                if (i === days - 1) {
+                    distribution.push(Math.max(0, remaining));
+                } else {
+                    const left = days - i - 1;
+                    let minT = Math.max(lo, remaining - hi * left);
+                    let maxT = Math.min(hi, remaining - lo * left);
+                    if (minT > maxT) minT = maxT = Math.max(1, Math.round(remaining / (left + 1)));
+                    const val = Math.min(Math.floor(Math.random() * (maxT - minT + 1)) + minT, remaining);
+                    distribution.push(val);
+                    remaining -= val;
+                }
+            }
+            return distribution;
+        }
+
+        function updateSchedulePreview() {
+            const vals = scheduleInput.value.split(/[,\s]+/).filter(function(v) { return v.trim(); }).map(Number);
+            if (vals.length === 0) { schedulePreview.innerHTML = ''; return; }
+            const sum = vals.reduce(function(a, b) { return a + b; }, 0);
+            let html = '';
+            vals.forEach(function(v, i) {
+                html += '<div style="background:#e3f2fd;border-radius:6px;padding:6px 12px;font-size:13px;text-align:center;min-width:50px;">' +
+                    '<div style="font-size:11px;color:#888;">' + (i + 1) + '일차</div>' +
+                    '<div style="font-weight:700;">' + v + '명</div></div>';
+            });
+            html += '<div style="background:#fff3e0;border-radius:6px;padding:6px 12px;font-size:13px;text-align:center;">' +
+                '<div style="font-size:11px;color:#888;">합계</div>' +
+                '<div style="font-weight:700;">' + sum + '명</div></div>';
+            schedulePreview.innerHTML = html;
+        }
+
+        scheduleInput.addEventListener('input', updateSchedulePreview);
+
         function updateCalcHint() {
             const total = parseInt(totalCountEl.value) || 0;
             const dailyStr = dailyCountEl.value.trim();
@@ -520,47 +566,40 @@
 
             if (!total || !dailyStr || !days) {
                 calcHint.classList.add('hidden');
+                scheduleWrap.classList.add('hidden');
                 return;
             }
 
-            // 범위 입력 (예: 3-5)
             const rangeMatch = dailyStr.match(/^(\d+)\s*[-~]\s*(\d+)$/);
-            let distribution = [];
-
+            let lo, hi;
             if (rangeMatch) {
-                const lo = parseInt(rangeMatch[1]);
-                const hi = parseInt(rangeMatch[2]);
-                let remaining = total;
-                for (let i = 0; i < days; i++) {
-                    if (i === days - 1) {
-                        distribution.push(Math.max(0, remaining));
-                    } else {
-                        const avg = remaining / (days - i);
-                        let val = Math.round(avg);
-                        val = Math.max(lo, Math.min(hi, val));
-                        val = Math.min(val, remaining);
-                        distribution.push(val);
-                        remaining -= val;
-                    }
-                }
-                const sum = distribution.reduce(function(a, b) { return a + b; }, 0);
-                calcHint.innerHTML = '예상 배분 (' + lo + '~' + hi + '명/일): ' + distribution.join(', ') + ' = <b>' + sum + '명</b>' +
-                    (sum !== total ? ' <span style="color:#e53e3e">(총 모집인원 ' + total + '명과 불일치)</span>' : ' ✅');
+                lo = parseInt(rangeMatch[1]);
+                hi = parseInt(rangeMatch[2]);
             } else {
-                const daily = parseInt(dailyStr);
-                if (!daily) { calcHint.classList.add('hidden'); return; }
-                let remaining = total;
-                for (let i = 0; i < days; i++) {
-                    const val = Math.min(daily, remaining);
-                    distribution.push(val);
-                    remaining -= val;
-                }
-                const sum = distribution.reduce(function(a, b) { return a + b; }, 0);
-                calcHint.innerHTML = '예상 배분 (' + daily + '명/일): ' + distribution.join(', ') + ' = <b>' + sum + '명</b>' +
-                    (sum !== total ? ' <span style="color:#e53e3e">(총 모집인원 ' + total + '명과 불일치)</span>' : ' ✅');
+                lo = hi = parseInt(dailyStr);
+                if (!lo) { calcHint.classList.add('hidden'); scheduleWrap.classList.add('hidden'); return; }
             }
+
+            const distribution = generateSchedule(total, lo, hi, days);
+            const sum = distribution.reduce(function(a, b) { return a + b; }, 0);
+
+            const label = lo === hi ? lo + '명/일' : lo + '~' + hi + '명/일';
+            calcHint.innerHTML = '예상 배분 (' + label + '): ' + distribution.join(', ') + ' = <b>' + sum + '명</b>' +
+                (sum !== total ? ' <span style="color:#e53e3e">(총 모집인원 ' + total + '명과 불일치)</span>' : ' ✅');
             calcHint.classList.remove('hidden');
+
+            // 일정 입력필드에 자동 채우기 (사용자가 직접 수정 안 했을 때만)
+            if (!scheduleInput.dataset.userEdited) {
+                scheduleInput.value = distribution.join(', ');
+                updateSchedulePreview();
+            }
+            scheduleWrap.classList.remove('hidden');
         }
+
+        // 사용자가 직접 일정을 수정하면 자동 갱신 중단
+        scheduleInput.addEventListener('input', function() {
+            scheduleInput.dataset.userEdited = 'true';
+        });
 
         // 이미지 업로드 영역
         const imageUploadArea = document.getElementById('imageUploadArea');

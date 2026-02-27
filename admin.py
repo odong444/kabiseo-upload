@@ -350,20 +350,25 @@ def campaign_new_post():
         if codes:
             data["상품코드"] = codes
 
-    # 일정 자동 생성
-    total = safe_int(data.get("총수량", 0))
-    daily_str = data.get("일수량", "").strip()
-    days = safe_int(data.get("진행일수", 0))
-    if total > 0 and days > 0 and daily_str:
-        range_match = re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
-        if range_match:
-            lo, hi = int(range_match.group(1)), int(range_match.group(2))
-        else:
-            lo = hi = safe_int(daily_str)
-        if lo > 0 and hi >= lo:
-            schedule = _generate_schedule(total, lo, hi, days)
-            data["일정"] = schedule
-            data["시작일"] = today_str()
+    # 일정: 수동 입력값 우선, 없으면 자동 생성
+    manual_schedule = request.form.get("일정", "").strip()
+    if manual_schedule:
+        data["일정"] = [safe_int(x) for x in re.split(r"[,\s]+", manual_schedule) if x.strip()]
+        data["시작일"] = today_str()
+    else:
+        total = safe_int(data.get("총수량", 0))
+        daily_str = data.get("일수량", "").strip()
+        days = safe_int(data.get("진행일수", 0))
+        if total > 0 and days > 0 and daily_str:
+            range_match = re.match(r"(\d+)\s*[-~]\s*(\d+)", daily_str)
+            if range_match:
+                lo, hi = int(range_match.group(1)), int(range_match.group(2))
+            else:
+                lo = hi = safe_int(daily_str)
+            if lo > 0 and hi >= lo:
+                schedule = _generate_schedule(total, lo, hi, days)
+                data["일정"] = schedule
+                data["시작일"] = today_str()
 
     # 상품이미지 파일 업로드
     image_file = request.files.get("상품이미지")
