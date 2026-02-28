@@ -148,6 +148,8 @@ def api_campaigns():
             "closed": is_closed,
             "closed_reason": closed_reason,
             "max_per_person_daily": safe_int(c.get("1인일일제한", 0)),
+            "schedule": c.get("일정", []) or [],
+            "start_date": (c.get("시작일") or "").strip(),
         }
 
         # 내 진행 이력

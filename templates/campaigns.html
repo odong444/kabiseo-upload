@@ -2,8 +2,23 @@
 {% block title %}캠페인 목록 - 카비서{% endblock %}
 {% block head %}
 <script src="{{ url_for('static', filename='js/reviewer.js') }}"></script>
+<style>
+.campaign-schedule { margin-top: 8px; }
+.sch-label { font-size: 11px; color: #64748b; font-weight: 600; display: block; margin-bottom: 4px; }
+.sch-blocks { display: flex; gap: 3px; flex-wrap: wrap; }
+.sch-block {
+    display: flex; flex-direction: column; align-items: center;
+    background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px;
+    padding: 2px 6px; min-width: 34px; font-size: 11px;
+}
+.sch-day { color: #94a3b8; font-size: 10px; }
+.sch-qty { font-weight: 700; color: #334155; }
+.sch-block.sch-today { background: #dbeafe; border-color: #3b82f6; }
+.sch-block.sch-today .sch-day { color: #2563eb; }
+.sch-block.sch-today .sch-qty { color: #1d4ed8; }
+.sch-block.sch-past { opacity: 0.4; }
+</style>
 {% endblock %}
-
 {% block content %}
 <div class="page-content">
     <h1 class="page-title">캠페인 목록</h1>
@@ -76,10 +91,43 @@
                     ${card.review_fee ? `<span class="campaign-card-fee">리뷰비 ${Reviewer.formatNumber(card.review_fee)}원</span>` : ''}
                 </div>
                 ${card.buy_time ? `<div class="campaign-card-time ${card.buy_time_closed ? 'closed' : ''}">구매시간 ${card.buy_time}</div>` : ''}
+                ${renderSchedule(card.schedule, card.start_date)}
                 ${hasHistory ? renderHistory(card.my_history, cid) : ''}
             </div>`;
         }
         container.innerHTML = html;
+    }
+
+    function renderSchedule(schedule, startDate) {
+        if (!schedule || schedule.length === 0) return '';
+        const today = new Date();
+        today.setHours(today.getHours() + 9); // UTC→KST
+        const todayStr = today.toISOString().slice(0, 10);
+
+        let dayIndex = -1;
+        if (startDate) {
+            const sd = new Date(startDate + 'T00:00:00+09:00');
+            const diff = Math.floor((today - sd) / 86400000);
+            dayIndex = diff;
+        }
+
+        let blocks = '';
+        for (let i = 0; i < schedule.length; i++) {
+            let cls = '';
+            if (dayIndex >= 0) {
+                if (i < dayIndex) cls = 'sch-past';
+                else if (i === dayIndex) cls = 'sch-today';
+            }
+            // 날짜 계산
+            let dateLabel = `${i+1}일차`;
+            if (startDate) {
+                const d = new Date(startDate + 'T00:00:00+09:00');
+                d.setDate(d.getDate() + i);
+                dateLabel = `${d.getMonth()+1}/${d.getDate()}`;
+            }
+            blocks += `<span class="sch-block ${cls}"><span class="sch-day">${dateLabel}</span><span class="sch-qty">${schedule[i]}</span></span>`;
+        }
+        return `<div class="campaign-schedule"><span class="sch-label">모집일정</span><div class="sch-blocks">${blocks}</div></div>`;
     }
 
     function renderHistory(history, cid) {
