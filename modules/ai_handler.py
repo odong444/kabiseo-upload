@@ -9,22 +9,9 @@ import re
 import logging
 import requests
 
-from modules.ai_guide import GUIDE as DEFAULT_GUIDE
+from modules.ai_guide import GUIDE
 
 logger = logging.getLogger(__name__)
-
-
-def _get_guide() -> str:
-    """DB에 저장된 챗봇 가이드 반환, 없으면 하드코딩 기본값 사용"""
-    try:
-        from models import db_manager
-        if db_manager:
-            saved = db_manager.get_setting("ai_chatbot_guide", "")
-            if saved.strip():
-                return saved
-    except Exception:
-        pass
-    return DEFAULT_GUIDE
 
 STEP_DESCRIPTIONS = {
     0: "메뉴 선택 대기",
@@ -75,7 +62,7 @@ class AIHandler:
                 f"아래 서비스 가이드와 과거 답변 사례를 참고해 응답을 작성해줘.\n"
                 f"응답 텍스트만 출력하고 코드블록이나 설명은 붙이지 마.\n"
                 f"이모지 적당히.\n\n"
-                f"{_get_guide()}\n\n"
+                f"{GUIDE}\n\n"
                 f"{learned_section}"
                 f"[상황] {situation}\n"
                 f"[사용자 메시지] {user_message}\n\n"
