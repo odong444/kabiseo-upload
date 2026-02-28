@@ -1618,9 +1618,9 @@ def api_inquiry_reply():
                 "bot_message", {"message": chat_msg}, room=rid
             )
 
-    # 2) 긴급문의만 카톡으로 추가 발송
+    # 2) 답변은 무조건 카톡 발송
     kakao_ok = False
-    if is_urgent and models.kakao_notifier and reviewer_name and reviewer_phone:
+    if models.kakao_notifier and reviewer_name and reviewer_phone:
         try:
             kakao_ok = models.kakao_notifier.notify_inquiry_reply(
                 reviewer_name, reviewer_phone, reply_text
@@ -1629,8 +1629,7 @@ def api_inquiry_reply():
             logger.error(f"문의 답변 카톡 발송 실패: {e}")
 
     msg = "답변 완료 (웹채팅 전송됨)"
-    if is_urgent:
-        msg += " + 카톡 발송" + ("됨" if kakao_ok else " 실패")
+    msg += " + 카톡 발송" + ("됨" if kakao_ok else " 실패")
     return jsonify({"ok": True, "message": msg})
 
 
