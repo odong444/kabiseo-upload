@@ -145,18 +145,18 @@ def count_form_fields(parsed: dict) -> int:
 
 
 def parse_menu_choice(text: str) -> int | None:
-    """메뉴 번호 파싱 (1~5)"""
+    """메뉴 번호 파싱 (1~6)"""
     text = text.strip()
 
     # 직접 번호
-    if text in ("1", "2", "3", "4", "5"):
+    if text in ("1", "2", "3", "4", "5", "6"):
         return int(text)
 
     # 번호 + 번 패턴
     m = re.match(r"^(\d)\s*번?$", text)
     if m:
         num = int(m.group(1))
-        if 1 <= num <= 5:
+        if 1 <= num <= 6:
             return num
 
     # 텍스트 대화는 모두 AI로 → 키워드 매칭 제거

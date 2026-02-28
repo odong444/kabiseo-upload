@@ -1607,8 +1607,15 @@ class StepMachine:
 
     def _ask_ai(self, state: ReviewerState, user_message: str):
         """AI 응답 폴백 (매칭 안 되는 자유 텍스트)"""
+        fallback_buttons = [
+            {"label": "📞 담당자에게 문의남기기", "value": "__inquiry__"},
+        ] + list(self._menu_buttons())
+
         if not self.ai_handler:
-            return _resp(tpl.UNKNOWN_INPUT, buttons=self._menu_buttons())
+            return _resp(
+                "답변이 어려운 내용이에요. 담당자에게 문의를 남겨주시면 빠르게 답변드리겠습니다.",
+                buttons=fallback_buttons
+            )
 
         try:
             context = self._build_ai_context(state)
@@ -1631,7 +1638,10 @@ class StepMachine:
         except Exception as e:
             logger.error(f"AI 응답 실패: {e}")
 
-        return _resp(tpl.UNKNOWN_INPUT, buttons=self._menu_buttons())
+        return _resp(
+            "답변이 어려운 내용이에요. 담당자에게 문의를 남겨주시면 빠르게 답변드리겠습니다.",
+            buttons=fallback_buttons
+        )
 
     # ─────────── STEP 9: 문의 모드 (AI 응답) ───────────
 
