@@ -166,8 +166,15 @@ def api_campaigns():
 
         cards.append(card)
 
-    # 활성 먼저, 마감 뒤로
-    cards.sort(key=lambda x: (x["closed"], x["name"]))
+    # 모집중 → 금일마감 → 전체마감 순
+    def sort_key(x):
+        if not x["closed"]:
+            return (0, x["name"])
+        elif x["closed_reason"] == "금일마감":
+            return (1, x["name"])
+        else:
+            return (2, x["name"])
+    cards.sort(key=sort_key)
     return jsonify(cards)
 
 
