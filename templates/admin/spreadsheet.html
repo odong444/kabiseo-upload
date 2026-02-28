@@ -352,6 +352,7 @@
                         <th>신청일시</th>
                         <th>제품명</th>
                         <th>진행자</th>
+                        <th>진행자연락처</th>
                         <th>수취인명</th>
                         <th>연락처</th>
                         <th>은행</th>
@@ -378,6 +379,7 @@
                         <td class="editable" data-field="등록일">{{ item.get('날짜', '') }}</td>
                         <td class="readonly" style="min-width:200px;max-width:300px;">{{ item.get('제품명', '') }}</td>
                         <td class="readonly">{{ item.get('진행자이름', '') }}</td>
+                        <td class="readonly">{{ item.get('진행자연락처', '') }}</td>
                         <td class="editable" data-field="수취인명">{{ item.get('수취인명', '') }}</td>
                         <td class="editable" data-field="연락처">{{ item.get('연락처', '') }}</td>
                         <td class="editable" data-field="은행">{{ item.get('은행', '') }}</td>
