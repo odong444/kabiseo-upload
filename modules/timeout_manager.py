@@ -67,7 +67,7 @@ class TimeoutManager:
         self._warned.discard(reviewer_id)
 
     def _check_loop(self):
-        sheet_check_counter = 0
+        db_check_counter = 0
         deadline_check_counter = 0
         while self._running:
             try:
@@ -75,10 +75,10 @@ class TimeoutManager:
             except Exception as e:
                 logger.error(f"타임아웃 체크 에러: {e}")
 
-            # DB 기반 타임아웃: 10분마다 (15초 * 40 = 600초)
-            sheet_check_counter += 1
-            if sheet_check_counter >= 40:
-                sheet_check_counter = 0
+            # DB 기반 타임아웃: 30초마다 (15초 * 2)
+            db_check_counter += 1
+            if db_check_counter >= 2:
+                db_check_counter = 0
                 try:
                     self._check_db_stale()
                 except Exception as e:
@@ -232,17 +232,20 @@ class TimeoutManager:
             logger.warning("모집중 복원 체크 실패: %s", e)
 
     def _check_db_stale(self):
-        """DB에서 오래된 건 처리: 30분 초과 타임아웃 취소 + 취소 행 삭제
+        """DB 기반 타임아웃: 경고(25분) + 취소(30분) + 카톡 알림
 
-        인메모리 세션 없는 경우(서버 재시작 등)에도
-        DB created_at 기준 30분 초과 시 자동 취소.
+        웹 플로우에서는 인메모리 세션이 없으므로
+        DB created_at 기준으로 직접 경고/취소 처리.
         """
         if not self._db_manager:
             return
-        # 30분(=1800초) 기준으로 DB 타임아웃
         from datetime import timedelta
         from modules.utils import now_kst
-        cutoff = now_kst() - timedelta(seconds=self.timeout)
+
+        now = now_kst()
+        warning_cutoff = now - timedelta(seconds=self.warning)
+        timeout_cutoff = now - timedelta(seconds=self.timeout)
+
         # 인메모리 세션이 있는 건은 _check_all()에서 처리하므로 제외
         active_keys = set()
         for state in self.state_store.all_states():
@@ -251,26 +254,80 @@ class TimeoutManager:
                 for sid in state.temp_data.get("store_ids", []):
                     active_keys.add((campaign_id, sid))
 
+        # 신청/가이드전달 상태이고 25분 경과한 건 모두 조회
         rows = self._db_manager._fetchall(
-            """SELECT id, campaign_id, store_id FROM progress
-               WHERE status IN ('신청', '가이드전달') AND created_at < %s""",
-            (cutoff,)
+            """SELECT p.id, p.campaign_id, p.store_id, p.created_at,
+                      r.name, r.phone,
+                      COALESCE(NULLIF(c.campaign_name, ''), c.product_name, '') AS product_name
+               FROM progress p
+               JOIN reviewers r ON p.reviewer_id = r.id
+               LEFT JOIN campaigns c ON p.campaign_id = c.id
+               WHERE p.status IN ('신청', '가이드전달')
+               AND p.created_at < %s""",
+            (warning_cutoff,)
         )
-        to_cancel = [r for r in rows if (r["campaign_id"], r["store_id"]) not in active_keys]
-        if to_cancel:
-            ids = [r["id"] for r in to_cancel]
+
+        # 리뷰어별 그룹화 (같은 사람에게 중복 알림 방지)
+        to_warn = {}   # {(name, phone): [rows]}
+        to_cancel = {}  # {(name, phone): [rows]}
+
+        for r in rows:
+            if (r["campaign_id"], r["store_id"]) in active_keys:
+                continue
+            key = (r["name"], r["phone"])
+            if r["created_at"].astimezone().timestamp() < timeout_cutoff.timestamp():
+                to_cancel.setdefault(key, []).append(r)
+            else:
+                to_warn.setdefault(key, []).append(r)
+
+        # ── 25분 경고 (카톡) ──
+        for (name, phone), group in to_warn.items():
+            pid = group[0]["id"]
+            if pid in self._warned:
+                continue
+            self._warned.add(pid)
+            if self._kakao_notifier:
+                try:
+                    product = group[0].get("product_name", "")
+                    sids = ", ".join(r["store_id"] for r in group)
+                    self._kakao_notifier.notify_timeout_warning(
+                        name, phone, product, "", sids)
+                    logger.info("DB 경고 발송: %s %s (%s)", name, phone, sids)
+                except Exception as e:
+                    logger.warning("DB 경고 카톡 실패: %s", e)
+
+        # ── 30분 취소 (DB + 카톡) ──
+        all_cancel_ids = []
+        affected_campaigns = set()
+        for (name, phone), group in to_cancel.items():
+            ids = [r["id"] for r in group]
+            all_cancel_ids.extend(ids)
+            affected_campaigns.update(r["campaign_id"] for r in group if r["campaign_id"])
+            # 카톡 취소 알림
+            if self._kakao_notifier:
+                try:
+                    product = group[0].get("product_name", "")
+                    sids = ", ".join(r["store_id"] for r in group)
+                    self._kakao_notifier.notify_timeout_cancelled(
+                        name, phone, product, "", sids)
+                    logger.info("DB 취소 알림: %s %s (%s)", name, phone, sids)
+                except Exception as e:
+                    logger.warning("DB 취소 카톡 실패: %s", e)
+
+        if all_cancel_ids:
             self._db_manager._execute(
                 """UPDATE progress SET status = '타임아웃취소', updated_at = NOW()
                    WHERE id = ANY(%s)""",
-                (ids,)
+                (all_cancel_ids,)
             )
-            logger.info(f"DB 기반 자동 취소: {len(ids)}건 (created_at + {self.timeout}초 초과)")
-
-            # 취소된 캠페인들 모집마감 → 모집중 복원 체크
-            affected_campaigns = set(r["campaign_id"] for r in to_cancel if r["campaign_id"])
+            logger.info("DB 기반 자동 취소: %d건", len(all_cancel_ids))
+            # warned 클리어
+            for pid in all_cancel_ids:
+                self._warned.discard(pid)
+            # 모집중 복원 체크
             for cid in affected_campaigns:
                 self._try_reopen_campaign(cid)
 
         deleted = self._db_manager.delete_old_cancelled_rows()
         if deleted:
-            logger.info(f"취소 행 자동 삭제: {deleted}건")
+            logger.info("취소 행 자동 삭제: %d건", deleted)
