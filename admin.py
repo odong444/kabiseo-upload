@@ -1800,12 +1800,14 @@ def settings():
     if models.db_manager:
         managers = models.db_manager.get_managers()
         suppliers = models.db_manager.get_suppliers()
+        from modules.capture_verifier import PURCHASE_PROMPT_BASE, REVIEW_PROMPT_BASE
+        from modules.ai_guide import GUIDE
         ai_settings = {
             "ai_global_purchase": models.db_manager.get_setting("ai_global_purchase", ""),
             "ai_global_review": models.db_manager.get_setting("ai_global_review", ""),
-            "ai_base_purchase_prompt": models.db_manager.get_setting("ai_base_purchase_prompt", ""),
-            "ai_base_review_prompt": models.db_manager.get_setting("ai_base_review_prompt", ""),
-            "ai_chatbot_guide": models.db_manager.get_setting("ai_chatbot_guide", ""),
+            "ai_base_purchase_prompt": models.db_manager.get_setting("ai_base_purchase_prompt", "") or PURCHASE_PROMPT_BASE,
+            "ai_base_review_prompt": models.db_manager.get_setting("ai_base_review_prompt", "") or REVIEW_PROMPT_BASE,
+            "ai_chatbot_guide": models.db_manager.get_setting("ai_chatbot_guide", "") or GUIDE,
         }
     return render_template("admin/settings.html", managers=managers, suppliers=suppliers, ai_settings=ai_settings)
 
