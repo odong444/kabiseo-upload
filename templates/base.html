@@ -105,18 +105,21 @@
         }
         if (logoutBtn) logoutBtn.style.display = '';
 
-        // 상단 채팅 안내 배너 (하루 1회)
-        var bannerKey = 'kabiseo_chat_banner_closed';
-        var bannerClosed = localStorage.getItem(bannerKey);
-        var today = new Date().toISOString().slice(0, 10);
-        if (bannerClosed !== today) {
-            var banner = document.getElementById('chatTopBanner');
-            if (banner) banner.style.display = 'flex';
+        // 상단 채팅 안내 배너 (닫아도 3분 후 다시 표시)
+        var banner = document.getElementById('chatTopBanner');
+        var bannerHideUntil = parseInt(localStorage.getItem('kabiseo_chat_banner_hide') || '0');
+        if (banner) {
+            if (Date.now() > bannerHideUntil) {
+                banner.style.display = 'flex';
+            } else {
+                // 남은 시간 후 다시 표시
+                setTimeout(function() { banner.style.display = 'flex'; }, bannerHideUntil - Date.now());
+            }
         }
         window.closeChatBanner = function() {
-            var banner = document.getElementById('chatTopBanner');
-            if (banner) banner.style.display = 'none';
-            localStorage.setItem(bannerKey, today);
+            var b = document.getElementById('chatTopBanner');
+            if (b) b.style.display = 'none';
+            localStorage.setItem('kabiseo_chat_banner_hide', String(Date.now() + 180000)); // 3분
         };
 
         // 채팅 안내 말풍선 (첫 방문 시)
