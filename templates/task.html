@@ -384,12 +384,7 @@
                     <h2>구매 완료</h2>
                     <p>${taskData.product_name}</p>
                     ${sibHtml}
-                    <div class="chat-cta" onclick="toggleChatModal()" style="margin-top:16px;">
-                        <span class="chat-cta-icon">&#x1f4ac;</span>
-                        <span class="chat-cta-text">잘못 입력하셨나요? 채팅으로 바로 수정!</span>
-                        <span class="chat-cta-arrow">&#x203A;</span>
-                    </div>
-                    <a href="/my" class="back-link" style="margin-top:12px;display:block">내 작업으로</a>
+                    <a href="/my" class="back-link" style="margin-top:16px;display:block">내 작업으로</a>
                 </div>
             `;
             return;
@@ -594,13 +589,6 @@
             ${c.product_image ? `<div class="detail-image"><img src="${driveToThumb(c.product_image)}" alt="상품 이미지" onclick="openLightbox(['${driveToFull(c.product_image)}'], 0)" onerror="this.parentNode.style.display='none'"></div>` : ''}
 
             ${guideHtml}
-
-            <div class="chat-cta" onclick="toggleChatModal()">
-                <span class="chat-cta-icon">&#x1f4ac;</span>
-                <span class="chat-cta-text">수정/문의는 채팅으로 바로 해결!</span>
-                <span class="chat-cta-arrow">&#x203A;</span>
-            </div>
-
             ${cancelHtml}
 
             <div class="task-divider"></div>

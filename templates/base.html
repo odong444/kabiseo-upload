@@ -19,6 +19,12 @@
     </header>
     {% endblock %}
 
+    <!-- 채팅 안내 상단 배너 -->
+    <div class="chat-top-banner" id="chatTopBanner" style="display:none;" onclick="toggleChatModal()">
+        <span class="chat-top-text">&#x1f4ac; 수정/문의는 채팅으로 바로 해결!</span>
+        <button class="chat-top-close" onclick="event.stopPropagation();closeChatBanner()">&times;</button>
+    </div>
+
     <main class="app-main">
         {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -54,6 +60,24 @@
         border-top: 6px solid #1e40af;
     }
     @keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .chat-top-banner {
+        position: sticky; top: 0; z-index: 900;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, #1e40af, #3b82f6);
+        color: #fff; padding: 10px 40px 10px 16px;
+        font-size: 14px; font-weight: 600; cursor: pointer;
+        animation: bannerSlideDown 0.3s ease;
+    }
+    .chat-top-banner:active { background: linear-gradient(135deg, #1e3a8a, #2563eb); }
+    .chat-top-text { text-align: center; }
+    .chat-top-close {
+        position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+        background: none; border: none; color: rgba(255,255,255,0.7);
+        font-size: 20px; cursor: pointer; padding: 4px 8px; line-height: 1;
+    }
+    .chat-top-close:hover { color: #fff; }
+    @keyframes bannerSlideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
     </style>
 
     <!-- 플로팅 채팅 버튼 + 모달 -->
@@ -80,6 +104,20 @@
             return;
         }
         if (logoutBtn) logoutBtn.style.display = '';
+
+        // 상단 채팅 안내 배너 (하루 1회)
+        var bannerKey = 'kabiseo_chat_banner_closed';
+        var bannerClosed = localStorage.getItem(bannerKey);
+        var today = new Date().toISOString().slice(0, 10);
+        if (bannerClosed !== today) {
+            var banner = document.getElementById('chatTopBanner');
+            if (banner) banner.style.display = 'flex';
+        }
+        window.closeChatBanner = function() {
+            var banner = document.getElementById('chatTopBanner');
+            if (banner) banner.style.display = 'none';
+            localStorage.setItem(bannerKey, today);
+        };
 
         // 채팅 안내 말풍선 (첫 방문 시)
         if (!localStorage.getItem('kabiseo_chat_tooltip_seen')) {
