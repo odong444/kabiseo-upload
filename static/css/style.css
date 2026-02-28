@@ -2047,6 +2047,19 @@ body {
     min-height: 0;
 }
 
+/* ──────── 채팅 안내 배너 ──────── */
+.chat-cta {
+    display: flex; align-items: center; gap: 8px;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 10px 14px; margin: 12px 0; cursor: pointer;
+    font-size: 13px; color: #1e40af; font-weight: 600;
+    transition: background 0.15s;
+}
+.chat-cta:hover { background: #dbeafe; }
+.chat-cta .chat-cta-icon { font-size: 18px; flex-shrink: 0; }
+.chat-cta .chat-cta-text { flex: 1; }
+.chat-cta .chat-cta-arrow { color: #3b82f6; font-size: 16px; }
+
 /* ──────── 반응형 ──────── */
 @media (max-width: 768px) {
     .admin-nav { flex-wrap: wrap; gap: 2px; }
