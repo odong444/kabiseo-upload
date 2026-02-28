@@ -87,7 +87,7 @@
                     <div class="admin-chat-msg {{ msg.sender }}">
                         <div class="msg-bubble">{{ msg.message }}</div>
                         <div class="msg-meta">
-                            <span class="msg-time">{{ msg.timestamp }}</span>
+                            <span class="msg-time">{{ msg.time_str or '' }}</span>
                             {% if msg.sender == 'bot' %}
                             <span class="msg-rating">
                                 <button class="rate-btn" onclick="rateMsg('{{ reviewer_id }}', {{ msg.timestamp }}, 'good')">&#128077;</button>

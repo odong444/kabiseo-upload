@@ -84,6 +84,7 @@ class ChatLogger:
                     "message": r["message"],
                     "timestamp": float(r["timestamp"]) if r.get("timestamp") else 0,
                     "rating": r.get("rating", ""),
+                    "time_str": r.get("time_str", ""),
                 }
                 for r in rows
             ]

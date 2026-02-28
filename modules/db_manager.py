@@ -1728,12 +1728,13 @@ class DBManager:
         )
 
     def get_chat_history(self, reviewer_id: str) -> list[dict]:
-        """특정 리뷰어 대화 이력 (최근 90일)"""
+        """특정 리뷰어 대화 이력 (최근 90일, 최신순)"""
         return self._fetchall(
-            """SELECT sender, message, EXTRACT(EPOCH FROM created_at) as timestamp, rating
+            """SELECT sender, message, EXTRACT(EPOCH FROM created_at) as timestamp, rating,
+                      TO_CHAR(created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD HH24:MI') as time_str
                FROM chat_messages
                WHERE reviewer_id = %s AND created_at > NOW() - INTERVAL '90 days'
-               ORDER BY created_at""",
+               ORDER BY created_at DESC""",
             (reviewer_id,)
         )
 
