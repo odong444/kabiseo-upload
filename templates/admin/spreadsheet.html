@@ -353,6 +353,7 @@
                         <th>제품명</th>
                         <th>진행자</th>
                         <th>진행자연락처</th>
+                        <th>카톡</th>
                         <th>수취인명</th>
                         <th>연락처</th>
                         <th>은행</th>
@@ -380,6 +381,13 @@
                         <td class="readonly" style="min-width:200px;max-width:300px;">{{ item.get('제품명', '') }}</td>
                         <td class="readonly">{{ item.get('진행자이름', '') }}</td>
                         <td class="readonly">{{ item.get('진행자연락처', '') }}</td>
+                        <td class="readonly" style="text-align:center;">
+                            {% if item.get('카카오친구') %}
+                                <span style="color:#16a34a;font-weight:700;">O</span>
+                            {% else %}
+                                <span style="color:#94a3b8;">-</span>
+                            {% endif %}
+                        </td>
                         <td class="editable" data-field="수취인명">{{ item.get('수취인명', '') }}</td>
                         <td class="editable" data-field="연락처">{{ item.get('연락처', '') }}</td>
                         <td class="editable" data-field="은행">{{ item.get('은행', '') }}</td>
