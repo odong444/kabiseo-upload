@@ -506,7 +506,7 @@
     })();
 
     function copyLink(campaignId, btn) {
-        var url = location.origin + '/campaign/' + campaignId;
+        var url = location.origin + '/c/' + campaignId;
         navigator.clipboard.writeText(url).then(function() {
             var orig = btn.textContent;
             btn.textContent = '복사됨!';
