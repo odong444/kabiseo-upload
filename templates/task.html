@@ -557,6 +557,15 @@
             </div>`;
         }
 
+        // 신청 취소 버튼 (모든 sibling이 신청/가이드전달일 때만)
+        const canCancel = siblings.every(s => ['신청', '가이드전달'].includes(s.status));
+        let cancelHtml = '';
+        if (canCancel) {
+            cancelHtml = `<div style="text-align:center;margin-top:12px;">
+                <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;font-size:13px;" onclick="cancelTask()">신청 취소</button>
+            </div>`;
+        }
+
         // 카운트다운 타이머 계산
         let timerHtml = '';
         if (taskData.created_at && taskData.timeout_seconds) {
@@ -576,6 +585,7 @@
             ${c.product_image ? `<div class="detail-image"><img src="${driveToThumb(c.product_image)}" alt="상품 이미지" onclick="openLightbox(['${driveToFull(c.product_image)}'], 0)" onerror="this.parentNode.style.display='none'"></div>` : ''}
 
             ${guideHtml}
+            ${cancelHtml}
 
             <div class="task-divider"></div>
 
@@ -789,6 +799,26 @@
             Reviewer.toast(result.error || '제출 실패', 'error');
             btn.disabled = false;
             btn.textContent = '구매완료 제출';
+        }
+    };
+
+    window.cancelTask = async function() {
+        if (!confirm('신청을 취소하시겠습니까?')) return;
+        try {
+            const res = await fetch('/api/task/' + progressId + '/cancel', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: user.name, phone: user.phone})
+            });
+            const d = await res.json();
+            if (d.ok) {
+                alert('취소되었습니다.');
+                location.href = '/my';
+            } else {
+                alert(d.error || '취소 실패');
+            }
+        } catch(e) {
+            alert('취소 중 오류가 발생했습니다.');
         }
     };
 

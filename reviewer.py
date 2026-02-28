@@ -545,6 +545,46 @@ def api_verify_capture():
         return jsonify({"ok": False, "error": f"AI 검수 실패: {e}"}), 500
 
 
+@reviewer_bp.route("/api/task/<int:progress_id>/cancel", methods=["POST"])
+def api_cancel(progress_id):
+    """캠페인 신청 취소 (신청/가이드전달 상태만)"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    try:
+        row = models.db_manager.get_row_dict(progress_id)
+        if not row:
+            return jsonify({"ok": False, "error": "진행건을 찾을 수 없습니다"}), 404
+
+        data = request.get_json(silent=True) or {}
+        name = data.get("name", "").strip()
+        phone = data.get("phone", "").strip()
+
+        if row.get("진행자이름") != name or row.get("진행자연락처") != phone:
+            return jsonify({"ok": False, "error": "본인 확인 실패"}), 403
+
+        status = row.get("상태", "")
+        if status not in ("신청", "가이드전달"):
+            return jsonify({"ok": False, "error": f"현재 상태({status})에서는 취소할 수 없습니다"}), 400
+
+        campaign_id = row.get("캠페인ID", "")
+        # 같은 캠페인의 형제 아이디들도 함께 취소
+        all_items = models.db_manager.search_by_name_phone(name, phone)
+        store_ids = [
+            item.get("아이디")
+            for item in all_items
+            if item.get("캠페인ID") == campaign_id and item.get("상태") in ("신청", "가이드전달")
+        ]
+        if store_ids:
+            models.db_manager.cancel_by_timeout(name, phone, campaign_id, store_ids)
+
+        logger.info("신청 취소: progress=%s, user=%s, campaign=%s, stores=%s",
+                     progress_id, name, campaign_id, store_ids)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("신청 취소 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @reviewer_bp.route("/api/task/<int:progress_id>/extend-time", methods=["POST"])
 def api_extend_time(progress_id):
     """양식 제출 시간 연장 (타임아웃 리셋)"""

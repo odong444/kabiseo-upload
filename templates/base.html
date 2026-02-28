@@ -35,6 +35,27 @@
 
     {% block nav %}{% endblock %}
 
+    <!-- 채팅 안내 말풍선 -->
+    <div class="chat-tooltip" id="chatTooltip" style="display:none;" onclick="this.style.display='none';localStorage.setItem('kabiseo_chat_tooltip_seen','1');">
+        문의사항은 여기로!
+    </div>
+    <style>
+    .chat-tooltip {
+        position: fixed; bottom: 90px; right: 24px; z-index: 999;
+        background: #1e40af; color: #fff; padding: 8px 14px; border-radius: 8px;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        animation: tooltipFadeIn 0.3s ease;
+    }
+    .chat-tooltip::after {
+        content: ''; position: absolute; bottom: -6px; right: 20px;
+        width: 0; height: 0;
+        border-left: 6px solid transparent; border-right: 6px solid transparent;
+        border-top: 6px solid #1e40af;
+    }
+    @keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+
     <!-- 플로팅 채팅 버튼 + 모달 -->
     <button class="chat-float-btn" id="chatFloatBtn" onclick="toggleChatModal()">
         <span class="chat-float-icon">&#x1f4ac;</span>
@@ -59,6 +80,22 @@
             return;
         }
         if (logoutBtn) logoutBtn.style.display = '';
+
+        // 채팅 안내 말풍선 (첫 방문 시)
+        if (!localStorage.getItem('kabiseo_chat_tooltip_seen')) {
+            var tooltip = document.getElementById('chatTooltip');
+            if (tooltip) {
+                tooltip.style.display = 'block';
+                setTimeout(function() {
+                    if (tooltip.style.display !== 'none') {
+                        tooltip.style.opacity = '0';
+                        tooltip.style.transition = 'opacity 0.5s';
+                        setTimeout(function() { tooltip.style.display = 'none'; }, 500);
+                        localStorage.setItem('kabiseo_chat_tooltip_seen', '1');
+                    }
+                }, 5000);
+            }
+        }
 
         // 읽지 않은 메시지 확인
         var chatUnread = 0;
