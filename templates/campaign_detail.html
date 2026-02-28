@@ -5,13 +5,15 @@
 <style>
 .detail-image { position: relative; }
 .detail-closed-banner {
-    position: absolute; top: 0; left: 0; right: 0; z-index: 2;
-    background: rgba(220, 38, 38, 0.9); color: #fff;
-    text-align: center; font-size: 16px; font-weight: 700;
-    padding: 10px 0; letter-spacing: 1px;
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2;
+    background: rgba(220, 38, 38, 0.85); color: #fff;
+    text-align: center; font-size: 18px; font-weight: 800;
+    padding: 12px 28px; border-radius: 10px; letter-spacing: 2px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    backdrop-filter: blur(2px);
 }
 .detail-closed-banner.daily {
-    background: rgba(234, 88, 12, 0.9);
+    background: rgba(234, 88, 12, 0.85);
 }
 </style>
 {% endblock %}
