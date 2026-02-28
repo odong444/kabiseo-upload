@@ -42,3 +42,35 @@ export function apiUrl(path: string): string {
 export function getApiBase(): string {
   return API_BASE
 }
+
+// SWR fetcher for admin pages
+export async function adminFetcher<T>(path: string): Promise<T> {
+  const url = `${API_BASE}${path}`
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  })
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    throw new Error(errorBody.error || `API Error: ${res.status}`)
+  }
+  return res.json()
+}
+
+// Simple admin API call helper (for mutations)
+export async function adminApi(path: string, options?: RequestInit) {
+  const url = `${API_BASE}${path}`
+  const res = await fetch(url, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  })
+  if (!res.ok) {
+    const errorBody = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+    throw new Error(errorBody.error || `API Error: ${res.status}`)
+  }
+  return res.json()
+}

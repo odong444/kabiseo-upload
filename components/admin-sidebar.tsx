@@ -6,7 +6,7 @@ import { useAdminAuth } from "@/lib/admin-auth"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard, Megaphone, ClipboardCheck, Wallet, Users,
-  MessageSquare, FileSpreadsheet, Activity, LogOut, ChevronLeft, ChevronRight,
+  MessageSquare, HelpCircle, FileSpreadsheet, Activity, LogOut, ChevronLeft, ChevronRight,
 } from "lucide-react"
 import { useState } from "react"
 
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: "/admin/settlement", label: "정산", icon: Wallet },
   { href: "/admin/reviewers", label: "리뷰어 관리", icon: Users },
   { href: "/admin/chat-history", label: "대화 이력", icon: MessageSquare },
+  { href: "/admin/inquiries", label: "문의 관리", icon: HelpCircle },
   { href: "/admin/spreadsheet", label: "스프레드시트", icon: FileSpreadsheet },
   { href: "/admin/logs", label: "로그", icon: Activity },
 ]
