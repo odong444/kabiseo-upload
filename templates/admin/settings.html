@@ -251,6 +251,41 @@
 
         <hr style="border:none; border-top:1px solid #e5e7eb; margin:2.5rem 0;">
 
+        <!-- ── AI 검수 기본 프롬프트 ── -->
+        <div class="section-title">AI 검수 기본 프롬프트</div>
+        <p style="color:#6b7280; font-size:13px; margin-bottom:1rem;">
+            Gemini에 전달되는 기본 프롬프트입니다. 비워두면 시스템 기본값이 사용됩니다.
+            <button type="button" style="font-size:12px; color:#3b82f6; background:none; border:none; cursor:pointer; text-decoration:underline;" onclick="resetBasePrompts()">기본값 불러오기</button>
+        </p>
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:13px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">구매캡쳐 기본 프롬프트</label>
+            <textarea id="aiBasePurchase" rows="12" style="width:100%; padding:0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:12px; line-height:1.5; resize:vertical; font-family:monospace;">{{ ai_settings.get('ai_base_purchase_prompt', '') }}</textarea>
+        </div>
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:13px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">리뷰캡쳐 기본 프롬프트</label>
+            <textarea id="aiBaseReview" rows="12" style="width:100%; padding:0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:12px; line-height:1.5; resize:vertical; font-family:monospace;">{{ ai_settings.get('ai_base_review_prompt', '') }}</textarea>
+        </div>
+        <div style="margin-bottom:1.5rem;">
+            <button class="btn btn-primary" onclick="saveBasePrompts()">기본 프롬프트 저장</button>
+        </div>
+
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin:2.5rem 0;">
+
+        <!-- ── AI 챗봇 가이드 ── -->
+        <div class="section-title">AI 챗봇 가이드</div>
+        <p style="color:#6b7280; font-size:13px; margin-bottom:1rem;">
+            리뷰어 채팅 AI가 참고하는 서비스 가이드입니다. 비워두면 시스템 기본값이 사용됩니다.
+            <button type="button" style="font-size:12px; color:#3b82f6; background:none; border:none; cursor:pointer; text-decoration:underline;" onclick="resetChatGuide()">기본값 불러오기</button>
+        </p>
+        <div style="margin-bottom:1rem;">
+            <textarea id="aiChatbotGuide" rows="15" style="width:100%; padding:0.75rem; border:1px solid #d1d5db; border-radius:8px; font-size:12px; line-height:1.5; resize:vertical; font-family:monospace;">{{ ai_settings.get('ai_chatbot_guide', '') }}</textarea>
+        </div>
+        <div style="margin-bottom:1.5rem;">
+            <button class="btn btn-primary" onclick="saveChatGuide()">챗봇 가이드 저장</button>
+        </div>
+
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin:2.5rem 0;">
+
         <div class="section-title">공급자 프리셋</div>
         <p style="color:#6b7280; font-size:13px; margin-bottom:1rem;">
             견적서 작성 시 공급자 정보를 빠르게 선택할 수 있습니다. 기본 프리셋은 새 견적서에 자동 적용됩니다.
@@ -473,6 +508,50 @@
         } else {
             showToast(data.error || '저장 실패');
         }
+    }
+
+    // ── AI 기본 프롬프트 ──
+    async function saveBasePrompts() {
+        const res = await fetch('/admin/api/settings/ai', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                ai_base_purchase_prompt: document.getElementById('aiBasePurchase').value,
+                ai_base_review_prompt: document.getElementById('aiBaseReview').value
+            })
+        });
+        const data = await res.json();
+        showToast(data.ok ? '기본 프롬프트 저장됨' : (data.error || '저장 실패'));
+    }
+
+    async function resetBasePrompts() {
+        if (!confirm('시스템 기본값을 불러옵니다. 저장 버튼을 눌러야 반영됩니다.')) return;
+        const res = await fetch('/admin/api/settings/ai-defaults');
+        const d = await res.json();
+        document.getElementById('aiBasePurchase').value = d.ai_base_purchase_prompt || '';
+        document.getElementById('aiBaseReview').value = d.ai_base_review_prompt || '';
+        showToast('기본값 불러옴');
+    }
+
+    // ── AI 챗봇 가이드 ──
+    async function saveChatGuide() {
+        const res = await fetch('/admin/api/settings/ai', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                ai_chatbot_guide: document.getElementById('aiChatbotGuide').value
+            })
+        });
+        const data = await res.json();
+        showToast(data.ok ? '챗봇 가이드 저장됨' : (data.error || '저장 실패'));
+    }
+
+    async function resetChatGuide() {
+        if (!confirm('시스템 기본값을 불러옵니다. 저장 버튼을 눌러야 반영됩니다.')) return;
+        const res = await fetch('/admin/api/settings/ai-defaults');
+        const d = await res.json();
+        document.getElementById('aiChatbotGuide').value = d.ai_chatbot_guide || '';
+        showToast('기본값 불러옴');
     }
 
     // ── 공급자 프리셋 ──

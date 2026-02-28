@@ -163,10 +163,24 @@ JSON 형식으로만 응답:
 문제점이 없으면 ["정상"]으로 응답하세요."""
 
 
+def _get_base_prompt(capture_type: str) -> str:
+    """DB에 저장된 기본 프롬프트가 있으면 사용, 없으면 하드코딩 기본값"""
+    try:
+        from models import db_manager
+        if db_manager:
+            key = "ai_base_purchase_prompt" if capture_type == "purchase" else "ai_base_review_prompt"
+            saved = db_manager.get_setting(key, "")
+            if saved.strip():
+                return saved
+    except Exception:
+        pass
+    return PURCHASE_PROMPT_BASE if capture_type == "purchase" else REVIEW_PROMPT_BASE
+
+
 def _build_prompt(capture_type: str, campaign_info: dict | None,
                   ai_instructions: str = "") -> str:
     """캡쳐 타입 + 캠페인 정보 + AI 지침으로 최종 프롬프트 구성"""
-    base = PURCHASE_PROMPT_BASE if capture_type == "purchase" else REVIEW_PROMPT_BASE
+    base = _get_base_prompt(capture_type)
 
     parts = [base]
 

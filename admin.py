@@ -1803,6 +1803,9 @@ def settings():
         ai_settings = {
             "ai_global_purchase": models.db_manager.get_setting("ai_global_purchase", ""),
             "ai_global_review": models.db_manager.get_setting("ai_global_review", ""),
+            "ai_base_purchase_prompt": models.db_manager.get_setting("ai_base_purchase_prompt", ""),
+            "ai_base_review_prompt": models.db_manager.get_setting("ai_base_review_prompt", ""),
+            "ai_chatbot_guide": models.db_manager.get_setting("ai_chatbot_guide", ""),
         }
     return render_template("admin/settings.html", managers=managers, suppliers=suppliers, ai_settings=ai_settings)
 
@@ -1814,9 +1817,26 @@ def api_settings_ai():
     if not models.db_manager:
         return jsonify({"ok": False, "error": "시스템 초기화 중"})
     data = request.get_json(silent=True) or {}
-    models.db_manager.set_setting("ai_global_purchase", data.get("ai_global_purchase", ""))
-    models.db_manager.set_setting("ai_global_review", data.get("ai_global_review", ""))
+    allowed = ("ai_global_purchase", "ai_global_review",
+               "ai_base_purchase_prompt", "ai_base_review_prompt",
+               "ai_chatbot_guide")
+    for key in allowed:
+        if key in data:
+            models.db_manager.set_setting(key, data[key])
     return jsonify({"ok": True})
+
+
+@admin_bp.route("/api/settings/ai-defaults")
+@admin_required
+def api_ai_defaults():
+    """하드코딩된 기본 프롬프트/가이드 반환 (초기화용)"""
+    from modules.capture_verifier import PURCHASE_PROMPT_BASE, REVIEW_PROMPT_BASE
+    from modules.ai_guide import GUIDE
+    return jsonify({
+        "ai_base_purchase_prompt": PURCHASE_PROMPT_BASE,
+        "ai_base_review_prompt": REVIEW_PROMPT_BASE,
+        "ai_chatbot_guide": GUIDE,
+    })
 
 
 @admin_bp.route("/api/managers", methods=["GET"])
