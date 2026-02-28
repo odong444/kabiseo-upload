@@ -2289,3 +2289,29 @@ def quote_preview(quote_id):
     if quote.get("supplier_id"):
         supplier = models.db_manager.get_supplier(quote["supplier_id"])
     return render_template("admin/quote_preview.html", quote=quote, supplier=supplier)
+
+
+@admin_bp.route("/api/migrate-phone", methods=["POST"])
+@admin_required
+def migrate_phone():
+    """일회성: progress.phone 비어있는 건에 reviewer 연락처 채우기"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "DB 없음"})
+    try:
+        with models.db_manager._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE progress p
+                    SET phone = r.phone, updated_at = NOW()
+                    FROM reviewers r
+                    WHERE p.reviewer_id = r.id
+                      AND (p.phone IS NULL OR p.phone = '')
+                      AND p.recipient_name != ''
+                """)
+                count = cur.rowcount
+            conn.commit()
+        logger.info("migrate-phone: %d건 업데이트", count)
+        return jsonify({"ok": True, "updated": count})
+    except Exception as e:
+        logger.error("migrate-phone 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
