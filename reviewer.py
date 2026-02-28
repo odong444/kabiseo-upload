@@ -403,6 +403,7 @@ def api_task(progress_id):
                     "status": item.get("상태", ""),
                     "order_number": item.get("주문번호", ""),
                     "recipient_name": item.get("수취인명", ""),
+                    "phone": item.get("연락처", ""),
                     "payment_amount": item.get("결제금액", ""),
                     "address": item.get("주소", ""),
                     "bank": item.get("은행", ""),

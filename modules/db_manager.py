@@ -988,19 +988,20 @@ class DBManager:
         return {"paid": paid, "pending": pending, "no_review": no_review}
 
     def get_user_prev_info(self, name: str, phone: str) -> dict:
-        """유저의 가장 최근 등록 정보에서 은행/계좌/예금주/주소 가져오기"""
+        """유저의 가장 최근 등록 정보에서 수취인명/연락처/은행/계좌/예금주/주소 가져오기"""
         reviewer = self.get_reviewer(name, phone)
         if not reviewer:
             return {}
         row = self._fetchone(
-            """SELECT bank, account, depositor, address FROM progress
+            """SELECT recipient_name, phone, bank, account, depositor, address FROM progress
                WHERE reviewer_id = %s AND bank != '' ORDER BY created_at DESC LIMIT 1""",
             (reviewer["id"],)
         )
         if not row:
             return {}
         result = {}
-        for k, v in {"은행": "bank", "계좌": "account", "예금주": "depositor", "주소": "address"}.items():
+        for k, v in {"수취인명": "recipient_name", "연락처": "phone",
+                      "은행": "bank", "계좌": "account", "예금주": "depositor", "주소": "address"}.items():
             val = row.get(v, "")
             if val:
                 result[k] = val

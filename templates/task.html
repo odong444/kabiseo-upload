@@ -524,6 +524,10 @@
                         <input type="text" id="fRecipient_${sid}" placeholder="수취인명" value="${s.recipient_name || prev['수취인명'] || ''}">
                     </div>
                     <div class="form-group">
+                        <label>연락처</label>
+                        <input type="tel" id="fPhone_${sid}" placeholder="수취인 연락처" value="${s.phone || prev['연락처'] || ''}">
+                    </div>
+                    <div class="form-group">
                         <label>주소</label>
                         <input type="text" id="fAddress_${sid}" placeholder="배송지 주소" value="${s.address || prev['주소'] || ''}">
                     </div>
@@ -781,7 +785,7 @@
         const formData = new FormData();
         formData.append('capture', selectedFiles[sid]);
         formData.append('recipient_name', document.getElementById(`fRecipient_${sid}`).value.trim());
-        formData.append('phone', taskData.phone || '');
+        formData.append('phone', document.getElementById(`fPhone_${sid}`).value.trim());
         formData.append('bank', document.getElementById(`fBank_${sid}`).value.trim());
         formData.append('account', document.getElementById(`fAccount_${sid}`).value.trim());
         formData.append('depositor', document.getElementById(`fDepositor_${sid}`).value.trim());
