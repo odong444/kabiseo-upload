@@ -839,7 +839,10 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 56px;
+    min-height: 56px;
+    flex-wrap: wrap;
+    gap: 4px 0;
+    padding: 8px 0;
 }
 .admin-logo {
     font-size: 18px;
@@ -847,7 +850,7 @@ body {
     color: #fee500;
     text-decoration: none;
 }
-.admin-nav { display: flex; gap: 4px; }
+.admin-nav { display: flex; flex-wrap: wrap; gap: 2px 4px; }
 .admin-nav a {
     color: rgba(255,255,255,0.7);
     text-decoration: none;
@@ -855,6 +858,7 @@ body {
     padding: 8px 12px;
     border-radius: 6px;
     transition: all 0.2s;
+    white-space: nowrap;
 }
 .admin-nav a:hover, .admin-nav a.active {
     color: #fff;
@@ -2062,8 +2066,21 @@ body {
 
 /* ──────── 반응형 ──────── */
 @media (max-width: 768px) {
-    .admin-nav { flex-wrap: wrap; gap: 2px; }
-    .admin-nav a { font-size: 12px; padding: 6px 8px; }
+    .admin-header-inner {
+        flex-direction: column;
+        align-items: flex-start;
+        height: auto !important;
+        min-height: unset;
+        padding: 10px 0;
+        gap: 8px;
+    }
+    .admin-logo { margin-bottom: 2px; }
+    .admin-nav {
+        flex-wrap: wrap;
+        gap: 4px;
+        width: 100%;
+    }
+    .admin-nav a { font-size: 12px; padding: 6px 10px; }
     .chat-viewer-layout {
         grid-template-columns: 1fr;
     }

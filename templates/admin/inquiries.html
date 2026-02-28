@@ -19,7 +19,7 @@
                 <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
                 <a href="{{ url_for('admin.quotes') }}">견적서</a>
                 <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
-                <a href="{{ url_for('admin.reviews') }}">검수</a>
+                <a href="{{ url_for('admin.reviews') }}">검수{% if pending_review_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_review_count }}</span>{% endif %}</a>
                 <a href="{{ url_for('admin.settlement') }}">정산</a>
                 <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
                 <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>

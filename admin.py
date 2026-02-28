@@ -99,13 +99,16 @@ def _set_server_promotion(enabled: bool) -> dict:
 
 @admin_bp.app_context_processor
 def inject_pending_count():
-    """모든 admin 페이지에 문의 대기 건수 주입"""
+    """모든 admin 페이지에 문의/검수 대기 건수 주입"""
     if session.get("admin_logged_in") and models.db_manager:
         try:
-            return {"pending_inquiry_count": models.db_manager.get_pending_inquiry_count()}
+            return {
+                "pending_inquiry_count": models.db_manager.get_pending_inquiry_count(),
+                "pending_review_count": models.db_manager.get_pending_review_count(),
+            }
         except Exception:
             pass
-    return {"pending_inquiry_count": 0}
+    return {"pending_inquiry_count": 0, "pending_review_count": 0}
 
 
 def admin_required(f):
@@ -2289,29 +2292,3 @@ def quote_preview(quote_id):
     if quote.get("supplier_id"):
         supplier = models.db_manager.get_supplier(quote["supplier_id"])
     return render_template("admin/quote_preview.html", quote=quote, supplier=supplier)
-
-
-@admin_bp.route("/api/migrate-phone", methods=["POST"])
-@admin_required
-def migrate_phone():
-    """일회성: progress.phone 비어있는 건에 reviewer 연락처 채우기"""
-    if not models.db_manager:
-        return jsonify({"ok": False, "error": "DB 없음"})
-    try:
-        with models.db_manager._conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE progress p
-                    SET phone = r.phone, updated_at = NOW()
-                    FROM reviewers r
-                    WHERE p.reviewer_id = r.id
-                      AND (p.phone IS NULL OR p.phone = '')
-                      AND p.recipient_name != ''
-                """)
-                count = cur.rowcount
-            conn.commit()
-        logger.info("migrate-phone: %d건 업데이트", count)
-        return jsonify({"ok": True, "updated": count})
-    except Exception as e:
-        logger.error("migrate-phone 에러: %s", e)
-        return jsonify({"ok": False, "error": str(e)})
