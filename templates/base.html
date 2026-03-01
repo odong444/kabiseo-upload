@@ -185,10 +185,10 @@
                     iframe.src = '/chat?embed=1';
                 }
                 document.body.style.overflow = 'hidden';
-                // 뱃지 클리어 + last_read 갱신
+                // 뱃지 클리어 + last_read 갱신 (+10초 버퍼로 동시 메시지 누락 방지)
                 chatUnread = 0;
                 updateBadge();
-                localStorage.setItem('kabiseo_chat_last_read', String(Date.now() / 1000));
+                localStorage.setItem('kabiseo_chat_last_read', String(Date.now() / 1000 + 10));
             } else {
                 window.closeChatModal();
             }
@@ -196,8 +196,8 @@
         window.closeChatModal = function() {
             document.getElementById('chatModalOverlay').style.display = 'none';
             document.body.style.overflow = '';
-            // 닫을 때도 last_read 갱신
-            localStorage.setItem('kabiseo_chat_last_read', String(Date.now() / 1000));
+            // 닫을 때 last_read 갱신 (+10초 버퍼)
+            localStorage.setItem('kabiseo_chat_last_read', String(Date.now() / 1000 + 10));
         };
     })();
     </script>
