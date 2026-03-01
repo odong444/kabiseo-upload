@@ -637,7 +637,7 @@ def api_chat_unread():
 @reviewer_bp.route("/api/task/<int:progress_id>/purchase", methods=["POST"])
 def api_task_purchase(progress_id):
     """구매완료 제출 (캡쳐 + 폼데이터)"""
-    if not models.db_manager or not models.drive_uploader:
+    if not models.db_manager:
         return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
 
     file = request.files.get("capture")
@@ -649,16 +649,7 @@ def api_task_purchase(progress_id):
         return jsonify({"ok": False, "error": "건을 찾을 수 없습니다"}), 404
 
     try:
-        # 1. Drive 업로드
-        from app import _make_upload_filename
-        filename = _make_upload_filename("purchase", progress_id, file.filename)
-        file_bytes = file.read()
-        drive_link = models.drive_uploader.upload(
-            file_bytes, filename, file.content_type or "image/jpeg", "purchase",
-            f"purchase_progress{progress_id}"
-        )
-
-        # 2. 폼 데이터 업데이트
+        # 1. 폼 데이터 즉시 DB 저장
         form_fields = {}
         for key in ("recipient_name", "phone", "bank", "account", "depositor",
                      "address", "order_number", "payment_amount", "nickname"):
@@ -666,7 +657,6 @@ def api_task_purchase(progress_id):
             if val:
                 form_fields[key] = val
 
-        # DB 컬럼명 매핑
         field_map = {
             "recipient_name": "수취인명", "phone": "연락처",
             "bank": "은행", "account": "계좌", "depositor": "예금주",
@@ -678,12 +668,15 @@ def api_task_purchase(progress_id):
             if val:
                 models.db_manager.update_progress_field(progress_id, sheet_key, val)
 
-        # 3. 캡쳐 URL + 상태 업데이트
-        models.db_manager.update_after_upload("purchase", progress_id, drive_link)
-
-        # 4. AI 검수 트리거 (백그라운드)
-        from app import _trigger_ai_verify
-        _trigger_ai_verify("purchase", progress_id, drive_link)
+        # 2. Drive 업로드 큐에 추가
+        from app import _make_upload_filename
+        filename = _make_upload_filename("purchase", progress_id, file.filename)
+        file_bytes = file.read()
+        models.db_manager.enqueue_drive_upload(
+            progress_id, "purchase", filename,
+            file.content_type or "image/jpeg", file_bytes
+        )
+        models.db_manager.set_upload_pending(progress_id, "purchase")
 
         return jsonify({"ok": True, "message": "구매 캡쳐 제출 완료!"})
     except Exception as e:
@@ -694,7 +687,7 @@ def api_task_purchase(progress_id):
 @reviewer_bp.route("/api/task/<int:progress_id>/review", methods=["POST"])
 def api_task_review(progress_id):
     """리뷰 캡쳐 제출"""
-    if not models.db_manager or not models.drive_uploader:
+    if not models.db_manager:
         return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
 
     file = request.files.get("capture")
@@ -709,15 +702,11 @@ def api_task_review(progress_id):
         from app import _make_upload_filename
         filename = _make_upload_filename("review", progress_id, file.filename)
         file_bytes = file.read()
-        drive_link = models.drive_uploader.upload(
-            file_bytes, filename, file.content_type or "image/jpeg", "review",
-            f"review_progress{progress_id}"
+        models.db_manager.enqueue_drive_upload(
+            progress_id, "review", filename,
+            file.content_type or "image/jpeg", file_bytes
         )
-
-        models.db_manager.update_after_upload("review", progress_id, drive_link)
-
-        from app import _trigger_ai_verify
-        _trigger_ai_verify("review", progress_id, drive_link)
+        models.db_manager.set_upload_pending(progress_id, "review")
 
         return jsonify({"ok": True, "message": "리뷰 캡쳐 제출 완료!"})
     except Exception as e:

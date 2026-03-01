@@ -267,6 +267,21 @@ CREATE TABLE IF NOT EXISTS campaign_photos (
 );
 CREATE INDEX IF NOT EXISTS idx_campaign_photos_campaign ON campaign_photos(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_photos_set ON campaign_photos(campaign_id, set_number);
+
+CREATE TABLE IF NOT EXISTS drive_upload_queue (
+    id              SERIAL PRIMARY KEY,
+    progress_id     INTEGER NOT NULL,
+    capture_type    TEXT NOT NULL,
+    filename        TEXT NOT NULL,
+    content_type    TEXT DEFAULT 'image/jpeg',
+    file_data       BYTEA,
+    status          TEXT DEFAULT 'pending',
+    attempt_count   INTEGER DEFAULT 0,
+    error_message   TEXT DEFAULT '',
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    completed_at    TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_drive_queue_status ON drive_upload_queue(status);
 """
 
 
@@ -353,6 +368,11 @@ class DBManager:
                 try:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS exclusive_group TEXT DEFAULT ''")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS exclusive_days INTEGER DEFAULT 0")
+                except Exception:
+                    pass
+                # Drive 업로드 큐 - upload_pending 컬럼
+                try:
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS upload_pending TEXT DEFAULT ''")
                 except Exception:
                     pass
                 # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
@@ -1364,6 +1384,15 @@ class DBManager:
         row = self._fetchone("SELECT COUNT(*) as cnt FROM inquiries WHERE status = '대기'")
         return row["cnt"] if row else 0
 
+    def get_pending_review_count(self) -> int:
+        """AI 검수 확인요청 건수."""
+        row = self._fetchone(
+            """SELECT COUNT(*) as cnt FROM progress
+               WHERE (ai_purchase_result = '확인요청' OR ai_review_result = '확인요청')
+               AND COALESCE(ai_override, '') = ''"""
+        )
+        return row["cnt"] if row else 0
+
     def get_learned_qa(self, limit: int = 30) -> list[dict]:
         """답변 완료된 문의 Q&A (AI 학습용). 최신순."""
         return self._fetchall(
@@ -2018,3 +2047,76 @@ class DBManager:
         for r in rows:
             assigned[r["photo_set_number"]] = {"name": r["name"], "phone": r["phone"]}
         return {sn: assigned.get(sn) for sn in photo_sets}
+
+    # ─────────── Drive 업로드 큐 ───────────
+
+    def enqueue_drive_upload(self, progress_id: int, capture_type: str,
+                             filename: str, content_type: str, file_data: bytes) -> int:
+        """Drive 업로드 큐에 작업 추가"""
+        return self._execute_returning(
+            """INSERT INTO drive_upload_queue
+               (progress_id, capture_type, filename, content_type, file_data, status)
+               VALUES (%s, %s, %s, %s, %s, 'pending')
+               RETURNING id""",
+            (progress_id, capture_type, filename, content_type,
+             psycopg2.Binary(file_data))
+        )
+
+    def claim_next_upload(self) -> dict | None:
+        """큐에서 다음 pending 작업을 가져오고 processing으로 변경"""
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    UPDATE drive_upload_queue
+                    SET status = 'processing', attempt_count = attempt_count + 1
+                    WHERE id = (
+                        SELECT id FROM drive_upload_queue
+                        WHERE status = 'pending'
+                        ORDER BY id
+                        LIMIT 1
+                        FOR UPDATE SKIP LOCKED
+                    )
+                    RETURNING *
+                """)
+                row = cur.fetchone()
+            conn.commit()
+            return dict(row) if row else None
+
+    def complete_upload(self, queue_id: int):
+        """업로드 완료 처리 (file_data 삭제)"""
+        self._execute(
+            """UPDATE drive_upload_queue
+               SET status = 'done', file_data = NULL, completed_at = NOW()
+               WHERE id = %s""",
+            (queue_id,)
+        )
+
+    def fail_upload(self, queue_id: int, error: str):
+        """업로드 실패 처리 (5회 초과 시 failed)"""
+        self._execute(
+            """UPDATE drive_upload_queue
+               SET status = CASE WHEN attempt_count >= 5 THEN 'failed' ELSE 'pending' END,
+                   error_message = %s
+               WHERE id = %s""",
+            (error, queue_id)
+        )
+
+    def reset_stale_processing(self):
+        """서버 재시작 시 processing → pending 복구"""
+        self._execute(
+            "UPDATE drive_upload_queue SET status = 'pending' WHERE status = 'processing'"
+        )
+
+    def set_upload_pending(self, progress_id: int, capture_type: str):
+        """progress에 업로드 대기 상태 설정"""
+        self._execute(
+            "UPDATE progress SET upload_pending = %s WHERE id = %s",
+            (capture_type, progress_id)
+        )
+
+    def clear_upload_pending(self, progress_id: int):
+        """progress에서 업로드 대기 상태 해제"""
+        self._execute(
+            "UPDATE progress SET upload_pending = '' WHERE id = %s",
+            (progress_id,)
+        )

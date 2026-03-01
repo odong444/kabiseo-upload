@@ -35,6 +35,7 @@ sheet_sync = None
 
 # 하위 호환 (기존 코드에서 sheets_manager 참조하는 곳 대비)
 sheets_manager = None
+drive_queue_worker = None
 
 
 def init_app(web_url: str = "", socketio=None):

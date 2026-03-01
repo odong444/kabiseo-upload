@@ -56,6 +56,15 @@ if WEB_URL and not WEB_URL.startswith("http"):
 import models
 models.init_app(web_url=WEB_URL, socketio=socketio)
 
+# ──────── Drive 업로드 백그라운드 워커 ────────
+if models.db_manager and models.drive_uploader:
+    from modules.drive_queue_worker import DriveQueueWorker
+    models.drive_queue_worker = DriveQueueWorker(
+        models.db_manager, models.drive_uploader,
+        ai_verify_fn=lambda ct, pid, link: _trigger_ai_verify(ct, pid, link)
+    )
+    models.drive_queue_worker.start()
+
 
 # ════════════════════════════════════════
 # 리뷰어 페이지 라우트
@@ -237,25 +246,25 @@ def _trigger_ai_verify(capture_type: str, progress_id: int, drive_link: str):
 
 
 def _handle_upload(capture_type: str, row: int):
-    """공통 업로드 처리"""
+    """공통 업로드 처리 (큐 방식)"""
     file = request.files.get("capture")
     if not file or file.filename == "":
         flash("파일을 선택해주세요.")
         return redirect(request.referrer or url_for("upload"))
 
-    if not models.drive_uploader or not models.db_manager:
+    if not models.db_manager:
         flash("시스템 초기화 중입니다. 잠시 후 다시 시도해주세요.")
         return redirect(request.referrer or url_for("upload"))
 
     try:
         filename = _make_upload_filename(capture_type, row, file.filename)
-        desc = f"{capture_type}_row{row}"
-        drive_link = models.drive_uploader.upload(
-            file.read(), filename, file.content_type or "image/jpeg", capture_type, desc
+        file_bytes = file.read()
+        models.db_manager.enqueue_drive_upload(
+            row, capture_type, filename,
+            file.content_type or "image/jpeg", file_bytes
         )
-        models.db_manager.update_after_upload(capture_type, row, drive_link)
+        models.db_manager.set_upload_pending(row, capture_type)
         _touch_reviewer_by_row(row)
-        _trigger_ai_verify(capture_type, row, drive_link)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
         return render_template(
@@ -274,7 +283,7 @@ def _handle_upload(capture_type: str, row: int):
 
 @app.route("/api/upload", methods=["POST"])
 def api_upload():
-    """AJAX 단건 업로드 (일괄 제출에서 호출)"""
+    """AJAX 단건 업로드 (일괄 제출에서 호출) — 큐 방식"""
     file = request.files.get("capture")
     capture_type = request.form.get("capture_type", "")
     row = request.form.get("row", "0")
@@ -285,19 +294,19 @@ def api_upload():
     if capture_type not in ("purchase", "review"):
         return jsonify({"ok": False, "message": "잘못된 유형입니다."}), 400
 
-    if not models.drive_uploader or not models.db_manager:
+    if not models.db_manager:
         return jsonify({"ok": False, "message": "시스템 초기화 중입니다."}), 503
 
     try:
         row_idx = int(row)
         filename = _make_upload_filename(capture_type, row_idx, file.filename)
-        desc = f"{capture_type}_row{row_idx}"
-        drive_link = models.drive_uploader.upload(
-            file.read(), filename, file.content_type or "image/jpeg", capture_type, desc
+        file_bytes = file.read()
+        models.db_manager.enqueue_drive_upload(
+            row_idx, capture_type, filename,
+            file.content_type or "image/jpeg", file_bytes
         )
-        models.db_manager.update_after_upload(capture_type, row_idx, drive_link)
+        models.db_manager.set_upload_pending(row_idx, capture_type)
         _touch_reviewer_by_row(row_idx)
-        _trigger_ai_verify(capture_type, row_idx, drive_link)
 
         label = "구매" if capture_type == "purchase" else "리뷰"
         return jsonify({"ok": True, "message": f"{label} 캡쳐 제출 완료!"})
