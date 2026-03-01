@@ -2120,3 +2120,10 @@ class DBManager:
             "UPDATE progress SET upload_pending = '' WHERE id = %s",
             (progress_id,)
         )
+
+    def get_failed_upload_count(self) -> int:
+        """업로드 실패 건수"""
+        row = self._fetchone(
+            "SELECT COUNT(*) as cnt FROM drive_upload_queue WHERE status = 'failed'"
+        )
+        return row["cnt"] if row else 0

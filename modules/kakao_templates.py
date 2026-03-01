@@ -152,6 +152,13 @@ ADMIN_INQUIRY = """[카비서] 새 문의 접수
 연락처: {phone}
 내용: {message}"""
 
+ADMIN_UPLOAD_FAILURE = """[카비서] Drive 업로드 실패
+
+진행ID: {progress_id}
+유형: {capture_type}
+파일: {filename}
+사유: {error}"""
+
 # ──────── 상태 → 템플릿 매핑 ────────
 
 STATUS_TEMPLATES = {

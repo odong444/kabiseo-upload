@@ -61,7 +61,8 @@ if models.db_manager and models.drive_uploader:
     from modules.drive_queue_worker import DriveQueueWorker
     models.drive_queue_worker = DriveQueueWorker(
         models.db_manager, models.drive_uploader,
-        ai_verify_fn=lambda ct, pid, link: _trigger_ai_verify(ct, pid, link)
+        ai_verify_fn=lambda ct, pid, link: _trigger_ai_verify(ct, pid, link),
+        kakao_notifier=models.kakao_notifier,
     )
     models.drive_queue_worker.start()
 

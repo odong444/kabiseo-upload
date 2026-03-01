@@ -169,6 +169,27 @@ class KakaoNotifier:
         )
         return request_notification(admin_name, admin_phone, msg)
 
+    # ──────── Drive 업로드 실패 → 관리자 알림 ────────
+
+    def notify_admin_upload_failure(self, progress_id: int, capture_type: str,
+                                     filename: str, error: str):
+        """Drive 업로드 최종 실패 → 활성 담당자에게 카톡 알림"""
+        label = "구매캡쳐" if capture_type == "purchase" else "리뷰캡쳐"
+        msg = ktpl.ADMIN_UPLOAD_FAILURE.format(
+            progress_id=progress_id,
+            capture_type=label,
+            filename=filename,
+            error=str(error)[:100],
+        )
+        managers = self.db.get_active_managers()
+        if not managers:
+            managers = [{"name": "오동열", "phone": "010-7210-0210"}]
+        for mgr in managers:
+            try:
+                request_reminder(mgr["name"], mgr["phone"], msg)
+            except Exception as e:
+                logger.warning("업로드 실패 알림 발송 에러: %s", e)
+
     # ──────── 리뷰 기한 리마인더 (스케줄러) ────────
 
     def send_review_deadline_reminders(self) -> int:

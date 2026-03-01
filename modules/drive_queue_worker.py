@@ -18,10 +18,11 @@ UPLOAD_DELAY = 0.8      # 업로드 사이 간격 (초) — 초당 ~1.2건
 class DriveQueueWorker:
     """백그라운드 데몬 스레드로 Drive 업로드 큐 처리"""
 
-    def __init__(self, db_manager, drive_uploader, ai_verify_fn=None):
+    def __init__(self, db_manager, drive_uploader, ai_verify_fn=None, kakao_notifier=None):
         self.db = db_manager
         self.uploader = drive_uploader
         self.ai_verify_fn = ai_verify_fn
+        self.kakao_notifier = kakao_notifier
         self._running = False
         self._thread = None
 
@@ -94,9 +95,18 @@ class DriveQueueWorker:
                     logger.warning("Drive 큐 #%s: AI 검수 트리거 실패 (무시): %s", queue_id, e)
 
         except Exception as e:
+            attempt = job.get("attempt_count", 0)
             logger.error("Drive 큐 #%s: 업로드 실패 (attempt %s): %s",
-                         queue_id, job.get("attempt_count", 0), e)
+                         queue_id, attempt, e)
             try:
                 self.db.fail_upload(queue_id, str(e)[:500])
+                # 5회 초과 최종 실패 → 카카오톡 알림
+                if attempt >= 5 and self.kakao_notifier:
+                    try:
+                        self.kakao_notifier.notify_admin_upload_failure(
+                            progress_id, capture_type, filename, str(e)[:100]
+                        )
+                    except Exception as ne:
+                        logger.warning("Drive 큐 #%s: 카톡 알림 실패: %s", queue_id, ne)
             except Exception as fe:
                 logger.error("Drive 큐 #%s: fail_upload 에러: %s", queue_id, fe)

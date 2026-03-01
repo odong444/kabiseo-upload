@@ -105,10 +105,11 @@ def inject_pending_count():
             return {
                 "pending_inquiry_count": models.db_manager.get_pending_inquiry_count(),
                 "pending_review_count": models.db_manager.get_pending_review_count(),
+                "failed_upload_count": models.db_manager.get_failed_upload_count(),
             }
         except Exception:
             pass
-    return {"pending_inquiry_count": 0, "pending_review_count": 0}
+    return {"pending_inquiry_count": 0, "pending_review_count": 0, "failed_upload_count": 0}
 
 
 def admin_required(f):
