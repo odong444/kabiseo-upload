@@ -6,9 +6,13 @@ import io
 import time
 import logging
 
+import httplib2
 from googleapiclient.http import MediaIoBaseUpload
 
 logger = logging.getLogger(__name__)
+
+# HTTP 타임아웃 (초) — eventlet 환경에서 동시 업로드 시 충분한 여유
+HTTP_TIMEOUT = 120
 
 
 class DriveUploader:
@@ -18,10 +22,19 @@ class DriveUploader:
         self.service = drive_service
         self.folder_order = folder_order
         self.folder_review = folder_review
+        # httplib2 타임아웃 설정
+        try:
+            http = self.service._http
+            if hasattr(http, 'timeout'):
+                http.timeout = HTTP_TIMEOUT
+            if hasattr(http, 'http') and hasattr(http.http, 'timeout'):
+                http.http.timeout = HTTP_TIMEOUT
+        except Exception:
+            pass
 
     def upload(self, file_bytes: bytes, filename: str, content_type: str,
                capture_type: str = "purchase", description: str = "") -> str:
-        """파일 업로드 → 공유링크 반환 (최대 2회 재시도)"""
+        """파일 업로드 → 공유링크 반환 (최대 3회 재시도)"""
         folder_id = self.folder_order if capture_type == "purchase" else self.folder_review
 
         metadata = {"name": filename, "description": description}
@@ -57,7 +70,7 @@ class DriveUploader:
                 last_err = e
                 logger.warning(f"Drive 업로드 시도 {attempt+1}/3 실패: {e}")
                 if attempt < 2:
-                    time.sleep(1)
+                    time.sleep(2 * (attempt + 1))
 
         raise last_err
 

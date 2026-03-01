@@ -125,10 +125,13 @@ def get_oauth_credentials() -> Credentials | None:
 
 def get_drive_service_oauth():
     """OAuth 기반 Drive 서비스 (사용자 계정 스토리지 사용)"""
+    import httplib2
+    from google_auth_httplib2 import AuthorizedHttp
     creds = get_oauth_credentials()
     if not creds:
         raise RuntimeError("OAuth 인증이 필요합니다. /auth 에서 Google 로그인을 해주세요.")
-    return build("drive", "v3", credentials=creds)
+    authorized_http = AuthorizedHttp(creds, http=httplib2.Http(timeout=120))
+    return build("drive", "v3", http=authorized_http)
 
 
 def get_oauth_auth_url() -> str:
