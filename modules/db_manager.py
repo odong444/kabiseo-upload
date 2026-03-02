@@ -418,6 +418,17 @@ class DBManager:
                     """)
                 except Exception:
                     pass
+                # 기존 payment_total 빈 건 일괄 수정 (결제금액+리뷰비 → 입금금액)
+                try:
+                    cur.execute("""
+                        UPDATE progress p SET payment_total = COALESCE(p.payment_amount, 0) + COALESCE(p.review_fee, 0)
+                        WHERE (p.payment_total IS NULL OR p.payment_total = 0)
+                          AND (COALESCE(p.payment_amount, 0) + COALESCE(p.review_fee, 0)) > 0
+                    """)
+                    if cur.rowcount > 0:
+                        logger.info("payment_total 일괄 수정: %d건", cur.rowcount)
+                except Exception:
+                    pass
             conn.commit()
         logger.info("DB 스키마 확인/생성 완료")
 
