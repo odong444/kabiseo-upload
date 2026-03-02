@@ -21,6 +21,7 @@
                 <a href="{{ url_for('admin.reviewers') }}" class="{% if show_reviewers|default(false) %}active{% endif %}">리뷰어</a>
                 <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
                 <a href="{{ url_for('admin.spreadsheet') }}">데이터{% if failed_upload_count %}<span style="background:#f59e0b;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;" title="Drive 업로드 실패">{{ failed_upload_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.notices') }}">공지</a>
                 <a href="{{ url_for('admin.guide') }}">가이드</a>
                 <a href="{{ url_for('admin.settings') }}">설정</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>

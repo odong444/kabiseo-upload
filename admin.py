@@ -2315,3 +2315,69 @@ def quote_preview(quote_id):
     if quote.get("supplier_id"):
         supplier = models.db_manager.get_supplier(quote["supplier_id"])
     return render_template("admin/quote_preview.html", quote=quote, supplier=supplier)
+
+
+# ════════════════════════════════════════
+# 공지 관리
+# ════════════════════════════════════════
+
+@admin_bp.route("/notices")
+@admin_required
+def notices():
+    items = []
+    campaigns = []
+    if models.db_manager:
+        items = models.db_manager.get_notices()
+        campaigns = models.db_manager.get_all_campaigns()
+    return render_template("admin/notices.html", notices=items, campaigns=campaigns)
+
+
+@admin_bp.route("/api/notice", methods=["POST"])
+@admin_required
+def api_notice_create():
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    title = data.get("title", "").strip()
+    content = data.get("content", "").strip()
+    if not title:
+        return jsonify({"ok": False, "error": "제목을 입력해주세요"})
+    notice_type = data.get("notice_type", "global")
+    campaign_id = data.get("campaign_id", "") if notice_type == "campaign" else ""
+    priority = int(data.get("priority", 0))
+    nid = models.db_manager.create_notice(title, content, notice_type, campaign_id, priority)
+    return jsonify({"ok": True, "id": nid})
+
+
+@admin_bp.route("/api/notice/<int:notice_id>", methods=["PUT"])
+@admin_required
+def api_notice_update(notice_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    kwargs = {}
+    for k in ("title", "content", "notice_type", "campaign_id", "priority"):
+        if k in data:
+            kwargs[k] = data[k]
+    if "notice_type" in kwargs and kwargs["notice_type"] != "campaign":
+        kwargs["campaign_id"] = ""
+    models.db_manager.update_notice(notice_id, **kwargs)
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/api/notice/<int:notice_id>/toggle", methods=["POST"])
+@admin_required
+def api_notice_toggle(notice_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    models.db_manager.toggle_notice(notice_id)
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/api/notice/<int:notice_id>", methods=["DELETE"])
+@admin_required
+def api_notice_delete(notice_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    models.db_manager.delete_notice(notice_id)
+    return jsonify({"ok": True})

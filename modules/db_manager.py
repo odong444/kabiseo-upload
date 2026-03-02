@@ -282,6 +282,18 @@ CREATE TABLE IF NOT EXISTS drive_upload_queue (
     completed_at    TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_drive_queue_status ON drive_upload_queue(status);
+
+CREATE TABLE IF NOT EXISTS notices (
+    id              SERIAL PRIMARY KEY,
+    title           TEXT NOT NULL DEFAULT '',
+    content         TEXT NOT NULL DEFAULT '',
+    notice_type     TEXT DEFAULT 'global',
+    campaign_id     TEXT DEFAULT '',
+    is_active       BOOLEAN DEFAULT TRUE,
+    priority        INTEGER DEFAULT 0,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 
@@ -2127,3 +2139,65 @@ class DBManager:
             "SELECT COUNT(*) as cnt FROM drive_upload_queue WHERE status = 'failed'"
         )
         return row["cnt"] if row else 0
+
+    # ─────────── 공지 (notices) ───────────
+
+    def get_notices(self) -> list[dict]:
+        """전체 공지 목록 (관리자용, 최신순)"""
+        rows = self._fetchall(
+            """SELECT n.*, COALESCE(NULLIF(c.campaign_name,''), c.product_name) as campaign_name_display
+               FROM notices n
+               LEFT JOIN campaigns c ON n.campaign_id = c.id
+               ORDER BY n.priority DESC, n.created_at DESC"""
+        )
+        return rows
+
+    def get_active_notices(self, campaign_ids: list[str] = None) -> list[dict]:
+        """활성 공지 (global + 해당 캠페인)"""
+        if campaign_ids:
+            return self._fetchall(
+                """SELECT * FROM notices
+                   WHERE is_active = TRUE
+                   AND (notice_type = 'global' OR campaign_id = ANY(%s))
+                   ORDER BY priority DESC, created_at DESC""",
+                (campaign_ids,)
+            )
+        return self._fetchall(
+            """SELECT * FROM notices
+               WHERE is_active = TRUE AND notice_type = 'global'
+               ORDER BY priority DESC, created_at DESC"""
+        )
+
+    def create_notice(self, title: str, content: str,
+                      notice_type: str = "global", campaign_id: str = "",
+                      priority: int = 0) -> int:
+        return self._execute_returning(
+            """INSERT INTO notices (title, content, notice_type, campaign_id, priority)
+               VALUES (%s, %s, %s, %s, %s) RETURNING id""",
+            (title, content, notice_type, campaign_id, priority)
+        )
+
+    def update_notice(self, notice_id: int, **kwargs):
+        allowed = ("title", "content", "notice_type", "campaign_id", "is_active", "priority")
+        sets = []
+        vals = []
+        for k, v in kwargs.items():
+            if k in allowed:
+                sets.append(f"{k} = %s")
+                vals.append(v)
+        if not sets:
+            return
+        sets.append("updated_at = NOW()")
+        vals.append(notice_id)
+        self._execute(
+            f"UPDATE notices SET {', '.join(sets)} WHERE id = %s", tuple(vals)
+        )
+
+    def delete_notice(self, notice_id: int):
+        self._execute("DELETE FROM notices WHERE id = %s", (notice_id,))
+
+    def toggle_notice(self, notice_id: int):
+        self._execute(
+            "UPDATE notices SET is_active = NOT is_active, updated_at = NOW() WHERE id = %s",
+            (notice_id,)
+        )

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 공지 관리</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .notice-form { background: #f9fafb; border: 2px dashed #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+    .notice-form .form-row { display: flex; gap: 12px; margin-bottom: 12px; align-items: center; }
+    .notice-form input, .notice-form select, .notice-form textarea { font-size: 14px; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; }
+    .notice-form input[type=text] { flex: 1; }
+    .notice-form textarea { width: 100%; min-height: 60px; resize: vertical; box-sizing: border-box; }
+    .notice-form select { min-width: 120px; }
+    .notice-form .campaign-select { display: none; }
+    .toggle-btn { border: none; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .toggle-btn.on { background: #d1fae5; color: #065f46; }
+    .toggle-btn.off { background: #f3f4f6; color: #9ca3af; }
+    .notice-type-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+    .notice-type-badge.global { background: #dbeafe; color: #1d4ed8; }
+    .notice-type-badge.campaign { background: #fef3c7; color: #92400e; }
+    .toast { position: fixed; bottom: 30px; right: 30px; background: #1e293b; color: #fff; padding: 12px 24px; border-radius: 10px; font-size: 14px; z-index: 999; display: none; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인</a>
+                <a href="{{ url_for('admin.quotes') }}">견적서</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수{% if pending_review_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_review_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.spreadsheet') }}">데이터{% if failed_upload_count %}<span style="background:#f59e0b;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ failed_upload_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.notices') }}" class="active">공지</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h2>공지 관리</h2>
+
+        <div class="notice-form">
+            <div class="form-row">
+                <input type="text" id="noticeTitle" placeholder="공지 제목">
+                <select id="noticeType" onchange="toggleCampaignSelect()">
+                    <option value="global">전체 공지</option>
+                    <option value="campaign">캠페인별</option>
+                </select>
+                <select id="noticeCampaign" class="campaign-select">
+                    <option value="">캠페인 선택</option>
+                    {% for c in campaigns %}
+                    <option value="{{ c.get('캠페인ID','') }}">{{ c.get('캠페인명','') or c.get('상품명','') }} ({{ c.get('업체명','') }})</option>
+                    {% endfor %}
+                </select>
+                <input type="number" id="noticePriority" placeholder="우선순위" value="0" style="width:80px;">
+            </div>
+            <textarea id="noticeContent" placeholder="공지 내용"></textarea>
+            <div style="text-align:right;margin-top:8px;">
+                <button class="btn btn-primary btn-sm" onclick="createNotice()">공지 등록</button>
+            </div>
+        </div>
+
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>제목</th>
+                    <th>유형</th>
+                    <th>우선순위</th>
+                    <th>상태</th>
+                    <th>작성일</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for n in notices %}
+                <tr data-id="{{ n.id }}">
+                    <td>
+                        <strong>{{ n.title }}</strong>
+                        {% if n.content %}<br><span style="color:#6b7280;font-size:12px;">{{ n.content[:60] }}{{ '...' if n.content|length > 60 }}</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="notice-type-badge {{ n.notice_type }}">{{ '전체' if n.notice_type == 'global' else '캠페인' }}</span>
+                        {% if n.notice_type == 'campaign' and n.campaign_name_display %}
+                        <br><span style="font-size:11px;color:#6b7280;">{{ n.campaign_name_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align:center;">{{ n.priority }}</td>
+                    <td style="text-align:center;">
+                        <button class="toggle-btn {{ 'on' if n.is_active else 'off' }}" onclick="toggleNotice({{ n.id }}, this)">{{ '활성' if n.is_active else '비활성' }}</button>
+                    </td>
+                    <td style="font-size:12px;color:#6b7280;">{{ n.created_at.strftime('%m/%d %H:%M') if n.created_at else '' }}</td>
+                    <td>
+                        <button class="btn btn-sm" onclick="editNotice({{ n.id }})">수정</button>
+                        <button class="btn btn-sm" style="color:#dc2626;" onclick="deleteNotice({{ n.id }})">삭제</button>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not notices %}
+                <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:40px;">등록된 공지가 없습니다</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </main>
+
+    <!-- 수정 모달 -->
+    <div id="editModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;display:none;justify-content:center;align-items:center;">
+        <div style="background:#fff;border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:90vh;overflow-y:auto;">
+            <h3 style="margin:0 0 16px;">공지 수정</h3>
+            <input type="hidden" id="editId">
+            <div style="margin-bottom:12px;">
+                <label style="font-size:13px;color:#6b7280;">제목</label>
+                <input type="text" id="editTitle" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;">
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:13px;color:#6b7280;">내용</label>
+                <textarea id="editContent" style="width:100%;min-height:80px;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex;gap:12px;margin-bottom:12px;">
+                <div>
+                    <label style="font-size:13px;color:#6b7280;">유형</label>
+                    <select id="editType" onchange="toggleEditCampaign()" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;">
+                        <option value="global">전체</option>
+                        <option value="campaign">캠페인별</option>
+                    </select>
+                </div>
+                <div id="editCampaignWrap" style="display:none;">
+                    <label style="font-size:13px;color:#6b7280;">캠페인</label>
+                    <select id="editCampaign" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;">
+                        <option value="">선택</option>
+                        {% for c in campaigns %}
+                        <option value="{{ c.get('캠페인ID','') }}">{{ c.get('캠페인명','') or c.get('상품명','') }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:13px;color:#6b7280;">우선순위</label>
+                    <input type="number" id="editPriority" style="width:70px;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;">
+                </div>
+            </div>
+            <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end;">
+                <button class="btn btn-sm" onclick="closeEditModal()">취소</button>
+                <button class="btn btn-primary btn-sm" onclick="saveEdit()">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+    var NOTICES = {{ notices | tojson }};
+
+    function showToast(msg) {
+        var t = document.getElementById('toast');
+        t.textContent = msg; t.style.display = 'block';
+        setTimeout(function() { t.style.display = 'none'; }, 2000);
+    }
+
+    function toggleCampaignSelect() {
+        var sel = document.getElementById('noticeCampaign');
+        sel.style.display = document.getElementById('noticeType').value === 'campaign' ? '' : 'none';
+    }
+
+    function createNotice() {
+        var title = document.getElementById('noticeTitle').value.trim();
+        var content = document.getElementById('noticeContent').value.trim();
+        var ntype = document.getElementById('noticeType').value;
+        var cid = document.getElementById('noticeCampaign').value;
+        var priority = parseInt(document.getElementById('noticePriority').value) || 0;
+        if (!title) { alert('제목을 입력해주세요'); return; }
+        fetch('/admin/api/notice', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title: title, content: content, notice_type: ntype, campaign_id: cid, priority: priority})
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok) { showToast('공지 등록 완료'); location.reload(); }
+            else { alert(d.error || '등록 실패'); }
+        });
+    }
+
+    function toggleNotice(id, btn) {
+        fetch('/admin/api/notice/' + id + '/toggle', {method: 'POST'})
+        .then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok) {
+                var isOn = btn.classList.contains('off');
+                btn.className = 'toggle-btn ' + (isOn ? 'on' : 'off');
+                btn.textContent = isOn ? '활성' : '비활성';
+            }
+        });
+    }
+
+    function deleteNotice(id) {
+        if (!confirm('이 공지를 삭제하시겠습니까?')) return;
+        fetch('/admin/api/notice/' + id, {method: 'DELETE'})
+        .then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok) { showToast('삭제 완료'); location.reload(); }
+        });
+    }
+
+    function editNotice(id) {
+        var n = NOTICES.find(function(x) { return x.id === id; });
+        if (!n) return;
+        document.getElementById('editId').value = id;
+        document.getElementById('editTitle').value = n.title || '';
+        document.getElementById('editContent').value = n.content || '';
+        document.getElementById('editType').value = n.notice_type || 'global';
+        document.getElementById('editCampaign').value = n.campaign_id || '';
+        document.getElementById('editPriority').value = n.priority || 0;
+        toggleEditCampaign();
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').style.display = 'none';
+    }
+
+    function toggleEditCampaign() {
+        document.getElementById('editCampaignWrap').style.display =
+            document.getElementById('editType').value === 'campaign' ? '' : 'none';
+    }
+
+    function saveEdit() {
+        var id = document.getElementById('editId').value;
+        var data = {
+            title: document.getElementById('editTitle').value.trim(),
+            content: document.getElementById('editContent').value.trim(),
+            notice_type: document.getElementById('editType').value,
+            campaign_id: document.getElementById('editCampaign').value,
+            priority: parseInt(document.getElementById('editPriority').value) || 0
+        };
+        if (!data.title) { alert('제목을 입력해주세요'); return; }
+        fetch('/admin/api/notice/' + id, {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok) { showToast('수정 완료'); location.reload(); }
+            else { alert(d.error || '수정 실패'); }
+        });
+    }
+
+    document.getElementById('editModal').addEventListener('click', function(e) {
+        if (e.target === this) closeEditModal();
+    });
+    </script>
+</body>
+</html>

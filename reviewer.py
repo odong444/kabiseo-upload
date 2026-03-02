@@ -737,3 +737,31 @@ def api_user_store_ids():
                 disabled[sid] = "동시진행중"
 
     return jsonify({"ids": ids, "disabled": disabled})
+
+
+@reviewer_bp.route("/api/notices/active")
+def api_notices_active():
+    """리뷰어용 활성 공지 조회"""
+    if not models.db_manager:
+        return jsonify({"notices": []})
+
+    # 로그인 유저의 참여 캠페인 자동 조회
+    name = request.args.get("name", "").strip()
+    phone = request.args.get("phone", "").strip()
+    campaign_ids = []
+    if name and phone:
+        try:
+            items = models.db_manager.get_reviewer_items(name, phone)
+            for item in items.get("in_progress", []) + items.get("completed", []):
+                cid = item.get("캠페인ID", "")
+                if cid and cid not in campaign_ids:
+                    campaign_ids.append(cid)
+        except Exception:
+            pass
+
+    notices = models.db_manager.get_active_notices(campaign_ids or None)
+    return jsonify({"notices": [
+        {"id": n["id"], "title": n["title"], "content": n["content"],
+         "notice_type": n["notice_type"], "priority": n.get("priority", 0)}
+        for n in notices
+    ]})

@@ -25,6 +25,15 @@
         <button class="chat-top-close" onclick="event.stopPropagation();closeChatBanner()">&times;</button>
     </div>
 
+    <!-- 공지 배너 -->
+    <div id="noticeBanner" style="display:none;background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;padding:10px 16px;font-size:13px;position:relative;cursor:pointer;" onclick="if(this.dataset.url){window.open(this.dataset.url,'_blank');}">
+        <div style="max-width:480px;margin:0 auto;">
+            <strong id="noticeBannerTitle" style="font-size:14px;"></strong>
+            <div id="noticeBannerContent" style="margin-top:2px;opacity:0.9;font-size:12px;"></div>
+        </div>
+        <button onclick="event.stopPropagation();dismissNotice()" style="position:absolute;top:6px;right:10px;background:none;border:none;color:#fff;font-size:20px;cursor:pointer;opacity:0.7;">&times;</button>
+    </div>
+
     <main class="app-main">
         {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -151,7 +160,7 @@
             }
         }
 
-        // 페이지 로드 시 unread 체크
+        // 페이지 로드 시 unread 체크 + 공지 로드
         try {
             var user = JSON.parse(saved);
             var lastRead = localStorage.getItem('kabiseo_chat_last_read') || '0';
@@ -162,7 +171,37 @@
                     updateBadge();
                 })
                 .catch(function() {});
+
+            // 공지 배너 로드
+            fetch('/api/notices/active?name=' + encodeURIComponent(user.name) + '&phone=' + encodeURIComponent(user.phone))
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (!d.notices || !d.notices.length) return;
+                    var dismissed = JSON.parse(localStorage.getItem('kabiseo_dismissed_notices') || '{}');
+                    var notice = null;
+                    for (var i = 0; i < d.notices.length; i++) {
+                        if (!dismissed[d.notices[i].id]) { notice = d.notices[i]; break; }
+                    }
+                    if (!notice) return;
+                    document.getElementById('noticeBannerTitle').textContent = notice.title;
+                    document.getElementById('noticeBannerContent').textContent = notice.content || '';
+                    var nb = document.getElementById('noticeBanner');
+                    nb.dataset.noticeId = notice.id;
+                    nb.style.display = 'block';
+                })
+                .catch(function() {});
         } catch(e) {}
+
+        window.dismissNotice = function() {
+            var nb = document.getElementById('noticeBanner');
+            var nid = nb.dataset.noticeId;
+            if (nid) {
+                var dismissed = JSON.parse(localStorage.getItem('kabiseo_dismissed_notices') || '{}');
+                dismissed[nid] = Date.now();
+                localStorage.setItem('kabiseo_dismissed_notices', JSON.stringify(dismissed));
+            }
+            nb.style.display = 'none';
+        };
 
         // iframe에서 새 메시지 알림 수신
         window.addEventListener('message', function(e) {
