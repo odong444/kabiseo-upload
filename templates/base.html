@@ -25,14 +25,18 @@
         <button class="chat-top-close" onclick="event.stopPropagation();closeChatBanner()">&times;</button>
     </div>
 
-    <!-- 공지 배너 -->
-    <div id="noticeBanner" style="display:none;background:linear-gradient(135deg,#1e40af,#3b82f6);color:#fff;padding:10px 16px;font-size:13px;position:relative;cursor:pointer;" onclick="if(this.dataset.url){window.open(this.dataset.url,'_blank');}">
-        <div style="max-width:480px;margin:0 auto;">
-            <strong id="noticeBannerTitle" style="font-size:14px;"></strong>
-            <div id="noticeBannerContent" style="margin-top:2px;opacity:0.9;font-size:12px;"></div>
+    <!-- 공지 팝업 -->
+    <div id="noticeOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1100;justify-content:center;align-items:center;">
+        <div style="background:#fff;border-radius:16px;padding:28px 24px 20px;max-width:360px;width:85%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.2);animation:noticePopIn 0.25s ease-out;">
+            <div style="font-size:22px;margin-bottom:10px;">&#x1f4e2;</div>
+            <div id="noticeBannerTitle" style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:8px;"></div>
+            <div id="noticeBannerContent" style="font-size:14px;color:#4b5563;line-height:1.6;white-space:pre-line;margin-bottom:20px;"></div>
+            <button onclick="dismissNotice()" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:10px 32px;font-size:14px;font-weight:600;cursor:pointer;">확인</button>
         </div>
-        <button onclick="event.stopPropagation();dismissNotice()" style="position:absolute;top:6px;right:10px;background:none;border:none;color:#fff;font-size:20px;cursor:pointer;opacity:0.7;">&times;</button>
     </div>
+    <style>
+    @keyframes noticePopIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
 
     <main class="app-main">
         {% with messages = get_flashed_messages() %}
@@ -185,15 +189,15 @@
                     if (!notice) return;
                     document.getElementById('noticeBannerTitle').textContent = notice.title;
                     document.getElementById('noticeBannerContent').textContent = notice.content || '';
-                    var nb = document.getElementById('noticeBanner');
+                    var nb = document.getElementById('noticeOverlay');
                     nb.dataset.noticeId = notice.id;
-                    nb.style.display = 'block';
+                    nb.style.display = 'flex';
                 })
                 .catch(function() {});
         } catch(e) {}
 
         window.dismissNotice = function() {
-            var nb = document.getElementById('noticeBanner');
+            var nb = document.getElementById('noticeOverlay');
             var nid = nb.dataset.noticeId;
             if (nid) {
                 var dismissed = JSON.parse(localStorage.getItem('kabiseo_dismissed_notices') || '{}');
