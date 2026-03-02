@@ -83,8 +83,9 @@
                         <td>{{ item.get('구매일', '') }}</td>
                         <td>
                             {% if item.get('카카오친구') %}
-                            <span style="color:#2ECC71;font-size:12px;font-weight:600;">추가됨</span>
+                            <span style="color:#2ECC71;font-size:12px;font-weight:600;cursor:pointer;" onclick="toggleFriendStatus('{{ item.get('진행자이름', '') }}', '{{ item.get('진행자연락처', '') }}', false, this)" title="클릭하면 해제">추가됨</span>
                             {% else %}
+                            <button type="button" class="btn btn-sm" style="background:#3b82f6;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px;margin-bottom:2px;" onclick="toggleFriendStatus('{{ item.get('진행자이름', '') }}', '{{ item.get('진행자연락처', '') }}', true, this)">수동체크</button>
                             <button type="button" class="btn btn-sm" style="background:#ef4444;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px;" onclick="retryFriendAdd('{{ item.get('진행자이름', '') }}', '{{ item.get('진행자연락처', '') }}')">재시도</button>
                             {% endif %}
                         </td>
@@ -168,6 +169,22 @@
                 } else {
                     alert('요청 실패: ' + (d.error || ''));
                 }
+            })
+            .catch(function(e) { alert('요청 에러: ' + e.message); });
+        }
+
+        function toggleFriendStatus(name, phone, status, el) {
+            var action = status ? '친구추가 완료로 변경' : '친구추가 해제';
+            if (!confirm(name + ' (' + phone + ') ' + action + '하시겠습니까?')) return;
+            fetch('/admin/api/friend-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, phone: phone, status: status })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.ok) { location.reload(); }
+                else { alert('변경 실패: ' + (d.error || '')); }
             })
             .catch(function(e) { alert('요청 에러: ' + e.message); });
         }

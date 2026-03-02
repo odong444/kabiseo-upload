@@ -1549,6 +1549,22 @@ def api_friend_add():
         return jsonify({"ok": False, "error": "서버PC 연결 실패 또는 태스크 전송 거부"})
 
 
+@admin_bp.route("/api/friend-status", methods=["POST"])
+@admin_required
+def api_friend_status():
+    """카카오 친구추가 상태 수동 토글"""
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+    status = data.get("status", True)
+
+    if not name or not phone or not models.db_manager:
+        return jsonify({"ok": False, "error": "name, phone 필수"})
+
+    models.db_manager.update_kakao_friend(name, phone, bool(status))
+    return jsonify({"ok": True, "kakao_friend": bool(status)})
+
+
 @admin_bp.route("/api/friend-add-bulk", methods=["POST"])
 @admin_required
 def api_friend_add_bulk():
