@@ -853,15 +853,19 @@ class DBManager:
         else:
             reviewer_id = reviewer["id"]
 
+        payment_amount = self._safe_int(data.get("결제금액", 0))
+        review_fee = self._safe_int(data.get("리뷰비", 0))
+        payment_total = review_fee + payment_amount if (review_fee or payment_amount) else 0
+
         sql = """
             INSERT INTO progress (
                 campaign_id, reviewer_id, store_id, status, created_at,
                 recipient_name, phone, bank, account, depositor,
-                address, nickname, payment_amount, review_fee, remark
+                address, nickname, payment_amount, review_fee, payment_total, remark
             ) VALUES (
                 %s, %s, %s, %s, NOW(),
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s
             ) RETURNING id
         """
         progress_id = self._execute_returning(sql, (
@@ -876,8 +880,9 @@ class DBManager:
             data.get("예금주", ""),
             data.get("주소", ""),
             data.get("닉네임", ""),
-            self._safe_int(data.get("결제금액", 0)),
-            self._safe_int(data.get("리뷰비", 0)),
+            payment_amount,
+            review_fee,
+            payment_total,
             data.get("비고", ""),
         ))
         return progress_id

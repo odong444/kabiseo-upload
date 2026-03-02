@@ -668,6 +668,19 @@ def api_task_purchase(progress_id):
             if val:
                 models.db_manager.update_progress_field(progress_id, sheet_key, val)
 
+        # 입금금액(payment_total) 계산: 결제금액 + 리뷰비
+        from modules.utils import safe_int
+        campaign_id = row.get("campaign_id", "")
+        campaign = models.db_manager.get_campaign_by_id(campaign_id) if campaign_id else {}
+        review_fee = safe_int((campaign or {}).get("리뷰비", 0))
+        purchase_amount = safe_int(form_fields.get("payment_amount", 0) or (campaign or {}).get("결제금액", 0))
+        payment_total = review_fee + purchase_amount if (review_fee or purchase_amount) else 0
+        if payment_total:
+            models.db_manager._execute(
+                "UPDATE progress SET review_fee = %s, payment_total = %s, updated_at = NOW() WHERE id = %s",
+                (review_fee, payment_total, progress_id)
+            )
+
         # 2. Drive 업로드 큐에 추가
         from app import _make_upload_filename
         filename = _make_upload_filename("purchase", progress_id, file.filename)
