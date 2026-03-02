@@ -1407,13 +1407,13 @@ class DBManager:
         )
         return row["cnt"] if row else 0
 
-    def get_learned_qa(self, limit: int = 30) -> list[dict]:
-        """답변 완료된 문의 Q&A (AI 학습용). 최신순."""
+    def get_learned_qa(self, limit: int = 0) -> list[dict]:
+        """답변 완료된 문의 Q&A (AI 학습용). 중복 답변 제거, 누적."""
         return self._fetchall(
-            """SELECT message, admin_reply FROM inquiries
+            """SELECT DISTINCT ON (admin_reply) message, admin_reply
+               FROM inquiries
                WHERE status = '완료' AND admin_reply != ''
-               ORDER BY replied_at DESC LIMIT %s""",
-            (limit,)
+               ORDER BY admin_reply, replied_at DESC"""
         )
 
     def count_today_all_campaigns(self) -> dict:

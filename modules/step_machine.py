@@ -1588,7 +1588,7 @@ class StepMachine:
         learned_qa = ""
         try:
             if models.db_manager:
-                resolved = models.db_manager.get_learned_qa(limit=30)
+                resolved = models.db_manager.get_learned_qa()
                 if resolved:
                     lines = []
                     for qa in resolved:

@@ -178,27 +178,27 @@ def _get_base_prompt(capture_type: str) -> str:
 
 
 def _get_rejection_examples(capture_type: str) -> str:
-    """과거 반려 사례를 프롬프트에 추가할 텍스트로 반환"""
+    """과거 반려 사례를 프롬프트에 추가할 텍스트로 반환 (누적, 중복 사유 합산)"""
     try:
         from models import db_manager
         if not db_manager:
             return ""
         prefix = "구매캡쳐 반려" if capture_type == "purchase" else "반려"
         rows = db_manager._fetchall(
-            """SELECT p.remark, c.product_name
+            """SELECT p.remark, COUNT(*) as cnt
                FROM progress p
-               LEFT JOIN campaigns c ON c.id = p.campaign_id
                WHERE p.remark LIKE %s
-               ORDER BY p.updated_at DESC LIMIT 15""",
+               GROUP BY p.remark
+               ORDER BY cnt DESC""",
             (f"{prefix}%",)
         )
         if not rows:
             return ""
         lines = []
         for r in rows:
-            product = r.get("product_name", "") or ""
             remark = r.get("remark", "")
-            lines.append(f"- {product}: {remark}")
+            cnt = r.get("cnt", 1)
+            lines.append(f"- {remark} ({cnt}건)")
         return "\n[과거 반려 사례 - 같은 실수가 보이면 적극적으로 문제점에 포함시켜주세요]\n" + "\n".join(lines)
     except Exception:
         return ""
