@@ -765,3 +765,61 @@ def api_notices_active():
          "notice_type": n["notice_type"], "priority": n.get("priority", 0)}
         for n in notices
     ]})
+
+
+@reviewer_bp.route("/api/kakao-friend-status")
+def api_kakao_friend_status():
+    """리뷰어 카카오 친구추가 상태 확인"""
+    name = request.args.get("name", "").strip()
+    phone = request.args.get("phone", "").strip()
+    if not name or not phone or not models.db_manager:
+        return jsonify({"kakao_friend": True})  # 확인 불가 시 경고 안 띄움
+
+    reviewer = models.db_manager.get_reviewer(name, phone)
+    if not reviewer:
+        return jsonify({"kakao_friend": True})
+
+    return jsonify({"kakao_friend": bool(reviewer.get("kakao_friend", False))})
+
+
+@reviewer_bp.route("/api/submit-kakao-id", methods=["POST"])
+def api_submit_kakao_id():
+    """카카오톡 아이디 제출 → 담당자 문의로 전달"""
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+    kakao_id = data.get("kakao_id", "").strip()
+
+    if not name or not phone or not kakao_id:
+        return jsonify({"ok": False, "error": "필수 정보 누락"})
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+
+    reviewer = models.db_manager.get_reviewer(name, phone)
+    reviewer_id = reviewer["id"] if reviewer else 0
+
+    message = f"[카카오 친구추가 불가] 카카오톡 ID: {kakao_id}"
+    models.db_manager.create_inquiry(
+        reviewer_id=reviewer_id,
+        name=name, phone=phone,
+        message=message,
+        context="카카오 친구추가가 되지 않아 카카오톡 ID를 제출했습니다.",
+        is_urgent=True,
+    )
+
+    # 관리자 카톡 알림
+    if models.kakao_notifier:
+        try:
+            managers = models.db_manager.get_active_managers() if models.db_manager else []
+            if not managers:
+                managers = [{"name": "오동열", "phone": "010-7210-0210"}]
+            for mgr in managers:
+                models.kakao_notifier.notify_admin_urgent_inquiry(
+                    admin_name=mgr["name"], admin_phone=mgr["phone"],
+                    reviewer_name=name, reviewer_phone=phone,
+                    message=message,
+                )
+        except Exception:
+            pass
+
+    return jsonify({"ok": True})
