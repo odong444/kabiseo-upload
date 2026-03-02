@@ -1130,11 +1130,13 @@ class DBManager:
         self.update_status(progress_id, STATUS_PAYMENT_WAIT)
 
     def reject_review(self, progress_id: int, reason: str = ""):
-        """검수 반려 → 리뷰대기 + 링크 삭제"""
+        """검수 반려 → 리뷰대기 + 링크/AI결과 삭제"""
         remark = f"반려: {reason}" if reason else "반려"
         self._execute(
             """UPDATE progress SET status = %s, review_capture_url = '',
-               review_submit_date = NULL, remark = %s, updated_at = NOW()
+               review_submit_date = NULL, remark = %s,
+               ai_review_result = '', ai_review_reason = '',
+               updated_at = NOW()
                WHERE id = %s""",
             (STATUS_REVIEW_WAIT, remark, progress_id)
         )
