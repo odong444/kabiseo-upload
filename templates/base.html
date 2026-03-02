@@ -31,7 +31,10 @@
             <div style="font-size:22px;margin-bottom:10px;">&#x1f4e2;</div>
             <div id="noticeBannerTitle" style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:8px;"></div>
             <div id="noticeBannerContent" style="font-size:14px;color:#4b5563;line-height:1.6;white-space:pre-line;margin-bottom:20px;"></div>
-            <button onclick="dismissNotice()" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:10px 32px;font-size:14px;font-weight:600;cursor:pointer;">확인</button>
+            <div style="display:flex;gap:10px;justify-content:center;">
+                <button onclick="dismissNotice('once')" style="background:#f3f4f6;color:#4b5563;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">한번만 보기</button>
+                <button onclick="dismissNotice('forever')" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">다시 보지 않기</button>
+            </div>
         </div>
     </div>
     <style>
@@ -184,7 +187,8 @@
                     var dismissed = JSON.parse(localStorage.getItem('kabiseo_dismissed_notices') || '{}');
                     var notice = null;
                     for (var i = 0; i < d.notices.length; i++) {
-                        if (!dismissed[d.notices[i].id]) { notice = d.notices[i]; break; }
+                        var nid = d.notices[i].id;
+                        if (!dismissed[nid] && !window._noticeSessionDismissed[nid]) { notice = d.notices[i]; break; }
                     }
                     if (!notice) return;
                     document.getElementById('noticeBannerTitle').textContent = notice.title;
@@ -196,13 +200,16 @@
                 .catch(function() {});
         } catch(e) {}
 
-        window.dismissNotice = function() {
+        window._noticeSessionDismissed = {};
+        window.dismissNotice = function(mode) {
             var nb = document.getElementById('noticeOverlay');
             var nid = nb.dataset.noticeId;
-            if (nid) {
+            if (nid && mode === 'forever') {
                 var dismissed = JSON.parse(localStorage.getItem('kabiseo_dismissed_notices') || '{}');
                 dismissed[nid] = Date.now();
                 localStorage.setItem('kabiseo_dismissed_notices', JSON.stringify(dismissed));
+            } else if (nid) {
+                window._noticeSessionDismissed[nid] = true;
             }
             nb.style.display = 'none';
         };
