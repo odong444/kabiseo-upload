@@ -177,9 +177,36 @@ def _get_base_prompt(capture_type: str) -> str:
     return PURCHASE_PROMPT_BASE if capture_type == "purchase" else REVIEW_PROMPT_BASE
 
 
+def _get_rejection_examples(capture_type: str) -> str:
+    """과거 반려 사례를 프롬프트에 추가할 텍스트로 반환"""
+    try:
+        from models import db_manager
+        if not db_manager:
+            return ""
+        prefix = "구매캡쳐 반려" if capture_type == "purchase" else "반려"
+        rows = db_manager._fetchall(
+            """SELECT p.remark, c.product_name
+               FROM progress p
+               LEFT JOIN campaigns c ON c.id = p.campaign_id
+               WHERE p.remark LIKE %s
+               ORDER BY p.updated_at DESC LIMIT 15""",
+            (f"{prefix}%",)
+        )
+        if not rows:
+            return ""
+        lines = []
+        for r in rows:
+            product = r.get("product_name", "") or ""
+            remark = r.get("remark", "")
+            lines.append(f"- {product}: {remark}")
+        return "\n[과거 반려 사례 - 같은 실수가 보이면 적극적으로 문제점에 포함시켜주세요]\n" + "\n".join(lines)
+    except Exception:
+        return ""
+
+
 def _build_prompt(capture_type: str, campaign_info: dict | None,
                   ai_instructions: str = "") -> str:
-    """캡쳐 타입 + 캠페인 정보 + AI 지침으로 최종 프롬프트 구성"""
+    """캡쳐 타입 + 캠페인 정보 + AI 지침 + 반려 사례로 최종 프롬프트 구성"""
     base = _get_base_prompt(capture_type)
 
     parts = [base]
@@ -206,6 +233,11 @@ def _build_prompt(capture_type: str, campaign_info: dict | None,
 
     if ai_instructions:
         parts.append(f"\n추가 검수 지침:\n{ai_instructions}")
+
+    # 과거 반려 사례 추가
+    rejection_examples = _get_rejection_examples(capture_type)
+    if rejection_examples:
+        parts.append(rejection_examples)
 
     return "\n".join(parts)
 
