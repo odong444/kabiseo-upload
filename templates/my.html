@@ -112,8 +112,8 @@
             const data = await Reviewer.apiGet('/api/task/' + progressId);
             const c = data.campaign || {};
             let html = '';
-            if (c.review_guide) {
-                html += '<div style="line-height:1.7;white-space:pre-line;font-size:14px;color:#374151;">' + c.review_guide.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+            if (c.campaign_guide) {
+                html += '<div style="line-height:1.7;white-space:pre-line;font-size:14px;color:#374151;">' + c.campaign_guide.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
             }
             if (c.extra_info) {
                 html += '<div style="margin-top:16px;padding:12px;background:#fef3c7;border-radius:8px;font-size:13px;color:#92400e;white-space:pre-line;"><strong>추가 안내사항</strong><br>' + c.extra_info.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
