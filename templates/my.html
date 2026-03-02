@@ -9,6 +9,20 @@
     <h1 class="page-title">내 작업</h1>
     <div id="myItems" class="loading">불러오는 중...</div>
 </div>
+
+<!-- 리뷰 가이드 모달 -->
+<div id="guideModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1100;justify-content:center;align-items:center;" onclick="closeGuideModal()">
+    <div style="background:#fff;border-radius:16px;padding:0;max-width:420px;width:90%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.2);animation:guidePopIn 0.2s ease-out;" onclick="event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e5e7eb;">
+            <span style="font-size:16px;font-weight:700;color:#1e293b;">리뷰 가이드</span>
+            <button onclick="closeGuideModal()" style="background:none;border:none;font-size:22px;color:#9ca3af;cursor:pointer;padding:0 4px;line-height:1;">&times;</button>
+        </div>
+        <div id="guideModalBody" style="padding:20px;overflow-y:auto;flex:1;"></div>
+    </div>
+</div>
+<style>
+@keyframes guidePopIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+</style>
 {% endblock %}
 
 {% block nav %}
@@ -87,6 +101,36 @@
         container.innerHTML = html;
     }
 
+    // 리뷰 가이드 모달
+    window.showReviewGuide = async function(progressId) {
+        const modal = document.getElementById('guideModal');
+        const body = document.getElementById('guideModalBody');
+        body.innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;">불러오는 중...</div>';
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        try {
+            const data = await Reviewer.apiGet('/api/task/' + progressId);
+            const c = data.campaign || {};
+            let html = '';
+            if (c.review_guide) {
+                html += '<div style="line-height:1.7;white-space:pre-line;font-size:14px;color:#374151;">' + c.review_guide.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+            }
+            if (c.extra_info) {
+                html += '<div style="margin-top:16px;padding:12px;background:#fef3c7;border-radius:8px;font-size:13px;color:#92400e;white-space:pre-line;"><strong>추가 안내사항</strong><br>' + c.extra_info.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+            }
+            if (!html) {
+                html = '<div style="text-align:center;color:#9ca3af;padding:20px;">등록된 리뷰 가이드가 없습니다.</div>';
+            }
+            body.innerHTML = html;
+        } catch(e) {
+            body.innerHTML = '<div style="text-align:center;color:#ef4444;padding:20px;">가이드를 불러올 수 없습니다.</div>';
+        }
+    };
+    window.closeGuideModal = function() {
+        document.getElementById('guideModal').style.display = 'none';
+        document.body.style.overflow = '';
+    };
+
     function renderGroup(items, done = false) {
         const first = items[0];
         const hasRejected = items.some(i => i.remark && i.remark.startsWith('반려'));
@@ -130,10 +174,14 @@
 
         // 가이드 보기 버튼 (한 번만)
         const needsGuide = items.some(i => ['신청', '가이드전달', '구매캡쳐대기'].includes(i.status));
+        const needsReviewGuide = items.some(i => ['리뷰대기', '리뷰제출'].includes(i.status));
         const canCancel = items.every(i => ['신청', '가이드전달'].includes(i.status));
         let actionBtns = '';
         if (needsGuide) {
             actionBtns += `<a href="/task/${first.id}" class="btn btn-primary btn-sm" style="flex:1">가이드 보기</a>`;
+        }
+        if (needsReviewGuide) {
+            actionBtns += `<button class="btn btn-sm" style="flex:1;background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd;font-weight:600;" onclick="showReviewGuide(${first.id})">리뷰 가이드</button>`;
         }
         if (canCancel) {
             actionBtns += `<button class="btn btn-sm" style="flex:0 0 auto;margin-left:8px;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;" onclick="cancelApply(${first.id})">신청취소</button>`;
