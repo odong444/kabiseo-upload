@@ -1597,12 +1597,28 @@ class StepMachine:
         except Exception:
             pass
 
+        # 학습된 반려 사례
+        learned_rejections = ""
+        try:
+            if models.db_manager:
+                rejections = models.db_manager.get_learned_rejections(limit=20)
+                if rejections:
+                    lines = []
+                    for r in rejections:
+                        product = r.get("product_name", "") or ""
+                        remark = r.get("remark", "")
+                        lines.append(f"제품: {product} / 사유: {remark}")
+                    learned_rejections = "\n".join(lines)
+        except Exception:
+            pass
+
         return {
             "reviewer_name": state.name,
             "current_step": state.step,
             "campaign_name": self._display_name(campaign),
             "in_progress_count": len(items.get("in_progress", [])),
             "learned_qa": learned_qa,
+            "learned_rejections": learned_rejections,
         }
 
     def _ask_ai(self, state: ReviewerState, user_message: str):

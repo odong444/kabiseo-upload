@@ -71,6 +71,11 @@ class AIHandler:
             if learned_qa:
                 learned_section = f"[과거 답변 사례]\n{learned_qa}\n\n"
 
+            # 학습된 반려 사례
+            learned_rejections = context.get("learned_rejections", "")
+            if learned_rejections:
+                learned_section += f"[반려 사례 - 리뷰어에게 이런 실수를 하지 않도록 안내해줘]\n{learned_rejections}\n\n"
+
             prompt = (
                 f"아래 서비스 가이드와 과거 답변 사례를 참고해 응답을 작성해줘.\n"
                 f"응답 텍스트만 출력하고 코드블록이나 설명은 붙이지 마.\n"

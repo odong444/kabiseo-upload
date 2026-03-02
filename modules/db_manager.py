@@ -1416,6 +1416,18 @@ class DBManager:
             (limit,)
         )
 
+    def get_learned_rejections(self, limit: int = 20) -> list[dict]:
+        """반려 사례 (AI 학습용). 최신순. 구매/리뷰 구분."""
+        return self._fetchall(
+            """SELECT p.remark, p.store_id,
+                      c.product_name AS product_name
+               FROM progress p
+               LEFT JOIN campaigns c ON c.id = p.campaign_id
+               WHERE p.remark LIKE '반려%%' OR p.remark LIKE '구매캡쳐 반려%%'
+               ORDER BY p.updated_at DESC LIMIT %s""",
+            (limit,)
+        )
+
     def count_today_all_campaigns(self) -> dict:
         """오늘 캠페인별 신청 건수 ({캠페인ID: count})"""
         rows = self._fetchall(
