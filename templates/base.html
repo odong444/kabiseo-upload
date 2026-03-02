@@ -32,7 +32,7 @@
             <div id="noticeBannerTitle" style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:8px;"></div>
             <div id="noticeBannerContent" style="font-size:14px;color:#4b5563;line-height:1.6;white-space:pre-line;margin-bottom:20px;"></div>
             <div style="display:flex;gap:10px;justify-content:center;">
-                <button onclick="dismissNotice('once')" style="background:#f3f4f6;color:#4b5563;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">한번만 보기</button>
+                <button onclick="dismissNotice('today')" style="background:#f3f4f6;color:#4b5563;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">오늘 보지 않기</button>
                 <button onclick="dismissNotice('forever')" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">다시 보지 않기</button>
             </div>
         </div>
@@ -186,9 +186,13 @@
                     if (!d.notices || !d.notices.length) return;
                     var dismissed = JSON.parse(localStorage.getItem('kabiseo_dismissed_notices') || '{}');
                     var notice = null;
+                    var now = Date.now();
                     for (var i = 0; i < d.notices.length; i++) {
                         var nid = d.notices[i].id;
-                        if (!dismissed[nid] && !window._noticeSessionDismissed[nid]) { notice = d.notices[i]; break; }
+                        var dval = dismissed[nid];
+                        // -1=영구, 양수=만료시각, 없으면 표시
+                        if (dval === -1 || (dval && dval > now)) continue;
+                        notice = d.notices[i]; break;
                     }
                     if (!notice) return;
                     document.getElementById('noticeBannerTitle').textContent = notice.title;
@@ -200,16 +204,20 @@
                 .catch(function() {});
         } catch(e) {}
 
-        window._noticeSessionDismissed = {};
         window.dismissNotice = function(mode) {
             var nb = document.getElementById('noticeOverlay');
             var nid = nb.dataset.noticeId;
-            if (nid && mode === 'forever') {
+            if (nid) {
                 var dismissed = JSON.parse(localStorage.getItem('kabiseo_dismissed_notices') || '{}');
-                dismissed[nid] = Date.now();
+                if (mode === 'forever') {
+                    dismissed[nid] = -1;
+                } else {
+                    // 오늘 자정까지
+                    var tomorrow = new Date();
+                    tomorrow.setHours(24, 0, 0, 0);
+                    dismissed[nid] = tomorrow.getTime();
+                }
                 localStorage.setItem('kabiseo_dismissed_notices', JSON.stringify(dismissed));
-            } else if (nid) {
-                window._noticeSessionDismissed[nid] = true;
             }
             nb.style.display = 'none';
         };
