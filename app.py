@@ -33,6 +33,21 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "kabiseo-web-secret-key")
 
+# ──────── Jinja KST 타임존 필터 ────────
+from datetime import timezone, timedelta
+_KST = timezone(timedelta(hours=9))
+
+def _to_kst(dt, fmt="%m/%d %H:%M"):
+    """TIMESTAMPTZ → KST 변환 후 포맷"""
+    if not dt:
+        return ""
+    try:
+        return dt.astimezone(_KST).strftime(fmt)
+    except Exception:
+        return str(dt)
+
+app.jinja_env.filters["kst"] = _to_kst
+
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 # ──────── 블루프린트 등록 ────────

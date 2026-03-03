@@ -108,7 +108,7 @@
                                 {{ '활성' if c.is_active else '비활성' }}
                             </button>
                         </td>
-                        <td style="font-size:13px;color:#6b7280;">{{ c.created_at.strftime('%Y-%m-%d') if c.created_at else '-' }}</td>
+                        <td style="font-size:13px;color:#6b7280;">{{ c.created_at|kst('%Y-%m-%d') }}</td>
                         <td>
                             <div style="display:flex;gap:4px;">
                                 <button type="button" class="admin-btn admin-btn-sm"

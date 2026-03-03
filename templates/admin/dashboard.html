@@ -340,7 +340,7 @@
                             <span class="act-text">{{ act.content }}</span>
                         {% endif %}
                     </div>
-                    <div class="act-time">{{ act.ts.strftime('%m/%d %H:%M') if act.ts else '' }}</div>
+                    <div class="act-time">{{ act.ts|kst }}</div>
                 </div>
             </div>
             {% endfor %}

@@ -109,7 +109,7 @@ class SheetSync:
         return [
             r.get("id", 0),                                                # ID
             r.get("company") or "",                                        # 업체명
-            r["created_at"].strftime("%Y-%m-%d") if r.get("created_at") else "",  # 날짜
+            r["created_at"].astimezone(KST).strftime("%Y-%m-%d") if r.get("created_at") else "",  # 날짜
             r.get("product_name") or "",                                   # 제품명
             r.get("recipient_name") or "",                                 # 수취인명
             r.get("phone") or "",                                          # 연락처

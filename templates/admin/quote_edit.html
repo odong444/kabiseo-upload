@@ -85,7 +85,7 @@
         <h1>견적서 #{{ quote.id }} 수정</h1>
         <div class="quote-meta">
             <span class="status-badge {{ quote.status }}">{{ quote.status }}</span>
-            <span>등록: {{ quote.created_at.strftime('%Y-%m-%d %H:%M') if quote.created_at else '-' }}</span>
+            <span>등록: {{ quote.created_at|kst('%Y-%m-%d %H:%M') }}</span>
             {% if quote.campaign_id %}<span>캠페인: <a href="{{ url_for('admin.campaign_edit', campaign_id=quote.campaign_id) }}">{{ quote.campaign_id }}</a></span>{% endif %}
             <a href="{{ url_for('admin.quote_preview', quote_id=quote.id) }}" style="color:#1565c0;">미리보기</a>
         </div>

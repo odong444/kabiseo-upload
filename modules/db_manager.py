@@ -896,7 +896,7 @@ class DBManager:
             elif db_col in self._INT_COLUMNS:
                 result[sheet_key] = str(value) if value else "0"
             elif db_col == "created_at":
-                result["등록일"] = value.strftime("%Y-%m-%d") if value else ""
+                result["등록일"] = value.astimezone(KST).strftime("%Y-%m-%d") if value else ""
             elif db_col == "deadline_date":
                 result["신청마감일"] = str(value) if value else ""
             elif db_col == "start_date":

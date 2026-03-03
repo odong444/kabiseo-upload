@@ -63,7 +63,7 @@
                     {% for item in inquiries %}
                     <tr>
                         <td>{{ item.id }}</td>
-                        <td>{{ item.created_at.strftime('%m/%d %H:%M') if item.created_at else '' }}</td>
+                        <td>{{ item.created_at|kst }}</td>
                         <td>{{ item.reviewer_name }}</td>
                         <td>{{ item.reviewer_phone }}</td>
                         <td style="max-width:300px;" data-msg="{{ item.message }}">{{ item.message[:50] }}{% if item.message|length > 50 %}...{% endif %}</td>

@@ -109,7 +109,7 @@
                     <td style="text-align:center;">
                         <button class="toggle-btn {{ 'on' if n.is_active else 'off' }}" onclick="toggleNotice({{ n.id }}, this)">{{ '활성' if n.is_active else '비활성' }}</button>
                     </td>
-                    <td style="font-size:12px;color:#6b7280;">{{ n.created_at.strftime('%m/%d %H:%M') if n.created_at else '' }}</td>
+                    <td style="font-size:12px;color:#6b7280;">{{ n.created_at|kst }}</td>
                     <td>
                         <button class="btn btn-sm" onclick="editNotice({{ n.id }})">수정</button>
                         <button class="btn btn-sm" style="color:#dc2626;" onclick="deleteNotice({{ n.id }})">삭제</button>
