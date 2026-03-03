@@ -2473,6 +2473,18 @@ def api_client_create():
         return jsonify({"ok": False, "error": str(e)})
 
 
+@admin_bp.route("/api/debug/clients-check")
+def debug_clients_check():
+    """임시 디버그: clients 테이블 확인"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "db_manager 없음"})
+    try:
+        rows = models.db_manager._fetchall("SELECT id, login_id, company_name, is_active FROM clients LIMIT 10")
+        return jsonify({"ok": True, "count": len(rows), "clients": rows})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
 @admin_bp.route("/api/client/<int:client_id>", methods=["PUT"])
 @admin_required
 def api_client_update(client_id):
