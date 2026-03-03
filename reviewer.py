@@ -691,8 +691,12 @@ def api_task_purchase(progress_id):
         )
         models.db_manager.set_upload_pending(progress_id, "purchase")
 
-        # 상태 즉시 변경 (Drive 업로드 완료 대기 없이)
+        # 상태 즉시 변경 + 구매일 설정 (Drive 업로드 완료 대기 없이)
         models.db_manager.update_status(progress_id, "리뷰대기")
+        models.db_manager._execute(
+            "UPDATE progress SET purchase_date = (NOW() AT TIME ZONE 'Asia/Seoul')::date WHERE id = %s AND purchase_date IS NULL",
+            (progress_id,)
+        )
 
         return jsonify({"ok": True, "message": "구매 캡쳐 제출 완료!"})
     except Exception as e:

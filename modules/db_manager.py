@@ -438,6 +438,17 @@ class DBManager:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS reject_reason TEXT DEFAULT ''")
                 except Exception:
                     pass
+                # 기존 purchase_date 빈 건 일괄 수정 (구매캡쳐 있으면 created_at 기준)
+                try:
+                    cur.execute("""
+                        UPDATE progress SET purchase_date = (created_at AT TIME ZONE 'Asia/Seoul')::date
+                        WHERE purchase_date IS NULL
+                          AND purchase_capture_url IS NOT NULL AND purchase_capture_url != ''
+                    """)
+                    if cur.rowcount > 0:
+                        logger.info("purchase_date 일괄 수정: %d건", cur.rowcount)
+                except Exception:
+                    pass
                 # 기존 payment_total 빈 건 일괄 수정 (결제금액+리뷰비 → 입금금액)
                 try:
                     cur.execute("""

@@ -239,11 +239,11 @@
                     <div class="stat-name">신청/대기</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-num purchased">{{ progress_stats.get('구매완료', 0) }}</div>
+                    <div class="stat-num purchased">{{ progress_stats.get('구매완료', 0) + progress_stats.get('리뷰대기', 0) + progress_stats.get('리뷰제출', 0) }}</div>
                     <div class="stat-name">구매완료</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-num reviewed">{{ progress_stats.get('리뷰완료', 0) }}</div>
+                    <div class="stat-num reviewed">{{ progress_stats.get('리뷰완료', 0) + progress_stats.get('입금대기', 0) + progress_stats.get('입금완료', 0) }}</div>
                     <div class="stat-name">리뷰완료</div>
                 </div>
                 <div class="stat-item">
