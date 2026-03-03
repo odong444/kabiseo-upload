@@ -276,8 +276,16 @@ def api_send_message():
     if not models.kakao_notifier:
         return jsonify(ok=False, error="알림 시스템이 초기화되지 않았습니다."), 500
 
+    # 리뷰어 정보 먼저 확인
+    info = models.kakao_notifier._get_progress_info(progress_id)
+    if not info.get("name") or not info.get("phone"):
+        logger.warning("카톡 발송 실패 - 리뷰어 정보 없음: progress_id=%s, info=%s", progress_id, info)
+        return jsonify(ok=False, error="리뷰어 연락처 정보가 없습니다."), 400
+
     result = models.kakao_notifier.send_reminder(progress_id, custom_message=message)
     if result:
         return jsonify(ok=True)
     else:
-        return jsonify(ok=False, error="카톡 발송에 실패했습니다. 리뷰어 연락처를 확인해주세요."), 500
+        logger.warning("카톡 발송 실패 - 전송 에러: progress_id=%s, reviewer=%s %s",
+                       progress_id, info.get("name"), info.get("phone"))
+        return jsonify(ok=False, error="카톡 발송에 실패했습니다. 서버 연결을 확인해주세요."), 500
