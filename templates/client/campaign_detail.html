@@ -281,7 +281,10 @@
         <!-- 진행건 목록 -->
         {% if progress_list %}
         <div class="card">
-            <h3>진행건 목록 ({{ progress_list|length }}건)</h3>
+            <h3 style="display:flex;align-items:center;justify-content:space-between;">
+                <span>진행건 목록 ({{ progress_list|length }}건)</span>
+                <button onclick="downloadCsv()" style="padding:5px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">CSV 다운로드</button>
+            </h3>
             <div class="progress-table-wrap">
                 <table class="progress-table">
                     <thead>
@@ -496,6 +499,28 @@
     }
 
     if (_allRows.length > 0) renderTable();
+
+    // ── CSV 다운로드 ──
+    function downloadCsv() {
+        var headers = ['신청일','상품명','수취인명','연락처','아이디','주문번호','주소','상태','구매일','구매캡쳐','리뷰기한','리뷰캡쳐','AI검수','비고'];
+        var keys = ['date_str','product_name','recipient_name','phone','store_id','order_number','address','status','purchase_date','purchase_capture_url','review_deadline','review_capture_url','ai_review_result','remark'];
+        var bom = '\uFEFF';
+        var csv = bom + headers.join(',') + '\n';
+        for (var i = 0; i < _allRows.length; i++) {
+            var r = _allRows[i];
+            var row = [];
+            for (var j = 0; j < keys.length; j++) {
+                var v = (r[keys[j]] || '-').toString().replace(/"/g, '""');
+                row.push('"' + v + '"');
+            }
+            csv += row.join(',') + '\n';
+        }
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = '{{ (campaign.get("캠페인명", "") or campaign.get("상품명", "campaign"))|e }}_진행건.csv';
+        a.click();
+    }
 
     // ── 이미지 라이트박스 ──
     function driveToDirectUrl(url) {
