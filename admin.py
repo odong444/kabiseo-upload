@@ -53,7 +53,7 @@ def _fetch_server_categories() -> list[str]:
             return resp.json().get("categories", [])
     except Exception:
         pass
-    return ["체험단", "리뷰-실", "리뷰-빈", "마케팅홍보"]  # fallback
+    return ["체험단", "리뷰-실", "리뷰-빈", "마케팅홍보", "기존리뷰어"]  # fallback
 
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin1234")

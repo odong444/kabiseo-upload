@@ -70,6 +70,35 @@ def campaign_status(campaign_id):
     return jsonify(stats)
 
 
+@api_bp.route("/campaigns/<campaign_id>/recruit-targets", methods=["GET"])
+@require_api_key
+def campaign_recruit_targets(campaign_id):
+    """기존리뷰어 모집 대상 목록 (카카오 친구 + 미발송 + 미참여)"""
+    if not models.db_manager:
+        return jsonify({"error": "시스템 초기화 중"}), 503
+
+    limit = request.args.get("limit", 50, type=int)
+    targets = models.db_manager.get_recruit_targets(campaign_id, limit=limit)
+    return jsonify({"ok": True, "targets": targets, "count": len(targets)})
+
+
+@api_bp.route("/campaigns/<campaign_id>/recruit-sent", methods=["POST"])
+@require_api_key
+def campaign_recruit_sent(campaign_id):
+    """기존리뷰어 모집 발송 기록"""
+    if not models.db_manager:
+        return jsonify({"error": "시스템 초기화 중"}), 503
+
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "")
+    phone = data.get("phone", "")
+    if not name or not phone:
+        return jsonify({"ok": False, "error": "name, phone 필수"}), 400
+
+    models.db_manager.log_recruit_send(campaign_id, name, phone)
+    return jsonify({"ok": True})
+
+
 @api_bp.route("/campaigns/all", methods=["GET"])
 @require_api_key
 def campaigns_all():
