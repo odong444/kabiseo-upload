@@ -2473,30 +2473,6 @@ def api_client_create():
         return jsonify({"ok": False, "error": str(e)})
 
 
-@admin_bp.route("/api/debug/clients-check")
-def debug_clients_check():
-    """임시 디버그: clients 테이블 확인 + 테스트 생성"""
-    if not models.db_manager:
-        return jsonify({"ok": False, "error": "db_manager 없음"})
-    try:
-        action = request.args.get("action", "")
-        if action == "create":
-            from werkzeug.security import generate_password_hash
-            lid = request.args.get("id", "testcorp")
-            pw = request.args.get("pw", "test1234")
-            name = request.args.get("name", "테스트업체")
-            cid = models.db_manager.create_client(
-                login_id=lid,
-                password_hash=generate_password_hash(pw),
-                company_name=name,
-            )
-            return jsonify({"ok": True, "created_id": cid})
-        rows = models.db_manager._fetchall("SELECT id, login_id, company_name, is_active FROM clients LIMIT 10")
-        return jsonify({"ok": True, "count": len(rows), "clients": rows})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
-
-
 @admin_bp.route("/api/client/<int:client_id>", methods=["PUT"])
 @admin_required
 def api_client_update(client_id):
