@@ -2467,7 +2467,7 @@ class DBManager:
             WHERE r.kakao_friend = TRUE
               AND NOT EXISTS (
                   SELECT 1 FROM progress p
-                  WHERE p.reviewer_name = r.name AND p.reviewer_phone = r.phone
+                  WHERE p.reviewer_id = r.id
                     AND p.campaign_id = %s
                     AND p.status NOT IN ('취소', '타임아웃취소')
               )
