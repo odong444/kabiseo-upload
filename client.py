@@ -220,17 +220,19 @@ def campaign_detail(campaign_id):
 
     # 진행건 목록 (리뷰비/입금금액 제외)
     progress_list = models.db_manager._fetchall(
-        """SELECT id,
-                  TO_CHAR(created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD') as date_str,
-                  product_name, reviewer_name, reviewer_phone,
-                  recipient_name, phone, bank_name, account_number, depositor,
-                  login_id, order_number, address, nickname,
-                  status, purchase_date, purchase_capture_url,
-                  review_deadline, review_submitted_at, review_capture_url,
-                  ai_review_result, ai_review_reason, remark
-           FROM progress
-           WHERE campaign_id = %s
-           ORDER BY created_at DESC""",
+        """SELECT p.id,
+                  TO_CHAR(p.created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD') as date_str,
+                  c.product_name, r.name as reviewer_name,
+                  p.recipient_name, p.phone, p.bank, p.account, p.depositor,
+                  p.store_id, p.order_number, p.address, p.nickname,
+                  p.status, p.purchase_date, p.purchase_capture_url,
+                  p.review_deadline, p.review_submit_date, p.review_capture_url,
+                  p.ai_review_result, p.ai_review_reason, p.remark
+           FROM progress p
+           LEFT JOIN campaigns c ON c.id = p.campaign_id
+           LEFT JOIN reviewers r ON r.id = p.reviewer_id
+           WHERE p.campaign_id = %s
+           ORDER BY p.created_at DESC""",
         (cid,)
     )
 
