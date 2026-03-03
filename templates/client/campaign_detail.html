@@ -20,7 +20,7 @@
         .header-right a { color: #fff; text-decoration: none; font-size: 14px; opacity: 0.85; }
         .header-right a:hover { opacity: 1; }
 
-        .main { max-width: 800px; margin: 0 auto; padding: 24px; }
+        .main { max-width: 1400px; margin: 0 auto; padding: 24px; }
 
         .back-link { display: inline-flex; align-items: center; gap: 6px; color: #6b7280; text-decoration: none; font-size: 14px; margin-bottom: 16px; }
         .back-link:hover { color: #1e40af; }
@@ -156,6 +156,22 @@
         }
         .btn-send:hover { background: #d97706; }
         .btn-send:disabled { background: #d1d5db; cursor: not-allowed; }
+
+        /* 이미지 라이트박스 */
+        .lightbox-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+            z-index: 300; align-items: center; justify-content: center; cursor: zoom-out;
+        }
+        .lightbox-overlay.active { display: flex; }
+        .lightbox-overlay img {
+            max-width: 90vw; max-height: 90vh; border-radius: 8px;
+            box-shadow: 0 4px 32px rgba(0,0,0,0.4); object-fit: contain;
+        }
+        .lightbox-close {
+            position: fixed; top: 16px; right: 20px; background: none; border: none;
+            color: #fff; font-size: 32px; cursor: pointer; z-index: 301; line-height: 1;
+        }
+        .lightbox-close:hover { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -371,6 +387,12 @@
         {% endif %}
     </div>
 
+    <!-- 이미지 라이트박스 -->
+    <div class="lightbox-overlay" id="lightbox" onclick="closeLightbox()">
+        <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+        <img id="lightboxImg" src="" alt="캡쳐 이미지">
+    </div>
+
     <!-- 카톡 발송 모달 -->
     <div class="modal-overlay" id="notifyModal">
         <div class="modal-box">
@@ -424,9 +446,9 @@
         for (var i = 0; i < rows.length; i++) {
             var p = rows[i];
             var capLink = p.purchase_capture_url
-                ? '<a href="' + p.purchase_capture_url + '" target="_blank" class="capture-link">보기</a>' : '-';
+                ? '<a href="javascript:void(0)" onclick="openLightbox(\'' + p.purchase_capture_url + '\')" class="capture-link">보기</a>' : '-';
             var revLink = p.review_capture_url
-                ? '<a href="' + p.review_capture_url + '" target="_blank" class="capture-link">보기</a>' : '-';
+                ? '<a href="javascript:void(0)" onclick="openLightbox(\'' + p.review_capture_url + '\')" class="capture-link">보기</a>' : '-';
             var ai = p.ai_review_result
                 ? '<span title="' + p.ai_review_reason + '">' + p.ai_review_result + '</span>' : '-';
             html += '<tr>'
@@ -474,6 +496,19 @@
     }
 
     if (_allRows.length > 0) renderTable();
+
+    // ── 이미지 라이트박스 ──
+    function openLightbox(url) {
+        document.getElementById('lightboxImg').src = url;
+        document.getElementById('lightbox').classList.add('active');
+    }
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('active');
+        document.getElementById('lightboxImg').src = '';
+    }
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeLightbox();
+    });
 
     // ── 카톡 모달 ──
     let _progressId = null;
