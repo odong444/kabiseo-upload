@@ -217,7 +217,13 @@ def campaigns():
         if today_target > 0 and today_done >= today_target and c.get("상태") in ("모집중", "진행중", ""):
             c["_daily_closed"] = True
 
-    return render_template("admin/campaigns.html", campaigns=campaign_list)
+    pending_campaigns = [c for c in campaign_list if c.get("상태") in ("승인대기", "반려")]
+    active_campaigns = [c for c in campaign_list if c.get("상태") not in ("승인대기", "반려")]
+
+    return render_template("admin/campaigns.html",
+                           campaigns=campaign_list,
+                           pending_campaigns=pending_campaigns,
+                           active_campaigns=active_campaigns)
 
 
 @admin_bp.route("/campaigns/<campaign_id>/edit", methods=["GET"])

@@ -142,11 +142,8 @@
                     </div>
                     <div class="form-group">
                         <label>결제금액</label>
-                        <input type="text" name="상품금액" placeholder="예: 29,000">
-                    </div>
-                    <div class="form-group">
-                        <label>리워드 (리뷰비)</label>
-                        <input type="text" name="리뷰비" placeholder="예: 15,000">
+                        <input type="text" name="상품금액" placeholder="예: 29,000 (택배비 포함)">
+                        <small>택배비 포함해서 써주세요</small>
                     </div>
                     <div class="form-group form-group-full">
                         <label>상품링크</label>
@@ -216,7 +213,7 @@
                             <button type="button" onclick="clearBuyTime()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:12px;">24시간(초기화)</button>
                         </div>
                         <input type="hidden" name="구매가능시간" id="buyTimeValue">
-                        <small>비우면 24시간. 이 시간에만 캠페인 노출됩니다</small>
+                        <small>비우면 24시간. 배송마감 후 시작하는게 원활하고 좋습니다</small>
                     </div>
                     <div class="form-group form-group-full">
                         <label>중복진행 가능여부</label>
@@ -234,6 +231,24 @@
                         <label>옵션명</label>
                         <input type="text" name="옵션" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
                         <small>리뷰어가 구매 시 선택할 옵션을 입력하세요</small>
+                    </div>
+                    <div class="form-group">
+                        <label>키워드</label>
+                        <input type="text" name="키워드" placeholder="예: 들기름 국산">
+                        <small>리뷰어가 검색할 키워드</small>
+                    </div>
+                    <div class="form-group">
+                        <label>유입방식</label>
+                        <select name="유입방식">
+                            <option value="키워드검색">키워드검색</option>
+                            <option value="직접유입">직접유입 (링크)</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰기한 (일)</label>
+                        <input type="number" name="리뷰기한일수" min="1" placeholder="예: 7">
+                        <small>구매 후 리뷰 작성까지 기한</small>
                     </div>
                     <div class="form-group form-group-full">
                         <label>캠페인 가이드</label>

@@ -234,7 +234,58 @@
             </div>
         </div>
 
-        {% if campaigns %}
+        <!-- 캠페인 요청 (승인대기/반려) -->
+        {% if pending_campaigns %}
+        <div style="margin-bottom:24px;">
+            <h2 style="font-size:16px;font-weight:700;color:#92400e;margin-bottom:12px;">캠페인 요청 <span style="font-size:13px;font-weight:500;color:#b45309;">({{ pending_campaigns|length }}건)</span></h2>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>캠페인명</th>
+                            <th>업체명</th>
+                            <th>플랫폼</th>
+                            <th class="num-cell">총수량</th>
+                            <th>결제금액</th>
+                            <th>키워드</th>
+                            <th>요청일</th>
+                            <th>상태</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in pending_campaigns %}
+                        <tr>
+                            <td style="font-weight:600;">{{ c.get('캠페인명', '') or c.get('상품명', '') }}</td>
+                            <td>{{ c.get('업체명', '') }}</td>
+                            <td>{{ c.get('플랫폼', '') }}</td>
+                            <td class="num-cell">{{ c.get('총수량', '-') }}</td>
+                            <td>{{ c.get('상품금액', '') or c.get('결제금액', '') or '-' }}</td>
+                            <td>{{ c.get('키워드', '') or '-' }}</td>
+                            <td>{{ c.get('등록일', '') or '-' }}</td>
+                            <td><span class="admin-status-badge {{ c.get('상태', '') }}">{{ c.get('상태', '') }}</span></td>
+                            <td>
+                                <div class="campaign-actions">
+                                    <a href="{{ url_for('admin.campaign_edit', campaign_id=c.get('캠페인ID', '')) }}"
+                                       class="admin-btn admin-btn-sm">수정</a>
+                                    {% if c.get('상태', '') == '승인대기' %}
+                                    <button type="button" class="admin-btn admin-btn-sm admin-btn-approve"
+                                            onclick="campaignApprove('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');">승인</button>
+                                    <button type="button" class="admin-btn admin-btn-sm admin-btn-reject"
+                                            onclick="openRejectModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');">반려</button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 정식 캠페인 목록 -->
+        {% if active_campaigns %}
         <div class="admin-table-wrap">
             <table class="admin-table" id="campaignTable">
                 <thead>
@@ -254,7 +305,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for c in campaigns %}
+                    {% for c in active_campaigns %}
                     {% set total = (c.get('총수량', '0')|int) or 0 %}
                     {% set active = (c.get('신청수', '0')|int) or 0 %}
                     {% set today = (c.get('오늘수량', '0')|int) or 0 %}
@@ -317,12 +368,6 @@
                                 <button type="button" class="admin-btn admin-btn-sm"
                                         onclick="event.stopPropagation(); openPhotoModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');"
                                         style="background:#fef3c7;color:#92400e;">사진</button>
-                                {% if c.get('상태', '') == '승인대기' %}
-                                <button type="button" class="admin-btn admin-btn-sm admin-btn-approve"
-                                        onclick="event.stopPropagation(); campaignApprove('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');">승인</button>
-                                <button type="button" class="admin-btn admin-btn-sm admin-btn-reject"
-                                        onclick="event.stopPropagation(); openRejectModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');">반려</button>
-                                {% endif %}
                                 {% if c.get('상태', '모집중') == '중지' %}
                                 <button type="button" class="admin-btn admin-btn-sm admin-btn-resume"
                                         onclick="event.stopPropagation(); campaignResume('{{ c.get('캠페인ID', '') }}', this);">재개</button>
@@ -412,7 +457,7 @@
                 </tbody>
             </table>
         </div>
-        {% else %}
+        {% elif not pending_campaigns %}
         <p class="admin-empty">등록된 캠페인이 없습니다.</p>
         {% endif %}
 
