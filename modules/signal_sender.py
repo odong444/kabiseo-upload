@@ -1,8 +1,8 @@
 """
 signal_sender.py - 서버PC 태스크 API 호출 유틸리티
 
-Railway → 서버PC(222.122.194.202:5050)로 태스크를 전송합니다.
-친구추가, 독촉, 안내 메시지 등을 서버PC의 TaskQueue에 등록합니다.
+Railway → EC2 미들웨어(3.38.161.191:6100) → 서버PC로 태스크를 전송합니다.
+친구추가, 독촉, 안내 메시지 등을 미들웨어를 경유하여 서버PC TaskQueue에 등록합니다.
 
 실패해도 예외를 삼키고 로깅만 합니다 (리뷰어 신청 흐름에 영향 없음).
 """
@@ -14,7 +14,7 @@ import requests
 
 logger = logging.getLogger("signal_sender")
 
-TASK_API_URL = os.environ.get("TASK_API_URL", "http://222.122.194.202:5050")
+TASK_API_URL = os.environ.get("TASK_API_URL", "http://3.38.161.191:6100")
 TASK_API_KEY = os.environ.get("TASK_API_KEY", "_fNmY5SeHyigMgkR5LIngpxBB1gDoZLF")
 
 

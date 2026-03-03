@@ -585,7 +585,7 @@ class TaskQueue:
         import os
         import requests as _req
         # 미들웨어 경유: PC → 미들웨어 → Railway
-        callback_url = os.environ.get("MIDDLEWARE_URL", "http://3.38.161.191:6000")
+        callback_url = os.environ.get("MIDDLEWARE_URL", "http://3.38.161.191:6100")
         if not callback_url:
             # fallback: Railway 직접 (미들웨어 미설정 시)
             callback_url = os.environ.get("RAILWAY_WEB_URL", "https://web-production-1776e.up.railway.app")

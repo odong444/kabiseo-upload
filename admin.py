@@ -37,7 +37,7 @@ def _generate_schedule(total: int, lo: int, hi: int, days: int) -> list[int]:
             remaining -= val
     return schedule
 
-SERVER_PC_URL = "http://222.122.194.202:5050"
+SERVER_PC_URL = os.environ.get("TASK_API_URL", "http://3.38.161.191:6100")
 SERVER_PC_API_KEY = "_fNmY5SeHyigMgkR5LIngpxBB1gDoZLF"
 
 
