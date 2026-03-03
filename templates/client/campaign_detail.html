@@ -97,6 +97,56 @@
 
         .flash-messages { margin-bottom: 16px; }
         .flash { background: #dbeafe; color: #1e40af; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+
+        /* 진행건 테이블 */
+        .progress-table-wrap { overflow-x: auto; margin-top: 4px; }
+        .progress-table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+        .progress-table th { background: #f1f5f9; color: #475569; font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; }
+        .progress-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+        .progress-table tr:hover td { background: #f8fafc; }
+        .progress-table .status-badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .sb-신청, .sb-가이드전달 { background: #dbeafe; color: #1e40af; }
+        .sb-구매완료 { background: #fef3c7; color: #92400e; }
+        .sb-리뷰대기, .sb-리뷰제출 { background: #e0e7ff; color: #3730a3; }
+        .sb-리뷰완료 { background: #d1fae5; color: #065f46; }
+        .sb-취소, .sb-타임아웃취소 { background: #fee2e2; color: #991b1b; }
+        .capture-link { color: #2563eb; text-decoration: none; font-weight: 500; }
+        .capture-link:hover { text-decoration: underline; }
+        .btn-notify {
+            padding: 4px 12px; background: #f59e0b; color: #fff; border: none; border-radius: 6px;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+        }
+        .btn-notify:hover { background: #d97706; }
+        .empty-state { text-align: center; padding: 32px; color: #9ca3af; font-size: 14px; }
+
+        /* 카톡 발송 모달 */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+            z-index: 200; align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: #fff; border-radius: 16px; padding: 28px; width: 90%; max-width: 440px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+        }
+        .modal-title { font-size: 17px; font-weight: 700; color: #1e293b; margin-bottom: 16px; }
+        .modal-label { font-size: 13px; color: #6b7280; margin-bottom: 6px; }
+        .modal-textarea {
+            width: 100%; min-height: 100px; border: 1px solid #d1d5db; border-radius: 8px;
+            padding: 12px; font-size: 14px; resize: vertical; font-family: inherit;
+        }
+        .modal-textarea:focus { outline: none; border-color: #2563eb; }
+        .modal-btns { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+        .btn-cancel {
+            padding: 10px 20px; background: #f3f4f6; color: #374151; border: none;
+            border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        .btn-send {
+            padding: 10px 20px; background: #f59e0b; color: #fff; border: none;
+            border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        .btn-send:hover { background: #d97706; }
+        .btn-send:disabled { background: #d1d5db; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -202,6 +252,49 @@
                 </div>
             </div>
         </div>
+
+        <!-- 진행건 목록 -->
+        {% if progress_list %}
+        <div class="card">
+            <h3>진행건 목록 ({{ progress_list|length }}건)</h3>
+            <div class="progress-table-wrap">
+                <table class="progress-table">
+                    <thead>
+                        <tr>
+                            <th>신청일</th>
+                            <th>상품명</th>
+                            <th>수취인명</th>
+                            <th>상태</th>
+                            <th>구매일</th>
+                            <th>구매캡쳐</th>
+                            <th>리뷰기한</th>
+                            <th>리뷰캡쳐</th>
+                            <th>AI검수</th>
+                            <th>비고</th>
+                            <th>알림</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in progress_list %}
+                        <tr>
+                            <td>{{ p.date_str or '-' }}</td>
+                            <td>{{ p.product_name or '-' }}</td>
+                            <td>{{ p.recipient_name or p.reviewer_name or '-' }}</td>
+                            <td><span class="status-badge sb-{{ p.status or '' }}">{{ p.status or '-' }}</span></td>
+                            <td>{{ p.purchase_date or '-' }}</td>
+                            <td>{% if p.purchase_capture_url %}<a href="{{ p.purchase_capture_url }}" target="_blank" class="capture-link">보기</a>{% else %}-{% endif %}</td>
+                            <td>{{ p.review_deadline or '-' }}</td>
+                            <td>{% if p.review_capture_url %}<a href="{{ p.review_capture_url }}" target="_blank" class="capture-link">보기</a>{% else %}-{% endif %}</td>
+                            <td>{% if p.ai_review_result %}<span title="{{ p.ai_review_reason or '' }}">{{ p.ai_review_result }}</span>{% else %}-{% endif %}</td>
+                            <td>{{ p.remark or '-' }}</td>
+                            <td><button class="btn-notify" onclick="openNotifyModal({{ p.id }}, '{{ (p.recipient_name or p.reviewer_name or '')|e }}')">알림</button></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
         {% endif %}
 
         <!-- 캠페인 기본 정보 -->
@@ -223,10 +316,6 @@
                 <div class="info-item">
                     <div class="info-label">결제금액</div>
                     <div class="info-value">{{ campaign.get('결제금액', '') or campaign.get('상품금액', '-') }}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">리워드 (리뷰비)</div>
-                    <div class="info-value">{{ campaign.get('리뷰비', '-') }}</div>
                 </div>
                 <div class="info-item">
                     <div class="info-label">총 모집인원</div>
@@ -271,5 +360,67 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- 카톡 발송 모달 -->
+    <div class="modal-overlay" id="notifyModal">
+        <div class="modal-box">
+            <div class="modal-title">카카오톡 알림 발송</div>
+            <div class="modal-label">받는 사람: <strong id="modalName"></strong></div>
+            <div class="modal-label" style="margin-top:12px;">메시지</div>
+            <textarea class="modal-textarea" id="modalMessage" placeholder="전달할 메시지를 입력해주세요."></textarea>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeNotifyModal()">취소</button>
+                <button class="btn-send" id="btnSend" onclick="sendMessage()">카톡 발송</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let _progressId = null;
+
+    function openNotifyModal(progressId, name) {
+        _progressId = progressId;
+        document.getElementById('modalName').textContent = name || '리뷰어';
+        document.getElementById('modalMessage').value = '';
+        document.getElementById('notifyModal').classList.add('active');
+    }
+
+    function closeNotifyModal() {
+        document.getElementById('notifyModal').classList.remove('active');
+        _progressId = null;
+    }
+
+    // 모달 바깥 클릭 시 닫기
+    document.getElementById('notifyModal').addEventListener('click', function(e) {
+        if (e.target === this) closeNotifyModal();
+    });
+
+    async function sendMessage() {
+        const msg = document.getElementById('modalMessage').value.trim();
+        if (!msg) { alert('메시지를 입력해주세요.'); return; }
+        const btn = document.getElementById('btnSend');
+        btn.disabled = true;
+        btn.textContent = '발송 중...';
+        try {
+            const res = await fetch('{{ url_for("client.api_send_message") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ progress_id: _progressId, message: msg })
+            });
+            const data = await res.json();
+            if (data.ok) {
+                alert('카카오톡 알림이 발송되었습니다.');
+                closeNotifyModal();
+            } else {
+                alert(data.error || '발송에 실패했습니다.');
+            }
+        } catch (e) {
+            alert('발송 중 오류가 발생했습니다.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '카톡 발송';
+        }
+    }
+    </script>
 </body>
 </html>

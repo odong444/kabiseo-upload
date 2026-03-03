@@ -108,7 +108,7 @@
 
         let dayIndex = -1;
         if (startDate) {
-            const sd = new Date(startDate + 'T00:00:00+09:00');
+            const sd = new Date(startDate + 'T00:00:00Z');
             const diff = Math.floor((today - sd) / 86400000);
             dayIndex = diff;
         }
@@ -123,9 +123,9 @@
             // 날짜 계산
             let dateLabel = `${i+1}일차`;
             if (startDate) {
-                const d = new Date(startDate + 'T00:00:00+09:00');
+                const d = new Date(startDate + 'T00:00:00Z');
                 d.setDate(d.getDate() + i);
-                dateLabel = `${d.getMonth()+1}/${d.getDate()}`;
+                dateLabel = `${d.getUTCMonth()+1}/${d.getUTCDate()}`;
             }
             blocks += `<span class="sch-block ${cls}"><span class="sch-day">${dateLabel}</span><span class="sch-qty">${schedule[i]}</span></span>`;
         }

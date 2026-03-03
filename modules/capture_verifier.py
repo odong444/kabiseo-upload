@@ -113,17 +113,23 @@ JSON 형식으로만 응답:
 예) 캠페인 플랫폼 "네이버" → 스마트스토어 주문화면이면 일치(true).
 
 문제점에는 다음 중 해당하는 것을 배열로 넣어주세요:
+
+[자동반려 대상 - 제출 차단]:
+- "구매내역_아님": 이 이미지가 쇼핑몰 주문내역/주문상세 캡쳐가 아님 (일반 사진, 다른 화면, 관련 없는 이미지 등)
+- "상품_불일치": 캠페인 상품과 다른 상품을 구매함
+- "배송유형_불일치": 추가 검수 지침에서 지정한 배송유형과 다른 배송유형으로 구매함 (예: 판매자배송 필수인데 로켓배송으로 구매)
+- "플랫폼_불일치": 캠페인 지정 플랫폼이 아닌 곳에서 구매함
+
+[담당자 검수요청 대상]:
 - "상품정보_미확인": 상품명이나 이미지가 잘려서 뭘 구매했는지 확인 불가
 - "주문번호_미확인": 주문번호가 보이지 않음
 - "수취인_미확인": 수취인명 또는 수취인연락처가 보이지 않음
 - "주소_미확인": 배송 주소가 보이지 않음
 - "결제금액_미확인": 결제금액이 보이지 않음
-- "배송유형_불일치": 추가 검수 지침에서 지정한 배송유형과 다른 배송유형으로 구매함 (예: 판매자배송 필수인데 로켓배송으로 구매)
-- "상품_불일치": 캠페인 상품과 다른 상품을 구매함
 - "금액_불일치": 결제금액이 캠페인 기준 금액과 크게 다름
-- "플랫폼_불일치": 캠페인 지정 플랫폼이 아닌 곳에서 구매함
 - "정상": 모든 필수 정보가 정상적으로 확인됨
 
+중요: 이 이미지가 쇼핑몰 주문내역/주문상세 화면이 아닌 경우, 반드시 "구매내역_아님"을 문제점에 포함하세요.
 문제점이 없으면 ["정상"]으로 응답하세요."""
 
 REVIEW_PROMPT_BASE = """이 이미지는 온라인 쇼핑몰에 작성된 리뷰 캡쳐입니다.
@@ -334,6 +340,7 @@ def _call_gemini(image_bytes: bytes, mime_type: str, prompt: str) -> dict | None
 
 _PROBLEM_MESSAGES = {
     # 구매캡쳐
+    "구매내역_아님": "주문내역/주문상세 캡쳐가 아닙니다",
     "상품정보_미확인": "상품 정보가 확인되지 않습니다",
     "주문번호_미확인": "주문번호가 보이지 않습니다",
     "수취인_미확인": "수취인 정보가 보이지 않습니다",
@@ -357,7 +364,12 @@ _PROBLEM_MESSAGES = {
 
 # 자동반려 대상 문제점 (심각한 위반 → 제출 자체 차단)
 _AUTO_REJECT_PROBLEMS = {
+    # 구매캡쳐
+    "구매내역_아님",
+    "상품_불일치",
     "배송유형_불일치",
+    "플랫폼_불일치",
+    # 리뷰캡쳐
     "리뷰_아님",
     "리뷰_무성의",
     "리뷰_반복문자",
@@ -419,7 +431,12 @@ def verify_capture(drive_url: str, capture_type: str,
 
     analysis = _call_gemini(image_bytes, content_type, full_prompt)
     if not analysis:
-        return {"result": "오류", "reason": "AI 분석 실패", "details": {}}
+        reject_label = "주문내역 캡쳐" if capture_type == "purchase" else "리뷰 캡쳐"
+        return {
+            "result": "자동반려",
+            "reason": f"올바른 {reject_label}가 아닌 것으로 보입니다. 정확한 캡쳐를 다시 첨부해주세요.",
+            "details": {},
+        }
 
     judgment = _judge(analysis, capture_type)
     return {**judgment, "details": analysis}
@@ -454,7 +471,14 @@ def verify_capture_from_bytes(image_bytes: bytes, mime_type: str,
 
     analysis = _call_gemini(image_bytes, mime_type, full_prompt)
     if not analysis:
-        return {"result": "오류", "reason": "AI 분석 실패", "details": {}, "parsed": {}}
+        # Gemini가 JSON 파싱 실패 = 주문내역/리뷰 캡쳐가 아닌 이미지일 가능성 높음
+        reject_label = "주문내역 캡쳐" if capture_type == "purchase" else "리뷰 캡쳐"
+        return {
+            "result": "자동반려",
+            "reason": f"올바른 {reject_label}가 아닌 것으로 보입니다. 정확한 캡쳐를 다시 첨부해주세요.",
+            "details": {},
+            "parsed": {},
+        }
 
     logger.info("AI 분석 결과: %s", json.dumps(analysis, ensure_ascii=False, default=str)[:500])
 

@@ -691,6 +691,9 @@ def api_task_purchase(progress_id):
         )
         models.db_manager.set_upload_pending(progress_id, "purchase")
 
+        # 상태 즉시 변경 (Drive 업로드 완료 대기 없이)
+        models.db_manager.update_status(progress_id, "리뷰대기")
+
         return jsonify({"ok": True, "message": "구매 캡쳐 제출 완료!"})
     except Exception as e:
         logger.error("구매 제출 에러: %s", e, exc_info=True)
@@ -720,6 +723,14 @@ def api_task_review(progress_id):
             file.content_type or "image/jpeg", file_bytes
         )
         models.db_manager.set_upload_pending(progress_id, "review")
+
+        # 상태 즉시 변경 + 리뷰제출일 기록 (Drive 업로드 완료 대기 없이)
+        models.db_manager._execute(
+            """UPDATE progress SET status = '리뷰제출',
+               review_submit_date = (NOW() AT TIME ZONE 'Asia/Seoul')::date,
+               updated_at = NOW() WHERE id = %s""",
+            (progress_id,)
+        )
 
         return jsonify({"ok": True, "message": "리뷰 캡쳐 제출 완료!"})
     except Exception as e:

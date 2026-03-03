@@ -218,9 +218,64 @@ def campaign_detail(campaign_id):
     total_qty = safe_int(campaign.get("총수량", 0))
     progress_pct = round(total_progress / total_qty * 100) if total_qty > 0 else 0
 
+    # 진행건 목록 (리뷰비/입금금액 제외)
+    progress_list = models.db_manager._fetchall(
+        """SELECT id,
+                  TO_CHAR(created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD') as date_str,
+                  product_name, reviewer_name, reviewer_phone,
+                  recipient_name, phone, bank_name, account_number, depositor,
+                  login_id, order_number, address, nickname,
+                  status, purchase_date, purchase_capture_url,
+                  review_deadline, review_submitted_at, review_capture_url,
+                  ai_review_result, ai_review_reason, remark
+           FROM progress
+           WHERE campaign_id = %s
+           ORDER BY created_at DESC""",
+        (cid,)
+    )
+
     return render_template("client/campaign_detail.html",
                            campaign=campaign,
                            progress_stats=progress_stats,
                            total_progress=total_progress,
                            progress_pct=progress_pct,
+                           progress_list=progress_list,
                            company_name=session.get("client_company", ""))
+
+
+# ─── 카톡 발송 API ───
+
+@client_bp.route("/api/send-message", methods=["POST"])
+@client_required
+def api_send_message():
+    """업체가 리뷰어에게 카톡 메시지 발송"""
+    data = request.get_json() or {}
+    progress_id = safe_int(data.get("progress_id"))
+    message = (data.get("message") or "").strip()
+
+    if not progress_id or not message:
+        return jsonify(ok=False, error="진행건 ID와 메시지를 입력해주세요."), 400
+
+    # 진행건 조회 → 캠페인 소유 확인
+    row = models.db_manager._fetchone(
+        """SELECT p.campaign_id, c.client_id
+           FROM progress p
+           JOIN campaigns c ON c.campaign_id = p.campaign_id
+           WHERE p.id = %s""",
+        (progress_id,)
+    )
+    if not row:
+        return jsonify(ok=False, error="진행건을 찾을 수 없습니다."), 404
+
+    if safe_int(row.get("client_id")) != session["client_id"]:
+        return jsonify(ok=False, error="접근 권한이 없습니다."), 403
+
+    # 카카오톡 발송
+    if not models.kakao_notifier:
+        return jsonify(ok=False, error="알림 시스템이 초기화되지 않았습니다."), 500
+
+    result = models.kakao_notifier.send_reminder(progress_id, custom_message=message)
+    if result:
+        return jsonify(ok=True)
+    else:
+        return jsonify(ok=False, error="카톡 발송에 실패했습니다. 리뷰어 연락처를 확인해주세요."), 500
