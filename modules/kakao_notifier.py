@@ -109,6 +109,16 @@ class KakaoNotifier:
         )
         return request_notification(name, phone, self._add_footer(msg))
 
+    def notify_buy_time_start(self, name: str, phone: str, product_name: str,
+                              store_ids: str = "") -> bool:
+        """구매시간 시작 알림"""
+        msg = ktpl.BUY_TIME_START.format(
+            product_name=product_name,
+            store_ids=store_ids,
+            web_url=self.web_url,
+        )
+        return request_notification(name, phone, self._add_footer(msg))
+
     # ──────── 관리자 수동 독촉 ────────
 
     def send_reminder(self, progress_id: int, custom_message: str = "") -> bool:

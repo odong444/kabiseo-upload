@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>카비서 관리자 - 대시보드</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .pagination { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 20px 0; flex-wrap: wrap; }
+    .pagination a, .pagination span {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 32px; height: 32px; padding: 0 8px;
+        border: 1px solid #d1d5db; border-radius: 6px;
+        font-size: 13px; color: #374151; text-decoration: none;
+        background: #fff; cursor: pointer;
+    }
+    .pagination a:hover { background: #f3f4f6; }
+    .pagination .current { background: #fee500; color: #3c1e1e; font-weight: 700; border-color: #e6cf00; }
+    .pagination .disabled { color: #9ca3af; cursor: default; background: #f9fafb; }
+    .pagination .ellipsis { border: none; background: none; cursor: default; min-width: auto; }
+    </style>
 </head>
 <body class="admin-body">
     <header class="admin-header">
@@ -37,6 +51,7 @@
         <form class="admin-search" method="GET" action="{{ url_for('admin.reviewers') }}" style="margin-bottom:1rem;">
             <input type="text" name="q" placeholder="진행자/수취인/연락처/아이디 검색" value="{{ q|default('') }}">
             <button type="submit" class="btn btn-primary">검색</button>
+            <span style="font-size:13px;color:#6b7280;margin-left:12px;">총 <strong>{{ total|default(0) }}</strong>건 ({{ page|default(1) }}/{{ total_pages|default(1) }}페이지)</span>
         </form>
 
         <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
@@ -102,6 +117,35 @@
             <button type="button" class="btn" style="background:#fae100;color:#3c1e1e;border:none;" onclick="bulkKakao()">카톡 일괄발송</button>
         </div>
         </form>
+
+        <!-- 페이지네이션 -->
+        {% if total_pages|default(1) > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('admin.reviewers', page=page-1, q=q) }}">&laquo; 이전</a>
+            {% else %}
+            <span class="disabled">&laquo; 이전</span>
+            {% endif %}
+
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <span class="current">{{ p }}</span>
+                {% elif p <= 3 or p > total_pages - 2 or (p >= page - 2 and p <= page + 2) %}
+                <a href="{{ url_for('admin.reviewers', page=p, q=q) }}">{{ p }}</a>
+                {% elif p == 4 and page > 6 %}
+                <span class="ellipsis">...</span>
+                {% elif p == total_pages - 2 and page < total_pages - 5 %}
+                <span class="ellipsis">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a href="{{ url_for('admin.reviewers', page=page+1, q=q) }}">다음 &raquo;</a>
+            {% else %}
+            <span class="disabled">다음 &raquo;</span>
+            {% endif %}
+        </div>
+        {% endif %}
 
         <!-- 카톡 발송 모달 -->
         <div id="kakaoModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">

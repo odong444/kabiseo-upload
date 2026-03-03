@@ -84,6 +84,14 @@ TIMEOUT_CANCELLED = """[카비서] 신청이 자동 취소되었습니다.
 자리가 있으면 다시 신청 가능합니다.
 👉 {web_url}/chat"""
 
+BUY_TIME_START = """[카비서] 구매시간이 시작되었습니다!
+
+상품: {product_name}
+아이디: {store_ids}
+
+지금부터 30분 이내에 양식과 캡쳐를 제출해주세요.
+👉 {web_url}/my"""
+
 # ──────── 리뷰 기한 리마인더 ────────
 
 REVIEW_DEADLINE_REMINDER = """[카비서] 리뷰 기한이 {days}일 남았습니다.

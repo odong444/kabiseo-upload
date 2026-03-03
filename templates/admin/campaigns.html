@@ -174,6 +174,33 @@
     /* 동시진행 그룹 배지 */
     .exclusive-group-badge { display: inline-block; vertical-align: middle; }
 
+    /* 페이지네이션 */
+    .pagination { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 20px 0; flex-wrap: wrap; }
+    .pagination a, .pagination span {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 32px; height: 32px; padding: 0 8px;
+        border: 1px solid #d1d5db; border-radius: 6px;
+        font-size: 13px; color: #374151; text-decoration: none;
+        background: #fff; cursor: pointer;
+    }
+    .pagination a:hover { background: #f3f4f6; }
+    .pagination .current { background: #fee500; color: #3c1e1e; font-weight: 700; border-color: #e6cf00; }
+    .pagination .disabled { color: #9ca3af; cursor: default; background: #f9fafb; }
+    .pagination .ellipsis { border: none; background: none; cursor: default; min-width: auto; }
+    .pagination-info { text-align: center; font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+
+    /* 상태 필터 바 */
+    .campaign-filter-bar {
+        display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;
+    }
+    .campaign-filter-bar select {
+        padding: 6px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff;
+    }
+    .campaign-filter-bar .btn-filter {
+        padding: 6px 14px; border: 1px solid #ddd; border-radius: 6px;
+        background: #fee500; font-size: 13px; font-weight: 600; color: #3c1e1e; cursor: pointer;
+    }
+
     /* 토글 슬라이더 */
     #promoSlider:before {
         position: absolute; content: ""; height: 18px; width: 18px;
@@ -232,6 +259,19 @@
                 </label>
                 <span id="promoLabel" style="font-size:13px;font-weight:600;color:#94a3b8;">--</span>
             </div>
+        </div>
+
+        <!-- 상태 필터 -->
+        <div class="campaign-filter-bar">
+            <label style="font-size:13px;font-weight:600;color:#555;">상태:</label>
+            <select id="campaignStatusFilter">
+                <option value="">전체</option>
+                {% for s in ['모집중','진행중','마감','종료','중지','승인대기','반려'] %}
+                <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn-filter" onclick="applyCampaignFilter()">필터 적용</button>
+            <span style="font-size:13px;color:#6b7280;margin-left:8px;">총 <strong>{{ total }}</strong>건</span>
         </div>
 
         <!-- 캠페인 요청 (승인대기/반려) -->
@@ -461,6 +501,35 @@
         <p class="admin-empty">등록된 캠페인이 없습니다.</p>
         {% endif %}
 
+        <!-- 페이지네이션 -->
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('admin.campaigns', page=page-1, status=status_filter) }}">&laquo; 이전</a>
+            {% else %}
+            <span class="disabled">&laquo; 이전</span>
+            {% endif %}
+
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <span class="current">{{ p }}</span>
+                {% elif p <= 3 or p > total_pages - 2 or (p >= page - 2 and p <= page + 2) %}
+                <a href="{{ url_for('admin.campaigns', page=p, status=status_filter) }}">{{ p }}</a>
+                {% elif p == 4 and page > 6 %}
+                <span class="ellipsis">...</span>
+                {% elif p == total_pages - 2 and page < total_pages - 5 %}
+                <span class="ellipsis">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a href="{{ url_for('admin.campaigns', page=page+1, status=status_filter) }}">다음 &raquo;</a>
+            {% else %}
+            <span class="disabled">다음 &raquo;</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
         <!-- 사진 세트 모달 -->
         <div id="photoModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto;">
             <div style="max-width:640px;margin:40px auto;background:#fff;border-radius:12px;padding:24px;position:relative;">
@@ -503,6 +572,14 @@
     </main>
 
     <script>
+    // 캠페인 상태 필터
+    function applyCampaignFilter() {
+        var status = document.getElementById('campaignStatusFilter').value;
+        var params = new URLSearchParams();
+        if (status) params.set('status', status);
+        window.location.href = '{{ url_for("admin.campaigns") }}' + (params.toString() ? '?' + params.toString() : '');
+    }
+
     // 홍보 토글
     (function() {
         var toggle = document.getElementById('promoToggle');

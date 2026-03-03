@@ -171,9 +171,16 @@ def campaigns():
     from modules.utils import safe_int
     _KST = _tz(_td(hours=9))
 
+    page = request.args.get("page", 1, type=int)
+    per_page = 20
+    status_filter = request.args.get("status", "")
+
     campaign_list = []
-    if models.campaign_manager:
-        campaign_list = models.campaign_manager.get_all_campaigns()
+    total = 0
+    if models.db_manager:
+        campaign_list, total = models.db_manager.get_campaigns_page(page, per_page, status_filter)
+
+    total_pages = (total + per_page - 1) // per_page if total else 1
 
     # 실시간 통계 반영
     stats = {}
@@ -223,7 +230,9 @@ def campaigns():
     return render_template("admin/campaigns.html",
                            campaigns=campaign_list,
                            pending_campaigns=pending_campaigns,
-                           active_campaigns=active_campaigns)
+                           active_campaigns=active_campaigns,
+                           page=page, total_pages=total_pages,
+                           total=total, status_filter=status_filter)
 
 
 @admin_bp.route("/campaigns/<campaign_id>/edit", methods=["GET"])
@@ -1305,21 +1314,20 @@ def settlement_download():
 @admin_bp.route("/reviewers")
 @admin_required
 def reviewers():
-    items = []
-    if models.db_manager:
-        items = models.db_manager.get_all_reviewers()
+    page = request.args.get("page", 1, type=int)
+    per_page = 50
     q = request.args.get("q", "").strip()
-    if q:
-        ql = q.lower()
-        items = [
-            i for i in items
-            if ql in i.get("진행자이름", "").lower()
-            or ql in i.get("진행자연락처", "")
-            or ql in i.get("수취인명", "").lower()
-            or ql in i.get("연락처", "")
-            or ql in i.get("아이디", "").lower()
-        ]
-    return render_template("admin/dashboard.html", stats={}, recent_messages=[], reviewers=items, q=q, show_reviewers=True)
+
+    items = []
+    total = 0
+    if models.db_manager:
+        items, total = models.db_manager.get_progress_page(page, per_page, q=q)
+
+    total_pages = (total + per_page - 1) // per_page if total else 1
+
+    return render_template("admin/dashboard.html", stats={}, recent_messages=[],
+                           reviewers=items, q=q, show_reviewers=True,
+                           page=page, total_pages=total_pages, total=total)
 
 
 # ──────── 가이드 ────────
@@ -1742,24 +1750,31 @@ def debug_campaigns():
 @admin_bp.route("/spreadsheet")
 @admin_required
 def spreadsheet():
+    page = request.args.get("page", 1, type=int)
+    per_page = 50
+    campaign_filter = request.args.get("campaign", "")
+    status_filter = request.args.get("status", "")
+
     items = []
+    total = 0
     campaigns = []
     if models.db_manager:
-        items = models.db_manager.get_all_reviewers()
+        items, total = models.db_manager.get_progress_page(
+            page, per_page, campaign_id=campaign_filter, status=status_filter
+        )
         try:
             campaigns = models.campaign_manager.get_all_campaigns() if models.campaign_manager else []
         except Exception:
             campaigns = []
-    campaign_filter = request.args.get("campaign", "")
-    status_filter = request.args.get("status", "")
-    if campaign_filter:
-        items = [i for i in items if i.get("캠페인ID") == campaign_filter]
-    if status_filter:
-        items = [i for i in items if i.get("상태") == status_filter]
+
+    total_pages = (total + per_page - 1) // per_page if total else 1
+
     return render_template("admin/spreadsheet.html",
                            items=items, campaigns=campaigns,
                            campaign_filter=campaign_filter,
-                           status_filter=status_filter)
+                           status_filter=status_filter,
+                           page=page, total_pages=total_pages,
+                           total=total)
 
 
 @admin_bp.route("/api/timeout-sessions")

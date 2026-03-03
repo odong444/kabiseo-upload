@@ -315,6 +315,20 @@
         margin-bottom: 12px;
     }
     .result-count strong { color: #333; }
+
+    /* 페이지네이션 */
+    .pagination { display: flex; align-items: center; justify-content: center; gap: 4px; margin: 20px 0; flex-wrap: wrap; }
+    .pagination a, .pagination span {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 32px; height: 32px; padding: 0 8px;
+        border: 1px solid #d1d5db; border-radius: 6px;
+        font-size: 13px; color: #374151; text-decoration: none;
+        background: #fff; cursor: pointer;
+    }
+    .pagination a:hover { background: #f3f4f6; }
+    .pagination .current { background: #fee500; color: #3c1e1e; font-weight: 700; border-color: #e6cf00; }
+    .pagination .disabled { color: #9ca3af; cursor: default; background: #f9fafb; }
+    .pagination .ellipsis { border: none; background: none; cursor: default; min-width: auto; }
     </style>
 </head>
 <body class="admin-body">
@@ -379,7 +393,7 @@
         </div>
 
         <div class="result-count" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-            <span>검색 결과: <strong>{{ items|default([])|length }}</strong>건</span>
+            <span>검색 결과: <strong>{{ total }}</strong>건 ({{ page }}/{{ total_pages }}페이지)</span>
             <button class="btn-kakao" style="font-size:13px;padding:6px 16px;" onclick="bulkKakao()">선택 카톡 발송</button>
             <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:600;cursor:pointer;" onclick="runAiBatch()">AI 일괄검수</button>
             <span id="aiBatchResult" style="font-size:13px;color:#888;"></span>
@@ -482,6 +496,35 @@
         </div>
         {% else %}
         <p class="admin-empty">데이터가 없습니다. 필터를 변경해보세요.</p>
+        {% endif %}
+
+        <!-- 페이지네이션 -->
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('admin.spreadsheet', page=page-1, campaign=campaign_filter, status=status_filter) }}">&laquo; 이전</a>
+            {% else %}
+            <span class="disabled">&laquo; 이전</span>
+            {% endif %}
+
+            {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <span class="current">{{ p }}</span>
+                {% elif p <= 3 or p > total_pages - 2 or (p >= page - 2 and p <= page + 2) %}
+                <a href="{{ url_for('admin.spreadsheet', page=p, campaign=campaign_filter, status=status_filter) }}">{{ p }}</a>
+                {% elif p == 4 and page > 6 %}
+                <span class="ellipsis">...</span>
+                {% elif p == total_pages - 2 and page < total_pages - 5 %}
+                <span class="ellipsis">...</span>
+                {% endif %}
+            {% endfor %}
+
+            {% if page < total_pages %}
+            <a href="{{ url_for('admin.spreadsheet', page=page+1, campaign=campaign_filter, status=status_filter) }}">다음 &raquo;</a>
+            {% else %}
+            <span class="disabled">다음 &raquo;</span>
+            {% endif %}
+        </div>
         {% endif %}
     </main>
 

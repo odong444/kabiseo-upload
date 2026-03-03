@@ -8,6 +8,11 @@ timeout_manager.py - 30분 타임아웃 관리
   1) DB progress.created_at 기준 (서버 재시작 무관)
   2) 인메모리 last_activity 기준 (재접속 시 리셋)
   → 둘 중 더 나중 시간 기준으로 타임아웃 체크
+
+구매시간 기반 타임아웃:
+  buy_time이 있는 캠페인에 구매시간 전 신청 시,
+  타임아웃 기준 = max(created_at, 오늘 buy_time 시작) + 30분
+  구매시간 시작 시 카톡 알림 발송
 """
 
 import time
@@ -32,6 +37,8 @@ class TimeoutManager:
         self._running = False
         self._thread = None
         self._warned = set()  # 이미 경고 보낸 reviewer_id
+        self._buy_time_notified = set()  # 구매시간 시작 알림 보낸 progress_id
+        self._buy_time_notified_date = ""  # 알림 셋 초기화용 날짜
         self._socketio = None
         self._db_manager = None
         self._chat_logger = None
@@ -231,20 +238,61 @@ class TimeoutManager:
         except Exception as e:
             logger.warning("모집중 복원 체크 실패: %s", e)
 
+    @staticmethod
+    def _to_kst(dt, kst_tz):
+        """datetime을 KST aware로 변환"""
+        if dt.tzinfo is None:
+            from datetime import timezone as tz
+            return dt.replace(tzinfo=tz.utc).astimezone(kst_tz)
+        return dt.astimezone(kst_tz)
+
+    def _calc_effective_start(self, created_at, buy_time_str, now):
+        """buy_time이 있으면 max(created_at, 오늘 buy_time 시작) 반환.
+
+        구매시간 전에 신청한 경우 → 구매시간 시작부터 타임아웃 카운트.
+        항상 KST aware datetime 반환.
+        """
+        from modules.utils import parse_buy_time
+
+        created_kst = self._to_kst(created_at, now.tzinfo)
+
+        if not buy_time_str or not buy_time_str.strip():
+            return created_kst
+
+        parsed = parse_buy_time(buy_time_str)
+        if not parsed:
+            return created_kst
+
+        sh, sm, _eh, _em, _next_day = parsed
+        # 오늘 buy_time 시작 시각 (KST)
+        today_buy_start = now.replace(hour=sh, minute=sm, second=0, microsecond=0)
+
+        if created_kst < today_buy_start:
+            return today_buy_start
+        return created_kst
+
     def _check_db_stale(self):
         """DB 기반 타임아웃: 경고(25분) + 취소(30분) + 카톡 알림
 
         웹 플로우에서는 인메모리 세션이 없으므로
         DB created_at 기준으로 직접 경고/취소 처리.
+
+        buy_time이 있는 캠페인: effective_start = max(created_at, 오늘 buy_time 시작)
         """
         if not self._db_manager:
             return
         from datetime import timedelta
-        from modules.utils import now_kst
+        from modules.utils import now_kst, is_within_buy_time
 
         now = now_kst()
         warning_cutoff = now - timedelta(seconds=self.warning)
         timeout_cutoff = now - timedelta(seconds=self.timeout)
+
+        # 날짜 바뀌면 구매시간 알림 셋 초기화
+        today_str = now.strftime("%Y-%m-%d")
+        if self._buy_time_notified_date != today_str:
+            self._buy_time_notified.clear()
+            self._buy_time_notified_date = today_str
 
         # 인메모리 세션이 있는 건은 _check_all()에서 처리하므로 제외
         active_keys = set()
@@ -254,31 +302,64 @@ class TimeoutManager:
                 for sid in state.temp_data.get("store_ids", []):
                     active_keys.add((campaign_id, sid))
 
-        # 신청/가이드전달 상태이고 25분 경과한 건 모두 조회
+        # 신청/가이드전달 상태 전체 조회 (buy_time 포함)
         rows = self._db_manager._fetchall(
             """SELECT p.id, p.campaign_id, p.store_id, p.created_at,
                       r.name, r.phone,
-                      COALESCE(NULLIF(c.campaign_name, ''), c.product_name, '') AS product_name
+                      COALESCE(NULLIF(c.campaign_name, ''), c.product_name, '') AS product_name,
+                      c.buy_time
                FROM progress p
                JOIN reviewers r ON p.reviewer_id = r.id
                LEFT JOIN campaigns c ON p.campaign_id = c.id
-               WHERE p.status IN ('신청', '가이드전달')
-               AND p.created_at < %s""",
-            (warning_cutoff,)
+               WHERE p.status IN ('신청', '가이드전달')""",
+            ()
         )
 
         # 리뷰어별 그룹화 (같은 사람에게 중복 알림 방지)
         to_warn = {}   # {(name, phone): [rows]}
         to_cancel = {}  # {(name, phone): [rows]}
+        to_buy_time_notify = {}  # {(name, phone): [rows]}
 
         for r in rows:
             if (r["campaign_id"], r["store_id"]) in active_keys:
                 continue
             key = (r["name"], r["phone"])
-            if r["created_at"].astimezone().timestamp() < timeout_cutoff.timestamp():
+            buy_time_str = r.get("buy_time", "") or ""
+
+            # effective_start: buy_time이 있으면 구매시간 시작 기준
+            effective_start = self._calc_effective_start(r["created_at"], buy_time_str, now)
+            elapsed = (now - effective_start).total_seconds()
+
+            # 구매시간 전이면 아직 타임아웃 시작 안 됨
+            if elapsed < 0:
+                continue
+
+            # 구매시간 시작 알림 (buy_time 있고, 방금 시작된 경우)
+            if buy_time_str and r["id"] not in self._buy_time_notified:
+                if is_within_buy_time(buy_time_str) and elapsed < self.warning:
+                    # effective_start가 created_kst보다 늦으면 → 구매시간 전에 신청한 것
+                    created_kst = self._to_kst(r["created_at"], now.tzinfo)
+                    if effective_start > created_kst:
+                        to_buy_time_notify.setdefault(key, []).append(r)
+
+            if elapsed >= self.timeout:
                 to_cancel.setdefault(key, []).append(r)
-            else:
+            elif elapsed >= self.warning:
                 to_warn.setdefault(key, []).append(r)
+
+        # ── 구매시간 시작 알림 (카톡) ──
+        for (name, phone), group in to_buy_time_notify.items():
+            if self._kakao_notifier:
+                try:
+                    product = group[0].get("product_name", "")
+                    sids = ", ".join(r["store_id"] for r in group)
+                    self._kakao_notifier.notify_buy_time_start(
+                        name, phone, product, sids)
+                    logger.info("구매시간 시작 알림: %s %s (%s)", name, phone, sids)
+                except Exception as e:
+                    logger.warning("구매시간 시작 카톡 실패: %s", e)
+            for r in group:
+                self._buy_time_notified.add(r["id"])
 
         # ── 25분 경고 (카톡) ──
         for (name, phone), group in to_warn.items():
@@ -324,6 +405,7 @@ class TimeoutManager:
             # warned 클리어
             for pid in all_cancel_ids:
                 self._warned.discard(pid)
+                self._buy_time_notified.discard(pid)
             # 모집중 복원 체크
             for cid in affected_campaigns:
                 self._try_reopen_campaign(cid)

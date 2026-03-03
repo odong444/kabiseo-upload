@@ -587,6 +587,27 @@ class DBManager:
         # 하위 호환: 시트 컬럼명 매핑
         return [self._campaign_to_sheet_dict(r) for r in rows]
 
+    def get_campaigns_page(self, page: int = 1, per_page: int = 20,
+                           status: str = "") -> tuple[list, int]:
+        """캠페인 페이지네이션. (items, total_count) 반환."""
+        conditions = []
+        params = []
+        if status:
+            conditions.append("status = %s")
+            params.append(status)
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        # 총 건수
+        count_sql = f"SELECT COUNT(*) AS cnt FROM campaigns {where}"
+        total = self._fetchone(count_sql, tuple(params)).get("cnt", 0)
+
+        # 페이지 데이터
+        offset = (page - 1) * per_page
+        data_sql = f"SELECT * FROM campaigns {where} ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        rows = self._fetchall(data_sql, tuple(params) + (per_page, offset))
+        return [self._campaign_to_sheet_dict(r) for r in rows], total
+
     def get_campaign_stats(self) -> dict:
         """캠페인별 진행 통계를 SQL 집계로 반환. {campaign_id: {...stats}}"""
         sql = """
@@ -1266,6 +1287,99 @@ class DBManager:
         """전체 progress 목록 (시트 호환)"""
         rows = self._fetchall("SELECT * FROM progress ORDER BY created_at DESC")
         return [self._progress_to_sheet_dict(r) for r in rows]
+
+    def get_progress_page(self, page: int = 1, per_page: int = 50,
+                          campaign_id: str = "", status: str = "",
+                          q: str = "") -> tuple[list, int]:
+        """progress 페이지네이션 (JOIN으로 N+1 제거). (items, total_count) 반환."""
+        conditions = []
+        params = []
+        if campaign_id:
+            conditions.append("p.campaign_id = %s")
+            params.append(campaign_id)
+        if status:
+            conditions.append("p.status = %s")
+            params.append(status)
+        if q:
+            conditions.append(
+                "(r.name ILIKE %s OR r.phone ILIKE %s"
+                " OR p.recipient_name ILIKE %s OR p.phone ILIKE %s"
+                " OR p.store_id ILIKE %s)"
+            )
+            like = f"%{q}%"
+            params.extend([like, like, like, like, like])
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        count_sql = f"""SELECT COUNT(*) AS cnt
+                        FROM progress p
+                        JOIN reviewers r ON p.reviewer_id = r.id
+                        {where}"""
+        total = self._fetchone(count_sql, tuple(params)).get("cnt", 0)
+
+        offset = (page - 1) * per_page
+        data_sql = f"""
+            SELECT p.*,
+                   r.name AS reviewer_name, r.phone AS reviewer_phone,
+                   r.kakao_friend,
+                   COALESCE(NULLIF(c.campaign_name,''), c.product_name) AS product_label,
+                   c.campaign_name, c.product_name AS c_product_name,
+                   c.company
+            FROM progress p
+            JOIN reviewers r ON p.reviewer_id = r.id
+            LEFT JOIN campaigns c ON p.campaign_id = c.id
+            {where}
+            ORDER BY p.created_at DESC
+            LIMIT %s OFFSET %s
+        """
+        rows = self._fetchall(data_sql, tuple(params) + (per_page, offset))
+
+        items = []
+        for row in rows:
+            items.append({
+                "_row_idx": row["id"],
+                "id": row["id"],
+                "캠페인ID": row.get("campaign_id", ""),
+                "업체명": row.get("company", ""),
+                "날짜": row["created_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("created_at") else "",
+                "created_at_iso": row["created_at"].astimezone(KST).isoformat() if row.get("created_at") else "",
+                "제품명": row.get("product_label", ""),
+                "캠페인명": row.get("campaign_name", ""),
+                "상품명": row.get("c_product_name", ""),
+                "수취인명": row.get("recipient_name", ""),
+                "연락처": row.get("phone", ""),
+                "은행": row.get("bank", ""),
+                "계좌": row.get("account", ""),
+                "예금주": row.get("depositor", ""),
+                "결제금액": str(row.get("payment_amount", 0) or ""),
+                "아이디": row.get("store_id", ""),
+                "주문번호": row.get("order_number", ""),
+                "주소": row.get("address", ""),
+                "닉네임": row.get("nickname", ""),
+                "진행자이름": row.get("reviewer_name", ""),
+                "진행자연락처": row.get("reviewer_phone", ""),
+                "카카오친구": row.get("kakao_friend", False),
+                "상태": row.get("status", ""),
+                "구매일": str(row["purchase_date"]) if row.get("purchase_date") else "",
+                "구매캡쳐링크": row.get("purchase_capture_url", ""),
+                "리뷰기한": str(row["review_deadline"]) if row.get("review_deadline") else "",
+                "리뷰제출일": str(row["review_submit_date"]) if row.get("review_submit_date") else "",
+                "리뷰캡쳐링크": row.get("review_capture_url", ""),
+                "리뷰비": str(row.get("review_fee", 0) or ""),
+                "입금금액": str(row.get("payment_total", 0) or ""),
+                "입금정리": str(row["settlement_date"]) if row.get("settlement_date") else "",
+                "입금완료": str(row["settled_date"]) if row.get("settled_date") else "",
+                "회수여부": "Y" if row.get("is_collected") else "",
+                "비고": row.get("remark", ""),
+                "AI구매검수": row.get("ai_purchase_result", ""),
+                "AI구매사유": row.get("ai_purchase_reason", ""),
+                "AI리뷰검수": row.get("ai_review_result", ""),
+                "AI리뷰사유": row.get("ai_review_reason", ""),
+                "AI검수시간": row["ai_verified_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("ai_verified_at") else "",
+                "AI관리자판정": row.get("ai_override", ""),
+                "사진세트": row.get("photo_set_number"),
+            })
+        return items, total
 
     def check_duplicate(self, campaign_id: str, store_id: str) -> bool:
         """같은 캠페인ID + 같은 아이디 중복 여부"""
