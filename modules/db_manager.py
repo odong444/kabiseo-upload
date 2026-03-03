@@ -297,6 +297,15 @@ CREATE TABLE IF NOT EXISTS clients (
 );
 CREATE INDEX IF NOT EXISTS idx_clients_login ON clients(login_id);
 
+CREATE TABLE IF NOT EXISTS recruit_sends (
+    id              SERIAL PRIMARY KEY,
+    campaign_id     TEXT NOT NULL,
+    reviewer_name   TEXT NOT NULL,
+    reviewer_phone  TEXT NOT NULL,
+    sent_at         TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(campaign_id, reviewer_name, reviewer_phone)
+);
+
 CREATE TABLE IF NOT EXISTS notices (
     id              SERIAL PRIMARY KEY,
     title           TEXT NOT NULL DEFAULT '',
@@ -458,6 +467,17 @@ class DBManager:
                     """)
                     if cur.rowcount > 0:
                         logger.info("payment_total 일괄 수정: %d건", cur.rowcount)
+                except Exception:
+                    pass
+                # 기존 구매캡쳐 반려 비고 잔류 정리: 재제출 완료된 건의 비고 클리어
+                try:
+                    cur.execute("""
+                        UPDATE progress SET remark = ''
+                        WHERE remark LIKE '구매캡쳐 반려%%'
+                          AND purchase_capture_url IS NOT NULL AND purchase_capture_url != ''
+                    """)
+                    if cur.rowcount > 0:
+                        logger.info("구매캡쳐 반려 비고 잔류 정리: %d건", cur.rowcount)
                 except Exception:
                     pass
             conn.commit()
@@ -2353,4 +2373,47 @@ class DBManager:
     def get_pending_campaign_count(self) -> int:
         """승인대기 캠페인 수 (관리자 배지용)"""
         row = self._fetchone("SELECT COUNT(*) as cnt FROM campaigns WHERE status = '승인대기'")
+        return row["cnt"] if row else 0
+
+    # ─────────── 기존리뷰어 모집 ───────────
+
+    def get_recruit_targets(self, campaign_id: str, limit: int = 50) -> list[dict]:
+        """캠페인에 아직 모집 메시지를 안 보낸 카카오 친구 리뷰어 목록.
+        - kakao_friend=True인 리뷰어만
+        - 이 캠페인에 이미 참여 중인 리뷰어 제외
+        - 이미 모집 메시지 보낸 리뷰어 제외
+        """
+        return self._fetchall("""
+            SELECT r.name, r.phone
+            FROM reviewers r
+            WHERE r.kakao_friend = TRUE
+              AND NOT EXISTS (
+                  SELECT 1 FROM progress p
+                  WHERE p.reviewer_name = r.name AND p.reviewer_phone = r.phone
+                    AND p.campaign_id = %s
+                    AND p.status NOT IN ('취소', '타임아웃취소')
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM recruit_sends rs
+                  WHERE rs.campaign_id = %s
+                    AND rs.reviewer_name = r.name AND rs.reviewer_phone = r.phone
+              )
+            ORDER BY r.participation DESC, r.updated_at DESC
+            LIMIT %s
+        """, (campaign_id, campaign_id, limit))
+
+    def log_recruit_send(self, campaign_id: str, name: str, phone: str):
+        """모집 메시지 발송 기록"""
+        self._execute("""
+            INSERT INTO recruit_sends (campaign_id, reviewer_name, reviewer_phone)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (campaign_id, reviewer_name, reviewer_phone) DO NOTHING
+        """, (campaign_id, name, phone))
+
+    def get_recruit_send_count(self, campaign_id: str) -> int:
+        """캠페인별 모집 발송 건수"""
+        row = self._fetchone(
+            "SELECT COUNT(*) as cnt FROM recruit_sends WHERE campaign_id = %s",
+            (campaign_id,)
+        )
         return row["cnt"] if row else 0
