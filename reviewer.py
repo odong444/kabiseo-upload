@@ -699,10 +699,13 @@ def api_task_purchase(progress_id):
             )
         models.db_manager.set_upload_pending(progress_id, "purchase")
 
-        # 상태 즉시 변경 + 구매일 설정 (Drive 업로드 완료 대기 없이)
-        models.db_manager.update_status(progress_id, "리뷰대기")
+        # 상태 즉시 변경 + 구매일 설정 + 반려 비고 클리어 (Drive 업로드 완료 대기 없이)
         models.db_manager._execute(
-            "UPDATE progress SET purchase_date = (NOW() AT TIME ZONE 'Asia/Seoul')::date WHERE id = %s AND purchase_date IS NULL",
+            """UPDATE progress SET status = '리뷰대기',
+               purchase_date = COALESCE(purchase_date, (NOW() AT TIME ZONE 'Asia/Seoul')::date),
+               remark = CASE WHEN remark LIKE '구매캡쳐 반려%%' THEN '' ELSE remark END,
+               updated_at = NOW()
+               WHERE id = %s""",
             (progress_id,)
         )
 
