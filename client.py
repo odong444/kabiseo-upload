@@ -262,7 +262,7 @@ def api_send_message():
     row = models.db_manager._fetchone(
         """SELECT p.campaign_id, c.client_id
            FROM progress p
-           JOIN campaigns c ON c.campaign_id = p.campaign_id
+           JOIN campaigns c ON c.id = p.campaign_id
            WHERE p.id = %s""",
         (progress_id,)
     )
