@@ -239,6 +239,9 @@ def campaign_edit(campaign_id):
         return redirect(url_for("admin.campaigns"))
 
     categories = _fetch_server_categories()
+    # 기존 사진 세트 수 전달
+    photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
+    campaign["_photo_set_count"] = len(photo_sets) if photo_sets else 0
     return render_template("admin/campaign_edit.html", campaign=campaign, row=campaign_id, promo_category_list=categories)
 
 
@@ -290,6 +293,29 @@ def campaign_edit_post(campaign_id):
         logger.info(f"캠페인 수정 시도: {campaign_id}, data: {update_data}")
         models.db_manager.update_campaign(campaign_id, update_data)
         flash("캠페인이 수정되었습니다.")
+
+        # 사진 세트 업로드 (새 파일이 있으면 기존 교체)
+        photo_files = request.files.getlist("사진세트")
+        photo_files = [f for f in photo_files if f and f.filename]
+        if photo_files and models.drive_uploader:
+            models.db_manager.delete_campaign_photos(campaign_id)
+            uploaded_cnt = 0
+            for f in photo_files:
+                set_num, file_idx = _parse_photo_set_filename(f.filename)
+                if set_num <= 0:
+                    continue
+                try:
+                    link = models.drive_uploader.upload_from_flask_file(
+                        f, capture_type="purchase",
+                        description=f"캠페인 사진세트 {campaign_id} / 세트{set_num}-{file_idx}",
+                    )
+                    models.db_manager.add_campaign_photo(campaign_id, set_num, file_idx, link, f.filename)
+                    uploaded_cnt += 1
+                except Exception as pe:
+                    logger.error(f"사진세트 업로드 에러: {pe}")
+            if uploaded_cnt:
+                flash(f"사진 세트 {uploaded_cnt}장 업로드 완료")
+
     except Exception as e:
         logger.error(f"캠페인 수정 에러: {e}", exc_info=True)
         flash(f"수정 중 오류 발생: {e}")
@@ -801,6 +827,28 @@ def campaign_new_post():
         models.db_manager.create_campaign(data)
         display_name = data.get('캠페인명', '').strip() or data['상품명']
         flash(f"캠페인 '{display_name}' 등록 완료 (ID: {campaign_id})")
+
+        # 사진 세트 업로드
+        photo_files = request.files.getlist("사진세트")
+        photo_files = [f for f in photo_files if f and f.filename]
+        if photo_files and models.drive_uploader:
+            uploaded_cnt = 0
+            for f in photo_files:
+                set_num, file_idx = _parse_photo_set_filename(f.filename)
+                if set_num <= 0:
+                    continue
+                try:
+                    link = models.drive_uploader.upload_from_flask_file(
+                        f, capture_type="purchase",
+                        description=f"캠페인 사진세트 {campaign_id} / 세트{set_num}-{file_idx}",
+                    )
+                    models.db_manager.add_campaign_photo(campaign_id, set_num, file_idx, link, f.filename)
+                    uploaded_cnt += 1
+                except Exception as pe:
+                    logger.error(f"사진세트 업로드 에러: {pe}")
+            if uploaded_cnt:
+                flash(f"사진 세트 {uploaded_cnt}장 업로드 완료")
+
     except Exception as e:
         logger.error(f"캠페인 등록 에러: {e}")
         flash(f"등록 중 오류가 발생했습니다: {e}")

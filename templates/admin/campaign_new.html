@@ -239,6 +239,18 @@
                             <div class="file-upload-label" id="imageLabel">클릭하여 이미지를 선택하세요 (JPG, PNG)</div>
                         </div>
                     </div>
+                    <div class="form-group form-group-full">
+                        <label>리뷰용 사진 세트</label>
+                        <div class="file-upload-area">
+                            <input type="file" name="사진세트" id="photoSetFiles" accept="image/*" multiple>
+                            <div class="file-upload-label" id="photoSetLabel">클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)</div>
+                        </div>
+                        <div style="color:#999;font-size:12px;margin-top:4px;">
+                            파일명 규칙: <b>세트번호.확장자</b> 또는 <b>세트번호-인덱스.확장자</b><br>
+                            예) 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg → 세트1(1장), 세트2(2장), 세트3(1장)
+                        </div>
+                        <div id="photoSetPreview" style="margin-top:8px;font-size:13px;color:#475569;"></div>
+                    </div>
                 </div>
             </div>
 
@@ -736,6 +748,34 @@
             } else {
                 imageLabel.textContent = '클릭하여 이미지를 선택하세요 (JPG, PNG)';
                 imageUploadArea.classList.remove('has-file');
+            }
+        });
+
+        // 사진 세트 파일 선택 시 미리보기
+        document.getElementById('photoSetFiles').addEventListener('change', function() {
+            var preview = document.getElementById('photoSetPreview');
+            var label = document.getElementById('photoSetLabel');
+            if (!this.files || this.files.length === 0) {
+                preview.innerHTML = '';
+                label.textContent = '클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)';
+                return;
+            }
+            label.textContent = this.files.length + '개 파일 선택됨';
+            var sets = {};
+            for (var i = 0; i < this.files.length; i++) {
+                var name = this.files[i].name;
+                var base = name.lastIndexOf('.') > 0 ? name.substring(0, name.lastIndexOf('.')) : name;
+                var m = base.match(/^(\d+)(?:-(\d+))?$/);
+                if (m) {
+                    var sn = parseInt(m[1]);
+                    sets[sn] = (sets[sn] || 0) + 1;
+                }
+            }
+            var keys = Object.keys(sets).sort(function(a,b){return a-b;});
+            if (keys.length > 0) {
+                preview.innerHTML = '세트 ' + keys.length + '개: ' + keys.map(function(k){return '세트'+k+'('+sets[k]+'장)';}).join(', ');
+            } else {
+                preview.innerHTML = '<span style="color:#ef4444">파일명이 규칙에 맞지 않습니다</span>';
             }
         });
 

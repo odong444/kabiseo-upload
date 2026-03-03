@@ -435,6 +435,23 @@
                 </div>
 
                 <div class="form-group form-group-full">
+                    <label>리뷰용 사진 세트</label>
+                    {% set photo_sets = campaign.get('_photo_set_count', 0) %}
+                    {% if photo_sets %}
+                    <p style="font-size:13px;color:#475569;margin-bottom:6px;">현재 등록된 사진 세트: <b>{{ photo_sets }}세트</b> (새 파일 선택 시 기존 사진이 교체됩니다)</p>
+                    {% endif %}
+                    <div class="file-upload-area">
+                        <input type="file" name="사진세트" id="photoSetFiles" accept="image/*" multiple>
+                        <div class="file-upload-label" id="photoSetLabel">{{ '새 사진으로 교체하려면 클릭' if photo_sets else '클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)' }}</div>
+                    </div>
+                    <div style="color:#999;font-size:12px;margin-top:4px;">
+                        파일명 규칙: <b>세트번호.확장자</b> 또는 <b>세트번호-인덱스.확장자</b><br>
+                        예) 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg → 세트1(1장), 세트2(2장), 세트3(1장)
+                    </div>
+                    <div id="photoSetPreview" style="margin-top:8px;font-size:13px;color:#475569;"></div>
+                </div>
+
+                <div class="form-group form-group-full">
                     <label>AI 구매캡쳐 검수 지침</label>
                     <textarea name="AI구매검수지침" rows="3" placeholder="예: 반드시 판매자배송으로 구매해야 합니다. 로켓배송은 불가합니다.">{{ campaign.get('AI구매검수지침', '') }}</textarea>
                     <small style="color:#888;">구매내역 캡쳐 업로드 시 AI 검수에 사용됩니다. (설정 페이지의 기본지침에 추가로 적용)</small>
@@ -622,6 +639,33 @@
     document.querySelector('form').addEventListener('submit', function() {
         updateBuyTime();
     });
+
+    // 사진 세트 파일 선택 시 미리보기
+    var psf = document.getElementById('photoSetFiles');
+    if (psf) {
+        psf.addEventListener('change', function() {
+            var preview = document.getElementById('photoSetPreview');
+            var label = document.getElementById('photoSetLabel');
+            if (!this.files || this.files.length === 0) {
+                preview.innerHTML = '';
+                return;
+            }
+            label.textContent = this.files.length + '개 파일 선택됨';
+            var sets = {};
+            for (var i = 0; i < this.files.length; i++) {
+                var name = this.files[i].name;
+                var base = name.lastIndexOf('.') > 0 ? name.substring(0, name.lastIndexOf('.')) : name;
+                var m = base.match(/^(\d+)(?:-(\d+))?$/);
+                if (m) sets[parseInt(m[1])] = (sets[parseInt(m[1])] || 0) + 1;
+            }
+            var keys = Object.keys(sets).sort(function(a,b){return a-b;});
+            if (keys.length > 0) {
+                preview.innerHTML = '세트 ' + keys.length + '개: ' + keys.map(function(k){return '세트'+k+'('+sets[k]+'장)';}).join(', ');
+            } else {
+                preview.innerHTML = '<span style="color:#ef4444">파일명이 규칙에 맞지 않습니다</span>';
+            }
+        });
+    }
     </script>
 </body>
 </html>

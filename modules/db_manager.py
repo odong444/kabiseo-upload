@@ -606,7 +606,8 @@ class DBManager:
                 promotion_message,
                 promo_enabled, promo_categories, promo_start, promo_end, promo_cooldown,
                 exclusive_group, exclusive_days,
-                client_id
+                client_id,
+                ai_instructions, ai_purchase_instructions, ai_review_instructions
             ) VALUES (
                 %(id)s, %(status)s, %(company)s, %(campaign_name)s, %(product_name)s, %(product_link)s,
                 %(product_codes)s, %(product_image)s, %(product_price)s, %(payment_amount)s, %(campaign_type)s, %(platform)s,
@@ -627,7 +628,8 @@ class DBManager:
                 %(promotion_message)s,
                 %(promo_enabled)s, %(promo_categories)s, %(promo_start)s, %(promo_end)s, %(promo_cooldown)s,
                 %(exclusive_group)s, %(exclusive_days)s,
-                %(client_id)s
+                %(client_id)s,
+                %(ai_instructions)s, %(ai_purchase_instructions)s, %(ai_review_instructions)s
             )
         """
         self._execute(sql, d)
