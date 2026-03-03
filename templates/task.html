@@ -505,10 +505,10 @@
                     <p class="task-capture-hint">주문 상세 화면을 캡쳐해주세요.</p>
                     <div class="task-capture-upload">
                         <label class="file-select-label">
-                            <input type="file" accept="image/*" class="file-input" onchange="onFileSelect(this, ${sid})">
-                            <span id="fileBtn_${sid}" class="file-select-btn">캡쳐 선택</span>
+                            <input type="file" accept="image/*" multiple class="file-input" onchange="onFileSelect(this, ${sid})">
+                            <span id="fileBtn_${sid}" class="file-select-btn">캡쳐 선택 (여러 장 가능)</span>
                         </label>
-                        <div id="preview_${sid}" style="display:none"></div>
+                        <div id="preview_${sid}" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
                     </div>
                     <div id="aiResult_${sid}" style="display:none"></div>
                 </div>
@@ -699,20 +699,33 @@
     };
 
     window.onFileSelect = function(input, sid) {
-        const file = input.files[0];
-        if (!file) return;
-        selectedFiles[sid] = file;
+        const files = Array.from(input.files);
+        if (!files.length) return;
+        selectedFiles[sid] = files;
 
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById(`preview_${sid}`).innerHTML =
-                `<img src="${e.target.result}" class="capture-preview">`;
-            document.getElementById(`preview_${sid}`).style.display = 'block';
-        };
-        reader.readAsDataURL(file);
+        // 미리보기: 여러 장 썸네일
+        const previewEl = document.getElementById(`preview_${sid}`);
+        previewEl.innerHTML = '';
+        previewEl.style.display = 'flex';
+        files.forEach(function(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'capture-preview';
+                img.style.width = '80px';
+                img.style.height = '80px';
+                img.style.objectFit = 'cover';
+                img.style.borderRadius = '6px';
+                img.style.border = '1px solid #ddd';
+                previewEl.appendChild(img);
+            };
+            reader.readAsDataURL(file);
+        });
 
-        document.getElementById(`fileBtn_${sid}`).textContent = file.name;
-        runAiVerify(file, sid);
+        document.getElementById(`fileBtn_${sid}`).textContent = files.length > 1 ? files.length + '장 선택됨' : files[0].name;
+        // AI 검수는 첫 번째 파일만
+        runAiVerify(files[0], sid);
     };
 
     async function runAiVerify(file, sid) {
@@ -737,7 +750,6 @@
                 <p class="ai-warn-note">다시 캡쳐해주세요.</p>
             </div>`;
             selectedFiles[sid] = null;
-            document.getElementById(`capture_${sid}`).value = '';
             document.getElementById(`preview_${sid}`).style.display = 'none';
             return;
         }
@@ -750,9 +762,7 @@
                 <p>${result.reason}</p>
                 <p class="ai-warn-note">이 캡쳐로는 제출할 수 없습니다. 다시 캡쳐해주세요.</p>
             </div>`;
-            // 자동반려 시 파일 선택 초기화, 폼 미표시
             selectedFiles[sid] = null;
-            document.getElementById(`capture_${sid}`).value = '';
             document.getElementById(`preview_${sid}`).style.display = 'none';
             return;
         } else if (result.result === '확인요청') {
@@ -768,7 +778,6 @@
                 <p class="ai-warn-note">다시 캡쳐해주세요.</p>
             </div>`;
             selectedFiles[sid] = null;
-            document.getElementById(`capture_${sid}`).value = '';
             document.getElementById(`preview_${sid}`).style.display = 'none';
             return;
         }
@@ -787,7 +796,7 @@
     }
 
     window.submitPurchase = async function(sid) {
-        if (!selectedFiles[sid]) {
+        if (!selectedFiles[sid] || !selectedFiles[sid].length) {
             Reviewer.toast('캡쳐를 먼저 선택해주세요.', 'error');
             return;
         }
@@ -797,7 +806,9 @@
         btn.textContent = '제출 중...';
 
         const formData = new FormData();
-        formData.append('capture', selectedFiles[sid]);
+        selectedFiles[sid].forEach(function(file) {
+            formData.append('capture', file);
+        });
         formData.append('recipient_name', document.getElementById(`fRecipient_${sid}`).value.trim());
         formData.append('phone', document.getElementById(`fPhone_${sid}`).value.trim());
         formData.append('bank', document.getElementById(`fBank_${sid}`).value.trim());

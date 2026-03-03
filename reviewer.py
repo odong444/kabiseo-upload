@@ -640,8 +640,8 @@ def api_task_purchase(progress_id):
     if not models.db_manager:
         return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
 
-    file = request.files.get("capture")
-    if not file or file.filename == "":
+    files = request.files.getlist("capture")
+    if not files or not files[0].filename:
         return jsonify({"ok": False, "error": "캡쳐 파일이 필요합니다"}), 400
 
     row = models.db_manager.get_row_dict(progress_id)
@@ -681,14 +681,22 @@ def api_task_purchase(progress_id):
                 (review_fee, payment_total, progress_id)
             )
 
-        # 2. Drive 업로드 큐에 추가
+        # 2. Drive 업로드 큐에 각 파일 추가
         from app import _make_upload_filename
-        filename = _make_upload_filename("purchase", progress_id, file.filename)
-        file_bytes = file.read()
-        models.db_manager.enqueue_drive_upload(
-            progress_id, "purchase", filename,
-            file.content_type or "image/jpeg", file_bytes
-        )
+        for idx, file in enumerate(files):
+            if not file or not file.filename:
+                continue
+            suffix = f"_{idx+1}" if len(files) > 1 else ""
+            filename = _make_upload_filename("purchase", progress_id, file.filename)
+            if suffix:
+                import os as _os
+                base, ext = _os.path.splitext(filename)
+                filename = f"{base}{suffix}{ext}"
+            file_bytes = file.read()
+            models.db_manager.enqueue_drive_upload(
+                progress_id, "purchase", filename,
+                file.content_type or "image/jpeg", file_bytes
+            )
         models.db_manager.set_upload_pending(progress_id, "purchase")
 
         # 상태 즉시 변경 + 구매일 설정 (Drive 업로드 완료 대기 없이)
@@ -710,8 +718,8 @@ def api_task_review(progress_id):
     if not models.db_manager:
         return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
 
-    file = request.files.get("capture")
-    if not file or file.filename == "":
+    files = request.files.getlist("capture")
+    if not files or not files[0].filename:
         return jsonify({"ok": False, "error": "캡쳐 파일이 필요합니다"}), 400
 
     row = models.db_manager.get_row_dict(progress_id)
@@ -720,12 +728,20 @@ def api_task_review(progress_id):
 
     try:
         from app import _make_upload_filename
-        filename = _make_upload_filename("review", progress_id, file.filename)
-        file_bytes = file.read()
-        models.db_manager.enqueue_drive_upload(
-            progress_id, "review", filename,
-            file.content_type or "image/jpeg", file_bytes
-        )
+        for idx, file in enumerate(files):
+            if not file or not file.filename:
+                continue
+            suffix = f"_{idx+1}" if len(files) > 1 else ""
+            filename = _make_upload_filename("review", progress_id, file.filename)
+            if suffix:
+                import os as _os
+                base, ext = _os.path.splitext(filename)
+                filename = f"{base}{suffix}{ext}"
+            file_bytes = file.read()
+            models.db_manager.enqueue_drive_upload(
+                progress_id, "review", filename,
+                file.content_type or "image/jpeg", file_bytes
+            )
         models.db_manager.set_upload_pending(progress_id, "review")
 
         # 상태 즉시 변경 + 리뷰제출일 기록 (Drive 업로드 완료 대기 없이)

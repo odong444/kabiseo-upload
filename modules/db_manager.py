@@ -1123,12 +1123,17 @@ class DBManager:
         return [r["store_id"] for r in rows]
 
     def update_after_upload(self, capture_type: str, progress_id: int, drive_link: str):
-        """업로드 완료 후 상태+링크 업데이트"""
+        """업로드 완료 후 상태+링크 업데이트 (멀티 이미지: 쉼표로 URL 누적)"""
         if capture_type == "purchase":
             self._execute(
-                """UPDATE progress SET purchase_capture_url = %s, status = %s, updated_at = NOW()
+                """UPDATE progress SET
+                   purchase_capture_url = CASE
+                       WHEN purchase_capture_url IS NULL OR purchase_capture_url = '' THEN %s
+                       ELSE purchase_capture_url || ',' || %s
+                   END,
+                   status = %s, updated_at = NOW()
                    WHERE id = %s""",
-                (drive_link, STATUS_REVIEW_WAIT, progress_id)
+                (drive_link, drive_link, STATUS_REVIEW_WAIT, progress_id)
             )
         elif capture_type == "review":
             # 반려 사유 클리어
@@ -1138,10 +1143,15 @@ class DBManager:
                 remark_update = ", remark = ''"
 
             self._execute(
-                f"""UPDATE progress SET review_capture_url = %s, status = %s,
+                f"""UPDATE progress SET
+                    review_capture_url = CASE
+                        WHEN review_capture_url IS NULL OR review_capture_url = '' THEN %s
+                        ELSE review_capture_url || ',' || %s
+                    END,
+                    status = %s,
                     review_submit_date = (NOW() AT TIME ZONE 'Asia/Seoul')::date, updated_at = NOW(){remark_update}
                     WHERE id = %s""",
-                (drive_link, STATUS_REVIEW_DONE, progress_id)
+                (drive_link, drive_link, STATUS_REVIEW_DONE, progress_id)
             )
 
     def update_status(self, progress_id: int, status: str):

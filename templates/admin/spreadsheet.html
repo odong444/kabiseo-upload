@@ -197,10 +197,23 @@
     .capture-modal-body .img-col {
         width: 100%;
         height: 100%;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     .capture-modal-body .img-col #captureImg {
         width: 100%;
         height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .capture-modal-body .img-col #captureImg img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        border-radius: 8px;
     }
     .capture-modal-body .img-col #captureImg iframe {
         width: 100%;
@@ -215,6 +228,36 @@
         border: 1px solid #ddd;
         border-radius: 8px;
         background: #fafafa;
+    }
+    .capture-nav-btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(0,0,0,0.4);
+        color: #fff;
+        font-size: 20px;
+        cursor: pointer;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .capture-nav-btn:hover { background: rgba(0,0,0,0.6); }
+    .capture-nav-btn.prev { left: 8px; }
+    .capture-nav-btn.next { right: 8px; }
+    .capture-counter {
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.5);
+        color: #fff;
+        padding: 2px 10px;
+        border-radius: 10px;
+        font-size: 12px;
     }
     .capture-modal-body .img-col .no-img {
         flex: 1;
@@ -467,7 +510,10 @@
             </div>
             <div class="capture-modal-body">
                 <div class="img-col" style="flex:1;">
+                    <button class="capture-nav-btn prev" id="capturePrev" onclick="event.stopPropagation();captureNav(-1)" style="display:none">&#8249;</button>
                     <div id="captureImg"></div>
+                    <button class="capture-nav-btn next" id="captureNext" onclick="event.stopPropagation();captureNav(1)" style="display:none">&#8250;</button>
+                    <div class="capture-counter" id="captureCounter" style="display:none"></div>
                 </div>
             </div>
         </div>
@@ -484,21 +530,37 @@
         {% endfor %}
     };
 
-    function drivePreviewUrl(link) {
+    function driveToImgUrl(link) {
         if (!link) return '';
-        var m = link.match(/\/d\/([^\/]+)/);
-        if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
+        var m = link.match(/\/file\/d\/([^/]+)/);
+        if (m) return 'https://lh3.googleusercontent.com/d/' + m[1] + '=w1600';
+        m = link.match(/[?&]id=([^&]+)/);
+        if (m) return 'https://lh3.googleusercontent.com/d/' + m[1] + '=w1600';
         return link;
     }
 
-    function renderCaptureFrame(containerId, link) {
-        var el = document.getElementById(containerId);
-        var previewUrl = drivePreviewUrl(link);
-        if (previewUrl) {
-            el.innerHTML = '<iframe src="' + previewUrl + '" frameborder="0" allowfullscreen></iframe>';
-        } else {
+    var _captureUrls = [];
+    var _captureIdx = 0;
+
+    function renderCaptureImg() {
+        var el = document.getElementById('captureImg');
+        if (!_captureUrls.length) {
             el.innerHTML = '<div class="no-img">미제출</div>';
+            return;
         }
+        var url = driveToImgUrl(_captureUrls[_captureIdx]);
+        el.innerHTML = '<img src="' + url + '" alt="캡쳐 이미지">';
+        var hasMulti = _captureUrls.length > 1;
+        document.getElementById('capturePrev').style.display = hasMulti ? '' : 'none';
+        document.getElementById('captureNext').style.display = hasMulti ? '' : 'none';
+        var counter = document.getElementById('captureCounter');
+        counter.style.display = hasMulti ? '' : 'none';
+        counter.textContent = (_captureIdx + 1) + ' / ' + _captureUrls.length;
+    }
+
+    function captureNav(dir) {
+        _captureIdx = (_captureIdx + dir + _captureUrls.length) % _captureUrls.length;
+        renderCaptureImg();
     }
 
     function openCapture(progressId, type) {
@@ -506,8 +568,11 @@
         if (!data) return;
         var title = type === 'purchase' ? '구매내역 캡쳐' : '리뷰 캡쳐';
         var link = type === 'purchase' ? data.purchase : data.review;
-        document.getElementById('captureModalTitle').textContent = title + ' (ID: ' + progressId + ')';
-        renderCaptureFrame('captureImg', link);
+        // 쉼표 구분 멀티 URL 지원
+        _captureUrls = link ? link.split(',').map(function(u) { return u.trim(); }).filter(Boolean) : [];
+        _captureIdx = 0;
+        document.getElementById('captureModalTitle').textContent = title + ' (ID: ' + progressId + ')' + (_captureUrls.length > 1 ? ' [' + _captureUrls.length + '장]' : '');
+        renderCaptureImg();
         document.getElementById('captureModal').classList.add('open');
     }
 
@@ -518,6 +583,11 @@
 
     document.getElementById('captureModal').addEventListener('click', function(e) {
         if (e.target === this) closeCapture();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (!document.getElementById('captureModal').classList.contains('open')) return;
+        if (e.key === 'ArrowLeft') captureNav(-1);
+        else if (e.key === 'ArrowRight') captureNav(1);
     });
 
     // --- Kakao Send ---
