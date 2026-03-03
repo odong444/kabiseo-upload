@@ -440,7 +440,14 @@ class TaskQueue:
         logger.info("친구추가 실행: %s (표시명: %s)", phone, display_name)
         result = self.friend_manager.add_friend(display_name, phone)
         success = result.get("success", False)
-        # Railway 웹에 콜백
+        # DB 직접 업데이트 (콜백 실패 시에도 반영되도록)
+        if success:
+            try:
+                from modules.task_queue_db import update_kakao_friend
+                update_kakao_friend(name, phone, True)
+            except Exception as e:
+                logger.warning("kakao_friend DB 직접 업데이트 실패: %s", e)
+        # Railway 웹에 콜백 (이중 안전장치)
         self._callback_friend_add(name, phone, success)
         return result
 
