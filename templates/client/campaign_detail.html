@@ -498,8 +498,18 @@
     if (_allRows.length > 0) renderTable();
 
     // ── 이미지 라이트박스 ──
+    function driveToDirectUrl(url) {
+        // https://drive.google.com/file/d/FILE_ID/view → 직접 이미지 URL
+        var m = url.match(/\/file\/d\/([^/]+)/);
+        if (m) return 'https://lh3.googleusercontent.com/d/' + m[1] + '=w1600';
+        // https://drive.google.com/open?id=FILE_ID
+        m = url.match(/[?&]id=([^&]+)/);
+        if (m) return 'https://lh3.googleusercontent.com/d/' + m[1] + '=w1600';
+        return url;
+    }
     function openLightbox(url) {
-        document.getElementById('lightboxImg').src = url;
+        var img = document.getElementById('lightboxImg');
+        img.src = driveToDirectUrl(url);
         document.getElementById('lightbox').classList.add('active');
     }
     function closeLightbox() {
