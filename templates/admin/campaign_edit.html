@@ -124,7 +124,7 @@
                 <div class="form-group">
                     <label>상태</label>
                     <select name="상태">
-                        {% for s in ['모집중', '진행중', '마감', '종료'] %}
+                        {% for s in ['승인대기', '반려', '모집중', '진행중', '마감', '종료'] %}
                         <option value="{{ s }}" {{ 'selected' if campaign.get('상태', '') == s }}>{{ s }}</option>
                         {% endfor %}
                     </select>
@@ -382,7 +382,7 @@
                         <div style="display:flex;align-items:center;gap:6px;">
                             <input type="number" name="홍보주기" id="promoCooldown"
                                 value="{{ campaign.get('홍보주기', '60') }}"
-                                min="1" max="1440" style="width:100px;">
+                                min="0" max="1440" style="width:100px;">
                             <span style="color:#666;font-size:14px;">분</span>
                         </div>
                         <small style="color:#888;font-size:12px;">같은 카테고리에 메시지를 보내는 최소 간격</small>
