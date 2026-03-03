@@ -83,8 +83,19 @@
             <div class="chat-messages" id="chatMessages"></div>
         </div>
 
+        <!-- 이미지 프리뷰 -->
+        <div id="imagePreview" style="display:none;padding:8px 12px;background:#e8edf2;border-top:1px solid #cfd8e3;">
+            <div style="position:relative;display:inline-block;">
+                <img id="imagePreviewImg" style="max-height:80px;border-radius:8px;border:1px solid #d1d5db;">
+                <button id="imagePreviewRemove" type="button" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:#ef4444;color:#fff;font-size:12px;line-height:20px;text-align:center;cursor:pointer;padding:0;">&times;</button>
+            </div>
+            <div id="imageUploadStatus" style="font-size:12px;color:#6b7280;margin-top:4px;"></div>
+        </div>
+
         <div class="chat-input-area">
             <div class="chat-input-wrap">
+                <input type="file" id="chatFileInput" accept="image/*" style="display:none;">
+                <button class="attach-btn" id="attachBtn" type="button" title="이미지 첨부" style="background:none;border:none;cursor:pointer;padding:6px 8px;font-size:20px;color:#6b7280;flex-shrink:0;">&#x1f4ce;</button>
                 <textarea id="chatInput" placeholder="메시지를 입력하세요...&#10;(Shift+Enter: 전송)" rows="1" autocomplete="off"></textarea>
                 <button class="send-btn" id="sendBtn">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

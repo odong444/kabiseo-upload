@@ -282,6 +282,39 @@ def _handle_upload(capture_type: str, row: int):
         return redirect(request.referrer or url_for("upload"))
 
 
+# ──────── API: 채팅 이미지 업로드 ────────
+
+@app.route("/api/chat/upload", methods=["POST"])
+def api_chat_upload():
+    """채팅 문의 시 이미지 첨부 — Drive 직접 업로드"""
+    file = request.files.get("image")
+    if not file or file.filename == "":
+        return jsonify({"ok": False, "message": "파일을 선택해주세요."}), 400
+
+    content_type = file.content_type or ""
+    if not content_type.startswith("image/"):
+        return jsonify({"ok": False, "message": "이미지 파일만 첨부 가능합니다."}), 400
+
+    file_bytes = file.read()
+    if len(file_bytes) > 5 * 1024 * 1024:
+        return jsonify({"ok": False, "message": "5MB 이하 이미지만 첨부 가능합니다."}), 400
+
+    if not models.drive_uploader:
+        return jsonify({"ok": False, "message": "업로드 서비스가 준비되지 않았습니다."}), 503
+
+    try:
+        import time as _time
+        filename = f"chat_{int(_time.time())}_{file.filename}"
+        url = models.drive_uploader.upload(
+            file_bytes, filename, content_type,
+            capture_type="purchase", description="채팅 첨부 이미지"
+        )
+        return jsonify({"ok": True, "url": url})
+    except Exception as e:
+        logger.error(f"채팅 이미지 업로드 에러: {e}", exc_info=True)
+        return jsonify({"ok": False, "message": "업로드 실패. 잠시 후 다시 시도해주세요."}), 500
+
+
 # ──────── API: AJAX 업로드 ────────
 
 @app.route("/api/upload", methods=["POST"])

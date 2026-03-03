@@ -86,7 +86,7 @@
                 <div class="admin-chat-messages">
                     {% for msg in history %}
                     <div class="admin-chat-msg {{ msg.sender }}">
-                        <div class="msg-bubble">{{ msg.message }}</div>
+                        <div class="msg-bubble" data-raw="{{ msg.message }}"></div>
                         <div class="msg-meta">
                             <span class="msg-time">{{ msg.time_str or '' }}</span>
                             {% if msg.sender == 'bot' %}
@@ -110,6 +110,30 @@
     </main>
 
     <script>
+    // 메시지 렌더링: [IMG:url] 처리 + XSS 방지
+    (function() {
+        function escapeHtml(s) {
+            var d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+        function driveThumb(url) {
+            var m = url.match(/\/file\/d\/([^\/]+)/);
+            return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400' : url;
+        }
+        document.querySelectorAll('.msg-bubble[data-raw]').forEach(function(el) {
+            var raw = el.getAttribute('data-raw') || '';
+            var images = [];
+            var text = raw.replace(/\[IMG:(.*?)\]/g, function(_, url) { images.push(url); return ''; });
+            var html = escapeHtml(text).replace(/\n/g, '<br>');
+            images.forEach(function(url) {
+                html += '<div style="margin:6px 0;"><a href="' + escapeHtml(url) + '" target="_blank"><img src="' + escapeHtml(driveThumb(url)) + '" style="max-width:300px;max-height:200px;border-radius:6px;border:1px solid #e5e7eb;" loading="lazy"></a></div>';
+            });
+            el.innerHTML = html;
+            el.removeAttribute('data-raw');
+        });
+    })();
+
     function rateMsg(reviewerId, timestamp, rating) {
         fetch('{{ url_for("admin.rate_message") }}', {
             method: 'POST',

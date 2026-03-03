@@ -510,23 +510,122 @@
         scrollToBottom();
     }
 
+    // ──────── 이미지 첨부 ────────
+
+    var chatFileInput = document.getElementById('chatFileInput');
+    var attachBtn = document.getElementById('attachBtn');
+    var imagePreview = document.getElementById('imagePreview');
+    var imagePreviewImg = document.getElementById('imagePreviewImg');
+    var imagePreviewRemove = document.getElementById('imagePreviewRemove');
+    var imageUploadStatus = document.getElementById('imageUploadStatus');
+    var pendingImageUrl = '';  // 업로드 완료된 Drive URL
+    var isUploading = false;
+
+    if (attachBtn) {
+        attachBtn.addEventListener('click', function() {
+            if (isUploading) return;
+            chatFileInput.click();
+        });
+    }
+
+    if (chatFileInput) {
+        chatFileInput.addEventListener('change', function() {
+            var file = this.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                alert('이미지 파일만 첨부 가능합니다.');
+                this.value = '';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                alert('5MB 이하 이미지만 첨부 가능합니다.');
+                this.value = '';
+                return;
+            }
+
+            // 프리뷰 표시
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                imagePreviewImg.src = e.target.result;
+                imagePreview.style.display = 'block';
+                scrollToBottom();
+            };
+            reader.readAsDataURL(file);
+
+            // Drive 업로드 시작
+            isUploading = true;
+            pendingImageUrl = '';
+            imageUploadStatus.textContent = '업로드 중...';
+            attachBtn.style.opacity = '0.5';
+
+            var formData = new FormData();
+            formData.append('image', file);
+
+            fetch('/api/chat/upload', { method: 'POST', body: formData })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.ok && d.url) {
+                        pendingImageUrl = d.url;
+                        imageUploadStatus.textContent = '첨부 완료';
+                    } else {
+                        imageUploadStatus.textContent = d.message || '업로드 실패';
+                        setTimeout(clearImagePreview, 2000);
+                    }
+                })
+                .catch(function() {
+                    imageUploadStatus.textContent = '업로드 실패';
+                    setTimeout(clearImagePreview, 2000);
+                })
+                .finally(function() {
+                    isUploading = false;
+                    attachBtn.style.opacity = '1';
+                    chatFileInput.value = '';
+                });
+        });
+    }
+
+    if (imagePreviewRemove) {
+        imagePreviewRemove.addEventListener('click', clearImagePreview);
+    }
+
+    function clearImagePreview() {
+        pendingImageUrl = '';
+        imagePreview.style.display = 'none';
+        imagePreviewImg.src = '';
+        imageUploadStatus.textContent = '';
+        chatFileInput.value = '';
+    }
+
     // ──────── 메시지 전송 ────────
 
     function sendMessage() {
         var message = chatInput.value.trim();
-        if (!message) return;
+        var imageUrl = pendingImageUrl;
+
+        // 텍스트도 이미지도 없으면 무시
+        if (!message && !imageUrl) return;
+        // 아직 업로드 중이면 대기
+        if (isUploading) return;
+
+        // 이미지가 있으면 [IMG:url] 태그 추가
+        var fullMessage = message;
+        if (imageUrl) {
+            fullMessage = (message ? message + '\n' : '') + '[IMG:' + imageUrl + ']';
+        }
 
         disableAllButtons();
-        appendMessage('user', message);
+        appendMessage('user', fullMessage);
         chatInput.value = '';
         chatInput.style.height = 'auto';
         chatInput.classList.remove('scrollable');
+        clearImagePreview();
         scrollToBottom();
 
         socket.emit('user_message', {
             name: user.name,
             phone: user.phone,
-            message: message
+            message: fullMessage
         });
     }
 
