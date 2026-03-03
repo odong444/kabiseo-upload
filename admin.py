@@ -106,10 +106,11 @@ def inject_pending_count():
                 "pending_inquiry_count": models.db_manager.get_pending_inquiry_count(),
                 "pending_review_count": models.db_manager.get_pending_review_count(),
                 "failed_upload_count": models.db_manager.get_failed_upload_count(),
+                "pending_campaign_count": models.db_manager.get_pending_campaign_count(),
             }
         except Exception:
             pass
-    return {"pending_inquiry_count": 0, "pending_review_count": 0, "failed_upload_count": 0}
+    return {"pending_inquiry_count": 0, "pending_review_count": 0, "failed_upload_count": 0, "pending_campaign_count": 0}
 
 
 def admin_required(f):
@@ -2397,3 +2398,109 @@ def api_notice_delete(notice_id):
         return jsonify({"ok": False, "error": "시스템 초기화 중"})
     models.db_manager.delete_notice(notice_id)
     return jsonify({"ok": True})
+
+
+# ──────── 캠페인 승인/반려 ────────
+
+@admin_bp.route("/api/campaign/<campaign_id>/approve", methods=["POST"])
+@admin_required
+def api_campaign_approve(campaign_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    campaign = models.db_manager.get_campaign_by_id(campaign_id)
+    if not campaign:
+        return jsonify({"ok": False, "error": "캠페인을 찾을 수 없습니다."})
+    if campaign.get("상태") != "승인대기":
+        return jsonify({"ok": False, "error": "승인대기 상태가 아닙니다."})
+    models.db_manager.update_campaign(campaign_id, {"상태": "모집중"})
+    logger.info("캠페인 승인: %s", campaign_id)
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/reject", methods=["POST"])
+@admin_required
+def api_campaign_reject(campaign_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    campaign = models.db_manager.get_campaign_by_id(campaign_id)
+    if not campaign:
+        return jsonify({"ok": False, "error": "캠페인을 찾을 수 없습니다."})
+    if campaign.get("상태") != "승인대기":
+        return jsonify({"ok": False, "error": "승인대기 상태가 아닙니다."})
+    data = request.get_json(silent=True) or {}
+    reason = data.get("reason", "").strip()
+    models.db_manager.update_campaign(campaign_id, {"상태": "반려", "반려사유": reason})
+    logger.info("캠페인 반려: %s, 사유: %s", campaign_id, reason)
+    return jsonify({"ok": True})
+
+
+# ──────── 업체 관리 ────────
+
+@admin_bp.route("/clients")
+@admin_required
+def clients():
+    client_list = []
+    if models.db_manager:
+        client_list = models.db_manager.get_clients()
+    return render_template("admin/clients.html", clients=client_list)
+
+
+@admin_bp.route("/api/client", methods=["POST"])
+@admin_required
+def api_client_create():
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    login_id = data.get("login_id", "").strip()
+    password = data.get("password", "").strip()
+    company_name = data.get("company_name", "").strip()
+    if not login_id or not password or not company_name:
+        return jsonify({"ok": False, "error": "아이디, 비밀번호, 업체명은 필수입니다."})
+    from werkzeug.security import generate_password_hash
+    try:
+        cid = models.db_manager.create_client(
+            login_id=login_id,
+            password_hash=generate_password_hash(password),
+            company_name=company_name,
+            contact_name=data.get("contact_name", "").strip(),
+            contact_phone=data.get("contact_phone", "").strip(),
+            contact_email=data.get("contact_email", "").strip(),
+            memo=data.get("memo", "").strip(),
+        )
+        return jsonify({"ok": True, "id": cid})
+    except Exception as e:
+        logger.error("업체 생성 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@admin_bp.route("/api/client/<int:client_id>", methods=["PUT"])
+@admin_required
+def api_client_update(client_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    # password → password_hash 변환
+    if "password" in data:
+        pw = data.pop("password")
+        if pw.strip():
+            from werkzeug.security import generate_password_hash
+            data["password_hash"] = generate_password_hash(pw)
+    try:
+        models.db_manager.update_client(client_id, **data)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("업체 수정 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@admin_bp.route("/api/client/<int:client_id>", methods=["DELETE"])
+@admin_required
+def api_client_delete(client_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    try:
+        models.db_manager.delete_client(client_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("업체 삭제 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})

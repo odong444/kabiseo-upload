@@ -154,6 +154,22 @@
 
     .admin-status-badge.중지 { background: #fff7ed; color: #ea580c; }
     .admin-status-badge.당일마감 { background: #fef2f2; color: #dc2626; font-size: 11px; margin-left: 4px; }
+    .admin-status-badge.승인대기 { background: #fef3c7; color: #92400e; }
+    .admin-status-badge.반려 { background: #fee2e2; color: #991b1b; }
+
+    /* 승인/반려 버튼 */
+    .admin-btn-approve { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+    .admin-btn-approve:hover { background: #a7f3d0; }
+    .admin-btn-reject { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+    .admin-btn-reject:hover { background: #fecaca; }
+
+    /* 반려 모달 */
+    .reject-modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center; }
+    .reject-modal.active { display:flex; }
+    .reject-modal-content { background:#fff; border-radius:12px; padding:24px; max-width:420px; width:90%; }
+    .reject-modal-content h3 { margin-bottom:12px; font-size:16px; }
+    .reject-modal-content textarea { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; resize:vertical; }
+    .reject-modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
 
     /* 동시진행 그룹 배지 */
     .exclusive-group-badge { display: inline-block; vertical-align: middle; }
@@ -184,6 +200,7 @@
                 <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
                 <a href="{{ url_for('admin.notices') }}">공지</a>
                 <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.clients') }}">업체{% if pending_campaign_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_campaign_count }}</span>{% endif %}</a>
                 <a href="{{ url_for('admin.settings') }}">설정</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
             </nav>
@@ -300,6 +317,12 @@
                                 <button type="button" class="admin-btn admin-btn-sm"
                                         onclick="event.stopPropagation(); openPhotoModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');"
                                         style="background:#fef3c7;color:#92400e;">사진</button>
+                                {% if c.get('상태', '') == '승인대기' %}
+                                <button type="button" class="admin-btn admin-btn-sm admin-btn-approve"
+                                        onclick="event.stopPropagation(); campaignApprove('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');">승인</button>
+                                <button type="button" class="admin-btn admin-btn-sm admin-btn-reject"
+                                        onclick="event.stopPropagation(); openRejectModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');">반려</button>
+                                {% endif %}
                                 {% if c.get('상태', '모집중') == '중지' %}
                                 <button type="button" class="admin-btn admin-btn-sm admin-btn-resume"
                                         onclick="event.stopPropagation(); campaignResume('{{ c.get('캠페인ID', '') }}', this);">재개</button>
@@ -984,6 +1007,58 @@
             btnEl.disabled = false;
         });
     }
+
+    // ── 캠페인 승인/반려 ──
+    function campaignApprove(campaignId, name) {
+        if (!confirm('캠페인 "' + name + '"을(를) 승인하시겠습니까?\n승인 시 모집중 상태로 전환됩니다.')) return;
+        fetch('/admin/api/campaign/' + campaignId + '/approve', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) { location.reload(); }
+            else { alert('승인 실패: ' + (data.error || '알 수 없는 오류')); }
+        })
+        .catch(function() { alert('서버 연결 오류'); });
+    }
+
+    var _rejectCampaignId = '';
+    function openRejectModal(campaignId, name) {
+        _rejectCampaignId = campaignId;
+        document.getElementById('rejectCampaignName').textContent = name;
+        document.getElementById('rejectReason').value = '';
+        document.getElementById('rejectModal').classList.add('active');
+    }
+    function closeRejectModal() {
+        document.getElementById('rejectModal').classList.remove('active');
+        _rejectCampaignId = '';
+    }
+    function submitReject() {
+        var reason = document.getElementById('rejectReason').value.trim();
+        if (!reason) { alert('반려 사유를 입력해주세요.'); return; }
+        fetch('/admin/api/campaign/' + _rejectCampaignId + '/reject', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({reason: reason})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) { location.reload(); }
+            else { alert('반려 실패: ' + (data.error || '알 수 없는 오류')); }
+        })
+        .catch(function() { alert('서버 연결 오류'); });
+    }
     </script>
+
+    <!-- 반려 사유 모달 -->
+    <div class="reject-modal" id="rejectModal">
+        <div class="reject-modal-content">
+            <h3>캠페인 반려</h3>
+            <p style="font-size:14px;color:#6b7280;margin-bottom:12px;"><strong id="rejectCampaignName"></strong> 캠페인을 반려합니다.</p>
+            <textarea id="rejectReason" rows="4" placeholder="반려 사유를 입력하세요 (업체에게 전달됩니다)"></textarea>
+            <div class="reject-modal-actions">
+                <button type="button" class="admin-btn" onclick="closeRejectModal()">취소</button>
+                <button type="button" class="admin-btn admin-btn-danger" onclick="submitReject()">반려</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

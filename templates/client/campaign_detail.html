@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ company_name }} - 캠페인 상세</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f0f4ff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .header {
+            background: #1e40af; color: #fff; padding: 0 24px; height: 56px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header h1 { font-size: 18px; font-weight: 700; }
+        .header .company { font-size: 14px; opacity: 0.85; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right a { color: #fff; text-decoration: none; font-size: 14px; opacity: 0.85; }
+        .header-right a:hover { opacity: 1; }
+
+        .main { max-width: 800px; margin: 0 auto; padding: 24px; }
+
+        .back-link { display: inline-flex; align-items: center; gap: 6px; color: #6b7280; text-decoration: none; font-size: 14px; margin-bottom: 16px; }
+        .back-link:hover { color: #1e40af; }
+
+        .campaign-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 16px; flex-wrap: wrap; }
+        .campaign-title { font-size: 22px; font-weight: 700; color: #1e293b; }
+        .badge {
+            display: inline-block; padding: 4px 14px; border-radius: 6px;
+            font-size: 13px; font-weight: 600;
+        }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-active { background: #dbeafe; color: #1e40af; }
+        .badge-progress { background: #d1fae5; color: #065f46; }
+        .badge-rejected { background: #fee2e2; color: #991b1b; }
+        .badge-done { background: #f3f4f6; color: #6b7280; }
+
+        .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .card h3 { font-size: 16px; font-weight: 700; color: #1e40af; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #3b82f6; }
+
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; }
+        @media (max-width: 640px) { .info-grid { grid-template-columns: 1fr; } }
+        .info-item { padding: 8px 0; }
+        .info-label { font-size: 12px; color: #9ca3af; margin-bottom: 2px; }
+        .info-value { font-size: 15px; color: #1e293b; font-weight: 500; }
+        .info-full { grid-column: 1 / -1; }
+
+        /* 상태별 알림 박스 */
+        .status-box { border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .status-pending { background: #fffbeb; border: 1px solid #fde68a; }
+        .status-pending .status-icon { font-size: 32px; margin-bottom: 8px; }
+        .status-pending .status-title { font-size: 16px; font-weight: 700; color: #92400e; }
+        .status-pending .status-desc { font-size: 14px; color: #a16207; margin-top: 4px; }
+
+        .status-rejected { background: #fef2f2; border: 1px solid #fecaca; }
+        .status-rejected .status-title { font-size: 16px; font-weight: 700; color: #991b1b; }
+        .status-rejected .status-desc { font-size: 14px; color: #dc2626; margin-top: 4px; }
+        .status-rejected .reject-reason { background: #fff; border-radius: 8px; padding: 12px 16px; margin-top: 12px; font-size: 14px; color: #374151; border-left: 3px solid #ef4444; }
+
+        .btn-rerequest {
+            display: inline-block; margin-top: 12px; padding: 10px 20px;
+            background: #2563eb; color: #fff; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
+        }
+        .btn-rerequest:hover { background: #1d4ed8; }
+
+        /* 진행 현황 */
+        .progress-overview { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+        .progress-circle {
+            width: 100px; height: 100px; position: relative;
+        }
+        .progress-circle svg { transform: rotate(-90deg); }
+        .progress-circle .bg { fill: none; stroke: #e5e7eb; stroke-width: 8; }
+        .progress-circle .fill { fill: none; stroke: #2563eb; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.5s; }
+        .progress-pct {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 22px; font-weight: 800; color: #1e40af;
+        }
+        .progress-summary { flex: 1; }
+        .progress-summary .big { font-size: 24px; font-weight: 700; color: #1e293b; }
+        .progress-summary .sub { font-size: 14px; color: #6b7280; margin-top: 4px; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+        .stat-item {
+            background: #f8fafc; border-radius: 8px; padding: 16px; text-align: center;
+        }
+        .stat-num { font-size: 24px; font-weight: 800; }
+        .stat-name { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .stat-num.applied { color: #2563eb; }
+        .stat-num.purchased { color: #f59e0b; }
+        .stat-num.reviewed { color: #22c55e; }
+        .stat-num.cancelled { color: #ef4444; }
+
+        .guide-text { white-space: pre-wrap; line-height: 1.7; font-size: 14px; color: #374151; background: #f8fafc; border-radius: 8px; padding: 16px; }
+
+        .flash-messages { margin-bottom: 16px; }
+        .flash { background: #dbeafe; color: #1e40af; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>카비서</h1>
+            <span class="company">{{ company_name }}</span>
+        </div>
+        <div class="header-right">
+            <a href="{{ url_for('client.dashboard') }}">대시보드</a>
+            <a href="{{ url_for('client.logout') }}">로그아웃</a>
+        </div>
+    </div>
+
+    <div class="main">
+        <a href="{{ url_for('client.dashboard') }}" class="back-link">&larr; 대시보드로 돌아가기</a>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {% set status = campaign.get('상태', '') %}
+        {% set cname = campaign.get('캠페인명', '') or campaign.get('상품명', '') %}
+
+        <div class="campaign-header">
+            <div class="campaign-title">{{ cname }}</div>
+            {% if status == '승인대기' %}
+                <span class="badge badge-pending">{{ status }}</span>
+            {% elif status == '반려' %}
+                <span class="badge badge-rejected">{{ status }}</span>
+            {% elif status == '모집중' %}
+                <span class="badge badge-active">{{ status }}</span>
+            {% elif status == '진행중' %}
+                <span class="badge badge-progress">{{ status }}</span>
+            {% else %}
+                <span class="badge badge-done">{{ status }}</span>
+            {% endif %}
+        </div>
+
+        <!-- 승인대기 안내 -->
+        {% if status == '승인대기' %}
+        <div class="status-box status-pending">
+            <div class="status-icon">&#9203;</div>
+            <div class="status-title">심사 중입니다</div>
+            <div class="status-desc">담당자가 캠페인 요청을 확인하고 있습니다. 승인되면 캠페인이 시작됩니다.</div>
+        </div>
+        {% endif %}
+
+        <!-- 반려 안내 -->
+        {% if status == '반려' %}
+        <div class="status-box status-rejected">
+            <div class="status-title">캠페인이 반려되었습니다</div>
+            <div class="status-desc">아래 반려 사유를 확인하고 수정 후 재요청해주세요.</div>
+            {% if campaign.get('반려사유') %}
+            <div class="reject-reason">{{ campaign.get('반려사유') }}</div>
+            {% endif %}
+            <a href="{{ url_for('client.campaign_new') }}" class="btn-rerequest">새 캠페인 요청</a>
+        </div>
+        {% endif %}
+
+        <!-- 진행 현황 (모집중/진행중/종료) -->
+        {% if status in ('모집중', '진행중', '종료', '완료') %}
+        <div class="card">
+            <h3>진행 현황</h3>
+            <div class="progress-overview">
+                <div class="progress-circle">
+                    {% set circ = 282.7 %}
+                    {% set offset = circ - (circ * progress_pct / 100) %}
+                    <svg width="100" height="100" viewBox="0 0 100 100">
+                        <circle class="bg" cx="50" cy="50" r="45"/>
+                        <circle class="fill" cx="50" cy="50" r="45"
+                            stroke-dasharray="{{ circ }}" stroke-dashoffset="{{ offset }}"/>
+                    </svg>
+                    <div class="progress-pct">{{ progress_pct }}%</div>
+                </div>
+                <div class="progress-summary">
+                    <div class="big">{{ total_progress }} / {{ campaign.get('총수량', 0) }}</div>
+                    <div class="sub">총 진행 현황</div>
+                </div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-num applied">{{ progress_stats.get('신청', 0) + progress_stats.get('가이드전달', 0) }}</div>
+                    <div class="stat-name">신청/대기</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num purchased">{{ progress_stats.get('구매완료', 0) }}</div>
+                    <div class="stat-name">구매완료</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num reviewed">{{ progress_stats.get('리뷰완료', 0) }}</div>
+                    <div class="stat-name">리뷰완료</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-num cancelled">{{ progress_stats.get('취소', 0) + progress_stats.get('타임아웃취소', 0) }}</div>
+                    <div class="stat-name">취소</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 캠페인 기본 정보 -->
+        <div class="card">
+            <h3>캠페인 정보</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">상품명</div>
+                    <div class="info-value">{{ campaign.get('상품명', '-') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">플랫폼</div>
+                    <div class="info-value">{{ campaign.get('플랫폼', '-') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">캠페인유형</div>
+                    <div class="info-value">{{ campaign.get('캠페인유형', '-') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">결제금액</div>
+                    <div class="info-value">{{ campaign.get('결제금액', '') or campaign.get('상품금액', '-') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">리워드 (리뷰비)</div>
+                    <div class="info-value">{{ campaign.get('리뷰비', '-') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">총 모집인원</div>
+                    <div class="info-value">{{ campaign.get('총수량', '-') }}명</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">하루진행량</div>
+                    <div class="info-value">{{ campaign.get('일수량', '-') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">진행일수</div>
+                    <div class="info-value">{{ campaign.get('진행일수', '-') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">시작일</div>
+                    <div class="info-value">{{ campaign.get('시작일', '-') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">등록일</div>
+                    <div class="info-value">{{ campaign.get('등록일', '-') }}</div>
+                </div>
+                {% if campaign.get('상품링크') %}
+                <div class="info-item info-full">
+                    <div class="info-label">상품링크</div>
+                    <div class="info-value"><a href="{{ campaign.get('상품링크') }}" target="_blank" style="color:#2563eb;">{{ campaign.get('상품링크') }}</a></div>
+                </div>
+                {% endif %}
+                {% if campaign.get('옵션') %}
+                <div class="info-item info-full">
+                    <div class="info-label">옵션</div>
+                    <div class="info-value">{{ campaign.get('옵션', '-') }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 캠페인 가이드 -->
+        {% if campaign.get('캠페인가이드') %}
+        <div class="card">
+            <h3>캠페인 가이드</h3>
+            <div class="guide-text">{{ campaign.get('캠페인가이드', '') }}</div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -283,6 +283,20 @@ CREATE TABLE IF NOT EXISTS drive_upload_queue (
 );
 CREATE INDEX IF NOT EXISTS idx_drive_queue_status ON drive_upload_queue(status);
 
+CREATE TABLE IF NOT EXISTS clients (
+    id              SERIAL PRIMARY KEY,
+    login_id        TEXT NOT NULL UNIQUE,
+    password_hash   TEXT NOT NULL,
+    company_name    TEXT NOT NULL DEFAULT '',
+    contact_name    TEXT DEFAULT '',
+    contact_phone   TEXT DEFAULT '',
+    contact_email   TEXT DEFAULT '',
+    is_active       BOOLEAN DEFAULT TRUE,
+    memo            TEXT DEFAULT '',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_clients_login ON clients(login_id);
+
 CREATE TABLE IF NOT EXISTS notices (
     id              SERIAL PRIMARY KEY,
     title           TEXT NOT NULL DEFAULT '',
@@ -416,6 +430,12 @@ class DBManager:
                             END IF;
                         END $$;
                     """)
+                except Exception:
+                    pass
+                # 마이그레이션: campaigns에 업체(client) 관련 컬럼
+                try:
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS client_id INTEGER")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS reject_reason TEXT DEFAULT ''")
                 except Exception:
                     pass
                 # 기존 payment_total 빈 건 일괄 수정 (결제금액+리뷰비 → 입금금액)
@@ -661,6 +681,8 @@ class DBManager:
         "1인일일제한": "max_per_person_daily",
         "동시진행그룹": "exclusive_group",
         "동시진행기한": "exclusive_days",
+        "업체ID": "client_id",
+        "반려사유": "reject_reason",
     }
 
     _CAMPAIGN_COLUMNS = {
@@ -688,6 +710,8 @@ class DBManager:
         "max_per_person_daily",
         "exclusive_group",
         "exclusive_days",
+        "client_id",
+        "reject_reason",
     }
 
     _BOOL_COLUMNS = {
@@ -2219,3 +2243,73 @@ class DBManager:
             "UPDATE notices SET is_active = NOT is_active, updated_at = NOW() WHERE id = %s",
             (notice_id,)
         )
+
+    # ─── 업체 (Clients) ─────────────────────────────────────────
+
+    def create_client(self, login_id: str, password_hash: str, company_name: str,
+                      contact_name: str = "", contact_phone: str = "",
+                      contact_email: str = "", memo: str = "") -> int:
+        row = self._fetchone(
+            """INSERT INTO clients (login_id, password_hash, company_name,
+                                   contact_name, contact_phone, contact_email, memo)
+               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+            (login_id, password_hash, company_name, contact_name, contact_phone, contact_email, memo)
+        )
+        return row["id"] if row else 0
+
+    def get_client_by_login(self, login_id: str) -> dict:
+        return self._fetchone("SELECT * FROM clients WHERE login_id = %s", (login_id,)) or {}
+
+    def get_client_by_id(self, client_id: int) -> dict:
+        return self._fetchone("SELECT * FROM clients WHERE id = %s", (client_id,)) or {}
+
+    def get_clients(self) -> list[dict]:
+        return self._fetchall(
+            """SELECT c.*,
+                      (SELECT COUNT(*) FROM campaigns WHERE client_id = c.id) as campaign_count
+               FROM clients c ORDER BY c.created_at DESC"""
+        )
+
+    def update_client(self, client_id: int, **kwargs):
+        allowed = {"company_name", "contact_name", "contact_phone", "contact_email",
+                    "is_active", "memo", "password_hash"}
+        sets = []
+        params = []
+        for k, v in kwargs.items():
+            if k in allowed:
+                sets.append(f"{k} = %s")
+                params.append(v)
+        if not sets:
+            return
+        params.append(client_id)
+        self._execute(f"UPDATE clients SET {', '.join(sets)} WHERE id = %s", params)
+
+    def delete_client(self, client_id: int):
+        self._execute("DELETE FROM clients WHERE id = %s", (client_id,))
+
+    def get_client_campaigns(self, client_id: int) -> list[dict]:
+        """업체의 캠페인 목록 (시트 형식)"""
+        rows = self._fetchall(
+            "SELECT * FROM campaigns WHERE client_id = %s ORDER BY created_at DESC",
+            (client_id,)
+        )
+        return [self._campaign_to_sheet_dict(r) for r in rows]
+
+    def get_client_campaign_stats(self, client_id: int) -> dict:
+        """업체 캠페인 통계"""
+        row = self._fetchone(
+            """SELECT
+                COUNT(*) FILTER (WHERE status = '승인대기') as pending,
+                COUNT(*) FILTER (WHERE status = '반려') as rejected,
+                COUNT(*) FILTER (WHERE status IN ('모집중', '진행중')) as active,
+                COUNT(*) FILTER (WHERE status IN ('마감', '종료')) as done,
+                COUNT(*) as total
+               FROM campaigns WHERE client_id = %s""",
+            (client_id,)
+        )
+        return dict(row) if row else {"pending": 0, "rejected": 0, "active": 0, "done": 0, "total": 0}
+
+    def get_pending_campaign_count(self) -> int:
+        """승인대기 캠페인 수 (관리자 배지용)"""
+        row = self._fetchone("SELECT COUNT(*) as cnt FROM campaigns WHERE status = '승인대기'")
+        return row["cnt"] if row else 0

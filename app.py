@@ -39,10 +39,12 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 from api import api_bp
 from admin import admin_bp
 from reviewer import reviewer_bp
+from client import client_bp
 
 app.register_blueprint(api_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(reviewer_bp)
+app.register_blueprint(client_bp)
 
 # ──────── WebSocket 핸들러 등록 ────────
 import chat_handler

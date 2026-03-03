@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ company_name }} - 카비서 업체 포털</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f0f4ff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .header {
+            background: #1e40af; color: #fff; padding: 0 24px; height: 56px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header h1 { font-size: 18px; font-weight: 700; }
+        .header .company { font-size: 14px; opacity: 0.85; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right a { color: #fff; text-decoration: none; font-size: 14px; opacity: 0.85; }
+        .header-right a:hover { opacity: 1; }
+
+        .main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-card {
+            background: #fff; border-radius: 12px; padding: 20px; text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .stat-number { font-size: 28px; font-weight: 800; color: #1e40af; }
+        .stat-label { font-size: 13px; color: #6b7280; margin-top: 4px; }
+
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .section-header h2 { font-size: 18px; font-weight: 700; color: #1e293b; }
+        .btn-new {
+            padding: 10px 20px; background: #2563eb; color: #fff; border: none;
+            border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-new:hover { background: #1d4ed8; }
+
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        th, td { padding: 12px 14px; text-align: left; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+        th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 13px; }
+        tr:hover { background: #f8fafc; }
+        tr { cursor: pointer; }
+
+        .badge {
+            display: inline-block; padding: 3px 10px; border-radius: 6px;
+            font-size: 12px; font-weight: 600;
+        }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-active { background: #dbeafe; color: #1e40af; }
+        .badge-progress { background: #d1fae5; color: #065f46; }
+        .badge-rejected { background: #fee2e2; color: #991b1b; }
+        .badge-done { background: #f3f4f6; color: #6b7280; }
+
+        .progress-bar { width: 80px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .progress-fill.high { background: #22c55e; }
+        .progress-fill.mid { background: #eab308; }
+        .progress-fill.low { background: #3b82f6; }
+
+        .flash-messages { margin-bottom: 16px; }
+        .flash { background: #dbeafe; color: #1e40af; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+        .empty { text-align: center; padding: 48px 20px; color: #9ca3af; }
+        .toast { position: fixed; bottom: 2rem; right: 2rem; background: #1f2937; color: #fff; padding: .75rem 1.25rem; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .3s; z-index: 999; }
+        .toast.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>카비서</h1>
+            <span class="company">{{ company_name }}</span>
+        </div>
+        <div class="header-right">
+            <a href="{{ url_for('client.campaign_new') }}">+ 새 캠페인</a>
+            <a href="{{ url_for('client.logout') }}">로그아웃</a>
+        </div>
+    </div>
+
+    <div class="main">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.pending }}</div>
+                <div class="stat-label">승인대기</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.active }}</div>
+                <div class="stat-label">진행중</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.done }}</div>
+                <div class="stat-label">완료</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.rejected }}</div>
+                <div class="stat-label">반려</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.total }}</div>
+                <div class="stat-label">전체</div>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <h2>내 캠페인</h2>
+            <a href="{{ url_for('client.campaign_new') }}" class="btn-new">+ 캠페인 요청</a>
+        </div>
+
+        {% if campaigns %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>캠페인명</th>
+                        <th>상품명</th>
+                        <th>플랫폼</th>
+                        <th>상태</th>
+                        <th>수량</th>
+                        <th>진행률</th>
+                        <th>등록일</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for c in campaigns %}
+                    <tr onclick="location.href='{{ url_for('client.campaign_detail', campaign_id=c.get('캠페인ID','')) }}'">
+                        <td><strong>{{ c.get('캠페인명','') or c.get('상품명','') }}</strong></td>
+                        <td>{{ c.get('상품명','') }}</td>
+                        <td>{{ c.get('플랫폼','') }}</td>
+                        <td>
+                            {% set st = c.get('상태','') %}
+                            {% if st == '승인대기' %}
+                                <span class="badge badge-pending">{{ st }}</span>
+                            {% elif st == '반려' %}
+                                <span class="badge badge-rejected">{{ st }}</span>
+                            {% elif st == '모집중' %}
+                                <span class="badge badge-active">{{ st }}</span>
+                            {% elif st in ('진행중',) %}
+                                <span class="badge badge-progress">{{ st }}</span>
+                            {% else %}
+                                <span class="badge badge-done">{{ st }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ c.get('완료수량', 0) }} / {{ c.get('총수량', 0) }}</td>
+                        <td>
+                            {% set pct = c.progress_pct %}
+                            <div class="progress-bar">
+                                <div class="progress-fill {% if pct >= 70 %}high{% elif pct >= 30 %}mid{% else %}low{% endif %}" style="width:{{ pct }}%"></div>
+                            </div>
+                            <span style="font-size:12px;color:#6b7280;margin-left:6px;">{{ pct }}%</span>
+                        </td>
+                        <td style="font-size:13px;color:#6b7280;">{{ c.get('등록일','')[:10] }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty">
+            <div style="font-size:48px;margin-bottom:12px;">📋</div>
+            <div style="font-size:16px;margin-bottom:8px;">아직 요청한 캠페인이 없습니다</div>
+            <div style="font-size:14px;">상단의 "캠페인 요청" 버튼으로 새 캠페인을 요청해보세요</div>
+        </div>
+        {% endif %}
+    </div>
+    <div class="toast" id="toast"></div>
+</body>
+</html>
