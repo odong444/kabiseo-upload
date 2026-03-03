@@ -82,12 +82,33 @@ def dashboard():
     campaigns = models.db_manager.get_client_campaigns(client_id)
     stats = models.db_manager.get_client_campaign_stats(client_id)
 
-    # 각 캠페인에 진행률 추가
+    # 각 캠페인의 구매/리뷰 진행률 일괄 계산
+    campaign_ids = [c.get("캠페인ID", "") for c in campaigns if c.get("캠페인ID")]
+    progress_counts = {}
+    if campaign_ids:
+        rows = models.db_manager._fetchall(
+            """SELECT campaign_id,
+                      COUNT(*) FILTER (WHERE status NOT IN ('신청','가이드전달','취소','타임아웃취소','')) as purchased,
+                      COUNT(*) FILTER (WHERE status IN ('리뷰완료','입금대기','입금완료')) as reviewed
+               FROM progress
+               WHERE campaign_id = ANY(%s)
+               GROUP BY campaign_id""",
+            (campaign_ids,)
+        )
+        for r in rows:
+            progress_counts[r["campaign_id"]] = {
+                "purchased": r["purchased"],
+                "reviewed": r["reviewed"],
+            }
+
     for c in campaigns:
         cid = c.get("캠페인ID", "")
         total = safe_int(c.get("총수량", 0))
-        done = safe_int(c.get("완료수량", 0))
-        c["progress_pct"] = round(done / total * 100) if total > 0 else 0
+        counts = progress_counts.get(cid, {"purchased": 0, "reviewed": 0})
+        c["purchase_pct"] = round(counts["purchased"] / total * 100) if total > 0 else 0
+        c["review_pct"] = round(counts["reviewed"] / total * 100) if total > 0 else 0
+        c["purchased"] = counts["purchased"]
+        c["reviewed"] = counts["reviewed"]
 
     return render_template("client/dashboard.html",
                            campaigns=campaigns, stats=stats,

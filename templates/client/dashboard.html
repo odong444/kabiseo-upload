@@ -56,11 +56,14 @@
         .badge-rejected { background: #fee2e2; color: #991b1b; }
         .badge-done { background: #f3f4f6; color: #6b7280; }
 
-        .progress-bar { width: 80px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+        .progress-cell { display: flex; flex-direction: column; gap: 4px; min-width: 100px; }
+        .progress-row { display: flex; align-items: center; gap: 6px; }
+        .progress-label { font-size: 11px; color: #6b7280; width: 28px; flex-shrink: 0; }
+        .progress-bar { width: 70px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
         .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-        .progress-fill.high { background: #22c55e; }
-        .progress-fill.mid { background: #eab308; }
-        .progress-fill.low { background: #3b82f6; }
+        .progress-fill.purchase { background: #3b82f6; }
+        .progress-fill.review { background: #22c55e; }
+        .progress-num { font-size: 11px; color: #6b7280; white-space: nowrap; }
 
         .flash-messages { margin-bottom: 16px; }
         .flash { background: #dbeafe; color: #1e40af; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
@@ -129,8 +132,9 @@
                         <th>상품명</th>
                         <th>플랫폼</th>
                         <th>상태</th>
-                        <th>수량</th>
+                        <th>총수량</th>
                         <th>진행률</th>
+
                         <th>등록일</th>
                     </tr>
                 </thead>
@@ -154,13 +158,24 @@
                                 <span class="badge badge-done">{{ st }}</span>
                             {% endif %}
                         </td>
-                        <td>{{ c.get('완료수량', 0) }} / {{ c.get('총수량', 0) }}</td>
+                        <td>{{ c.get('총수량', 0) }}</td>
                         <td>
-                            {% set pct = c.progress_pct %}
-                            <div class="progress-bar">
-                                <div class="progress-fill {% if pct >= 70 %}high{% elif pct >= 30 %}mid{% else %}low{% endif %}" style="width:{{ pct }}%"></div>
+                            <div class="progress-cell">
+                                <div class="progress-row">
+                                    <span class="progress-label">구매</span>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill purchase" style="width:{{ c.purchase_pct }}%"></div>
+                                    </div>
+                                    <span class="progress-num">{{ c.purchased }}/{{ c.get('총수량', 0) }}</span>
+                                </div>
+                                <div class="progress-row">
+                                    <span class="progress-label">리뷰</span>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill review" style="width:{{ c.review_pct }}%"></div>
+                                    </div>
+                                    <span class="progress-num">{{ c.reviewed }}/{{ c.get('총수량', 0) }}</span>
+                                </div>
                             </div>
-                            <span style="font-size:12px;color:#6b7280;margin-left:6px;">{{ pct }}%</span>
                         </td>
                         <td style="font-size:13px;color:#6b7280;">{{ c.get('등록일','')[:10] }}</td>
                     </tr>
