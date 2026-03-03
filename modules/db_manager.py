@@ -2249,12 +2249,16 @@ class DBManager:
     def create_client(self, login_id: str, password_hash: str, company_name: str,
                       contact_name: str = "", contact_phone: str = "",
                       contact_email: str = "", memo: str = "") -> int:
-        row = self._fetchone(
-            """INSERT INTO clients (login_id, password_hash, company_name,
-                                   contact_name, contact_phone, contact_email, memo)
-               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-            (login_id, password_hash, company_name, contact_name, contact_phone, contact_email, memo)
-        )
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """INSERT INTO clients (login_id, password_hash, company_name,
+                                           contact_name, contact_phone, contact_email, memo)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (login_id, password_hash, company_name, contact_name, contact_phone, contact_email, memo)
+                )
+                row = cur.fetchone()
+            conn.commit()
         return row["id"] if row else 0
 
     def get_client_by_login(self, login_id: str) -> dict:
