@@ -307,6 +307,11 @@
                     <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드">{{ campaign.get('캠페인가이드', '') }}</textarea>
                 </div>
 
+                <div class="form-group form-group-full">
+                    <label>구매 주의사항 <span style="font-size:12px;color:#6b7280;font-weight:400;">(가이드 전달 시 팝업으로 강조 표시)</span></label>
+                    <textarea name="추가안내사항" rows="4" placeholder="구매 시 꼭 확인해야 할 주의사항 (예: 쿠폰 사용 금지, 배송메모 필수 등)">{{ campaign.get('추가안내사항', '') }}</textarea>
+                </div>
+
             </div>
 
             <!-- 홍보 설정 -->

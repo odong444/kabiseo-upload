@@ -96,6 +96,18 @@
 <div class="page-content">
     <div id="taskContainer" class="loading">불러오는 중...</div>
 </div>
+
+<!-- 구매 주의사항 팝업 -->
+<div id="purchaseNoticeOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9000;justify-content:center;align-items:center;">
+    <div style="background:#fff;border-radius:16px;max-width:400px;width:90%;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,0.2);max-height:80vh;overflow-y:auto;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <span style="font-size:24px;">&#9888;&#65039;</span>
+            <h3 style="margin:0;font-size:17px;color:#dc2626;">구매 주의사항</h3>
+        </div>
+        <div id="purchaseNoticeContent" style="font-size:14px;line-height:1.7;color:#333;background:#fef2f2;padding:16px;border-radius:10px;border:1px solid #fecaca;white-space:pre-wrap;word-break:break-word;"></div>
+        <button onclick="closePurchaseNotice()" style="margin-top:20px;width:100%;padding:14px;border:none;border-radius:10px;background:#fee500;color:#3c1e1e;font-size:15px;font-weight:700;cursor:pointer;">확인했습니다</button>
+    </div>
+</div>
 {% endblock %}
 
 {% block nav %}
@@ -391,7 +403,27 @@
         }
 
         renderTask();
+        showPurchaseNotice();
     }
+
+    function showPurchaseNotice() {
+        const c = taskData.campaign || {};
+        const info = (c.extra_info || '').trim();
+        if (!info) return;
+
+        // 같은 캠페인은 한번만 표시
+        const key = 'kabiseo_purchase_notice_' + taskData.campaign_id;
+        if (localStorage.getItem(key)) return;
+
+        document.getElementById('purchaseNoticeContent').textContent = info;
+        document.getElementById('purchaseNoticeOverlay').style.display = 'flex';
+    }
+
+    window.closePurchaseNotice = function() {
+        const key = 'kabiseo_purchase_notice_' + taskData.campaign_id;
+        localStorage.setItem(key, '1');
+        document.getElementById('purchaseNoticeOverlay').style.display = 'none';
+    };
 
     function renderTask() {
         const container = document.getElementById('taskContainer');
