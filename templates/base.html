@@ -77,6 +77,19 @@
 
     {% block nav %}{% endblock %}
 
+    <!-- 문의 답변 알림 팝업 -->
+    <div id="replyAlertOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1300;justify-content:center;align-items:center;">
+        <div style="background:#fff;border-radius:16px;padding:28px 24px 20px;max-width:360px;width:85%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.2);animation:noticePopIn 0.25s ease-out;">
+            <div style="font-size:22px;margin-bottom:10px;">&#x1f4ac;</div>
+            <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:8px;">문의 답변 도착</div>
+            <div id="replyAlertContent" style="font-size:14px;color:#4b5563;line-height:1.6;white-space:pre-line;margin-bottom:20px;">새로운 문의 답변이 도착했습니다.</div>
+            <div style="display:flex;gap:10px;justify-content:center;">
+                <button onclick="dismissReplyAlert()" style="background:#f3f4f6;color:#4b5563;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">닫기</button>
+                <button onclick="dismissReplyAlert();toggleChatModal();" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">채팅 확인</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 채팅 안내 말풍선 -->
     <div class="chat-tooltip" id="chatTooltip" style="display:none;" onclick="this.style.display='none';localStorage.setItem('kabiseo_chat_tooltip_seen','1');">
         수정/문의 채팅으로 바로 해결!
@@ -196,6 +209,10 @@
                 .then(function(d) {
                     chatUnread = d.count || 0;
                     updateBadge();
+                    // 읽지 않은 메시지가 있으면 알림 팝업
+                    if (chatUnread > 0) {
+                        showReplyAlert();
+                    }
                 })
                 .catch(function() {});
 
@@ -292,6 +309,22 @@
             nb.style.display = 'none';
         };
 
+        // 문의 답변 알림 팝업
+        window.dismissReplyAlert = function() {
+            document.getElementById('replyAlertOverlay').style.display = 'none';
+        };
+        function showReplyAlert(msg) {
+            var content = document.getElementById('replyAlertContent');
+            if (msg) {
+                // [문의 답변] 접두사 제거 후 표시
+                var cleaned = msg.replace(/^\[문의 답변\]\n?/, '').replace(/\n\n※.*$/, '');
+                content.textContent = cleaned || '새로운 문의 답변이 도착했습니다.';
+            } else {
+                content.textContent = '새로운 문의 답변이 도착했습니다.';
+            }
+            document.getElementById('replyAlertOverlay').style.display = 'flex';
+        }
+
         // iframe에서 새 메시지 알림 수신
         window.addEventListener('message', function(e) {
             if (e.data && e.data.type === 'kabiseo_chat_msg') {
@@ -299,6 +332,11 @@
                 if (overlay.style.display === 'none') {
                     chatUnread++;
                     updateBadge();
+                    // 문의 답변이면 팝업 표시
+                    var msg = e.data.message || '';
+                    if (msg.indexOf('[문의 답변]') !== -1) {
+                        showReplyAlert(msg);
+                    }
                 }
             }
         });

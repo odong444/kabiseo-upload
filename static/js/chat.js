@@ -69,7 +69,7 @@
         // 부모 창에 새 메시지 알림 (모달 embed 모드)
         try {
             if (window.parent !== window) {
-                window.parent.postMessage({type: 'kabiseo_chat_msg'}, '*');
+                window.parent.postMessage({type: 'kabiseo_chat_msg', message: data.message || ''}, '*');
             }
         } catch(e) {}
 

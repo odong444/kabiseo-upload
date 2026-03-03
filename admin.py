@@ -807,7 +807,7 @@ def campaign_new_post():
 @admin_bp.route("/chat/<reviewer_id>")
 @admin_required
 def chat_viewer(reviewer_id):
-    history = models.chat_logger.get_history(reviewer_id)
+    history = models.chat_logger.get_history(reviewer_id, desc=True)
     reviewer_ids = models.chat_logger.get_all_reviewer_ids()
     q = request.args.get("q", "").strip()
     if q:

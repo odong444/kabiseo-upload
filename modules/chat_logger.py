@@ -72,12 +72,12 @@ class ChatLogger:
             except Exception as e:
                 logger.error(f"대화 저장 에러: {e}")
 
-    def get_history(self, reviewer_id: str) -> list[dict]:
-        """특정 리뷰어의 대화 이력"""
+    def get_history(self, reviewer_id: str, desc: bool = False) -> list[dict]:
+        """특정 리뷰어의 대화 이력. desc=True면 최신순(관리자용)."""
         if not self._db:
             return []
         try:
-            rows = self._db.get_chat_history(reviewer_id)
+            rows = self._db.get_chat_history(reviewer_id, desc=desc)
             return [
                 {
                     "sender": r["sender"],
