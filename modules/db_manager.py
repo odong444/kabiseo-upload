@@ -594,7 +594,8 @@ class DBManager:
                 deadline_date, is_public, is_selected, reward, memo,
                 promotion_message,
                 promo_enabled, promo_categories, promo_start, promo_end, promo_cooldown,
-                exclusive_group, exclusive_days
+                exclusive_group, exclusive_days,
+                client_id
             ) VALUES (
                 %(id)s, %(status)s, %(company)s, %(campaign_name)s, %(product_name)s, %(product_link)s,
                 %(product_codes)s, %(product_image)s, %(product_price)s, %(payment_amount)s, %(campaign_type)s, %(platform)s,
@@ -614,7 +615,8 @@ class DBManager:
                 %(is_selected)s, %(reward)s, %(memo)s,
                 %(promotion_message)s,
                 %(promo_enabled)s, %(promo_categories)s, %(promo_start)s, %(promo_end)s, %(promo_cooldown)s,
-                %(exclusive_group)s, %(exclusive_days)s
+                %(exclusive_group)s, %(exclusive_days)s,
+                %(client_id)s
             )
         """
         self._execute(sql, d)
@@ -727,6 +729,7 @@ class DBManager:
         "done_qty", "max_daily", "duration_days", "cost_3pl",
         "review_deadline_days", "review_fee",
         "promo_cooldown", "exclusive_days",
+        "client_id",
     }
 
     def _convert_campaign_value(self, col: str, value):
