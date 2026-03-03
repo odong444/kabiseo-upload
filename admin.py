@@ -2280,23 +2280,31 @@ def api_quote_parse():
         return jsonify({"ok": False, "message": "요청서 텍스트가 비어있습니다."})
 
     if not models.ai_handler:
-        return jsonify({"ok": False, "message": "AI 릴레이가 설정되지 않았습니다."})
+        return jsonify({"ok": False, "message": "AI가 설정되지 않았습니다."})
 
     prompt = QUOTE_PARSE_PROMPT.replace("{raw_text}", raw_text)
 
     try:
-        headers = {}
-        if models.ai_handler.api_key:
-            headers["X-API-Key"] = models.ai_handler.api_key
-
+        import os as _os
+        _gemini_url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            "gemini-2.0-flash:generateContent"
+        )
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 2048},
+        }
         resp = _requests.post(
-            f"{models.ai_handler.relay_url}/ai",
-            json={"prompt": prompt},
-            headers=headers,
-            timeout=90,
+            f"{_gemini_url}?key={models.ai_handler.api_key}",
+            json=payload,
+            timeout=60,
         )
         resp.raise_for_status()
-        ai_response = resp.json().get("response", "")
+        ai_response = (
+            resp.json().get("candidates", [{}])[0]
+            .get("content", {}).get("parts", [{}])[0]
+            .get("text", "")
+        )
 
         cleaned = ai_response.strip()
         if cleaned.startswith("```"):
@@ -2312,7 +2320,7 @@ def api_quote_parse():
         logger.error(f"AI 파싱 JSON 실패: {ai_response[:200] if 'ai_response' in locals() else 'N/A'}")
         return jsonify({"ok": False, "message": "AI 응답을 JSON으로 변환할 수 없습니다.", "raw": ai_response if 'ai_response' in locals() else ""})
     except _requests.Timeout:
-        return jsonify({"ok": False, "message": "AI 릴레이 타임아웃 (90초)"})
+        return jsonify({"ok": False, "message": "AI 타임아웃 (60초)"})
     except Exception as e:
         logger.error(f"AI 파싱 에러: {e}")
         return jsonify({"ok": False, "message": str(e)})

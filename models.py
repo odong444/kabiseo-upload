@@ -79,15 +79,15 @@ def init_app(web_url: str = "", socketio=None):
         reviewer_manager = None
         reviewer_grader = None
 
-    # AI 핸들러 (서버PC 릴레이)
-    relay_url = os.environ.get("AI_RELAY_URL", "")
-    if relay_url:
+    # AI 핸들러 (Gemini Flash 직접 호출)
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    if gemini_key:
         from modules.ai_handler import AIHandler
-        ai_handler = AIHandler(relay_url, api_key=os.environ.get("API_KEY", ""))
-        logging.info(f"AI 핸들러 초기화 완료 (릴레이: {relay_url})")
+        ai_handler = AIHandler(gemini_key)
+        logging.info("AI 핸들러 초기화 완료 (Gemini Flash 직접 호출)")
     else:
         ai_handler = None
-        logging.info("AI_RELAY_URL 미설정 - AI 응답 비활성화")
+        logging.info("GEMINI_API_KEY 미설정 - AI 응답 비활성화")
 
     step_machine = StepMachine(
         state_store=state_store,

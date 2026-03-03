@@ -1,10 +1,11 @@
 """
-ai_handler.py - 서버PC 릴레이를 통한 AI 응답
+ai_handler.py - Gemini Flash 직접 호출 AI 응답
 
-Railway → 서버PC(claude -p) → 응답 반환
-신뢰도 태그: [UNCERTAIN], [URGENT]
+Railway → Gemini API 직접 호출 (서버PC 릴레이 제거)
+신뢰도 태그: [UNCERTAIN], [URGENT], [EDIT]
 """
 
+import os
 import re
 import logging
 import requests
@@ -12,6 +13,11 @@ import requests
 from modules.ai_guide import GUIDE as DEFAULT_GUIDE
 
 logger = logging.getLogger(__name__)
+
+_GEMINI_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "gemini-2.0-flash:generateContent"
+)
 
 
 def _get_guide() -> str:
@@ -25,6 +31,7 @@ def _get_guide() -> str:
     except Exception:
         pass
     return DEFAULT_GUIDE
+
 
 STEP_DESCRIPTIONS = {
     0: "메뉴 선택 대기",
@@ -41,19 +48,21 @@ STEP_DESCRIPTIONS = {
 
 TAG_PATTERN = re.compile(r"\s*\[(UNCERTAIN|URGENT|EDIT)\]\s*", re.IGNORECASE)
 
+# 학습 Q&A 최대 건수 (프롬프트 비대화 방지)
+MAX_LEARNED_QA = 30
+
 
 class AIHandler:
-    """서버PC 릴레이를 통한 AI 응답 핸들러"""
+    """Gemini Flash 직접 호출 AI 응답 핸들러"""
 
-    def __init__(self, relay_url: str, api_key: str = ""):
-        self.relay_url = relay_url.rstrip("/")
-        self.api_key = api_key
+    def __init__(self, gemini_api_key: str):
+        self.api_key = gemini_api_key
 
     def get_response(self, user_message: str, context: dict) -> dict:
-        """AI 응답 반환 (서버PC 릴레이 경유).
+        """AI 응답 반환 (Gemini API 직접 호출).
 
         Returns:
-            dict: {"message": str, "confident": bool, "urgent": bool}
+            dict: {"message": str, "confident": bool, "urgent": bool, "edit": bool}
             빈 dict이면 AI 응답 실패.
         """
         try:
@@ -65,12 +74,11 @@ class AIHandler:
             if campaign:
                 situation += f", 캠페인: {campaign}"
 
-            # 학습된 Q&A 사례
+            # 학습된 Q&A 사례 (최대 MAX_LEARNED_QA건)
             learned_qa = context.get("learned_qa", "")
             learned_section = ""
             if learned_qa:
                 learned_section = f"[과거 답변 사례]\n{learned_qa}\n\n"
-
 
             prompt = (
                 f"아래 서비스 가이드와 과거 답변 사례를 참고해 응답을 작성해줘.\n"
@@ -83,20 +91,32 @@ class AIHandler:
                 f"응답:"
             )
 
-            headers = {}
-            if self.api_key:
-                headers["X-API-Key"] = self.api_key
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }],
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 512,
+                },
+            }
 
-            resp = requests.post(
-                f"{self.relay_url}/ai",
-                json={"prompt": prompt},
-                headers=headers,
-                timeout=60,
-            )
-            resp.raise_for_status()
+            url = f"{_GEMINI_URL}?key={self.api_key}"
+            resp = requests.post(url, json=payload, timeout=30)
+
+            if resp.status_code != 200:
+                logger.error("Gemini API 에러: %s %s", resp.status_code, resp.text[:300])
+                return {}
 
             data = resp.json()
-            raw = data.get("response", "")
+            raw = (
+                data.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+                .strip()
+            )
+
             if not raw:
                 return {}
 
@@ -114,8 +134,8 @@ class AIHandler:
             }
 
         except requests.Timeout:
-            logger.warning("AI 릴레이 타임아웃 (60초)")
+            logger.warning("Gemini API 타임아웃 (30초)")
             return {}
         except Exception as e:
-            logger.error(f"AI 릴레이 에러: {e}")
+            logger.error(f"Gemini AI 에러: {e}")
             return {}

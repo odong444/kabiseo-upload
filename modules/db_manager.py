@@ -1448,7 +1448,17 @@ class DBManager:
         return row["cnt"] if row else 0
 
     def get_learned_qa(self, limit: int = 0) -> list[dict]:
-        """답변 완료된 문의 Q&A (AI 학습용). 중복 답변 제거, 누적."""
+        """답변 완료된 문의 Q&A (AI 학습용). 중복 답변 제거, 최근순."""
+        if limit > 0:
+            return self._fetchall(
+                """SELECT message, admin_reply FROM (
+                       SELECT DISTINCT ON (admin_reply) message, admin_reply, replied_at
+                       FROM inquiries
+                       WHERE status = '완료' AND admin_reply != ''
+                       ORDER BY admin_reply, replied_at DESC
+                   ) sub ORDER BY replied_at DESC LIMIT %s""",
+                (limit,)
+            )
         return self._fetchall(
             """SELECT DISTINCT ON (admin_reply) message, admin_reply
                FROM inquiries

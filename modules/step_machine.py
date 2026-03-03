@@ -1584,11 +1584,12 @@ class StepMachine:
         except Exception:
             pass
 
-        # 학습된 Q&A (답변 완료된 문의)
+        # 학습된 Q&A (답변 완료된 문의, 최근 30건)
         learned_qa = ""
         try:
+            from modules.ai_handler import MAX_LEARNED_QA
             if models.db_manager:
-                resolved = models.db_manager.get_learned_qa()
+                resolved = models.db_manager.get_learned_qa(limit=MAX_LEARNED_QA)
                 if resolved:
                     lines = []
                     for qa in resolved:
