@@ -66,7 +66,7 @@
                         <td>{{ item.created_at.strftime('%m/%d %H:%M') if item.created_at else '' }}</td>
                         <td>{{ item.reviewer_name }}</td>
                         <td>{{ item.reviewer_phone }}</td>
-                        <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ item.message }}">{{ item.message[:50] }}{% if item.message|length > 50 %}...{% endif %}</td>
+                        <td style="max-width:300px;" data-msg="{{ item.message }}">{{ item.message[:50] }}{% if item.message|length > 50 %}...{% endif %}</td>
                         <td><span class="admin-status-badge {{ item.status }}">{{ item.status }}</span></td>
                         <td>{% if item.is_urgent %}<span style="color:#ef4444;font-weight:700;">긴급</span>{% endif %}</td>
                         <td>
@@ -132,6 +132,39 @@
 
     var _replyInquiryId = 0;
 
+    function escHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+    function driveThumb(url) {
+        var m = url.match(/\/file\/d\/([^\/]+)/);
+        return m ? 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400' : url;
+    }
+    function renderImgTags(text) {
+        var images = [];
+        var clean = (text || '').replace(/\[IMG:(.*?)\]/g, function(_, url) { images.push(url); return ''; });
+        var html = escHtml(clean).replace(/\n/g, '<br>');
+        images.forEach(function(url) {
+            html += '<div style="margin:6px 0;"><a href="' + escHtml(url) + '" target="_blank"><img src="' + escHtml(driveThumb(url)) + '" style="max-width:260px;max-height:160px;border-radius:6px;border:1px solid #e5e7eb;" loading="lazy"></a></div>';
+        });
+        return html;
+    }
+
+    // 테이블 문의내용 셀에 이미지 표시
+    document.querySelectorAll('td[data-msg]').forEach(function(td) {
+        var msg = td.getAttribute('data-msg') || '';
+        if (msg.indexOf('[IMG:') !== -1) {
+            td.style.whiteSpace = 'normal';
+            td.innerHTML = renderImgTags(msg);
+        } else {
+            td.style.overflow = 'hidden';
+            td.style.textOverflow = 'ellipsis';
+            td.style.whiteSpace = 'nowrap';
+            td.title = msg;
+        }
+    });
+
     function filterStatus(val) {
         var url = '/admin/inquiries';
         if (val) url += '?status=' + val;
@@ -144,13 +177,13 @@
 
         _replyInquiryId = item.id;
         document.getElementById('replyTitle').textContent = (item.reviewer_name || '') + ' 문의 답변';
-        document.getElementById('inquiryMessage').textContent = item.message || '';
+        document.getElementById('inquiryMessage').innerHTML = renderImgTags(item.message || '');
         document.getElementById('replyText').value = '';
 
         var ctxArea = document.getElementById('contextArea');
         var ctx = item.context || '';
         if (ctx.trim()) {
-            document.getElementById('inquiryContext').textContent = ctx;
+            document.getElementById('inquiryContext').innerHTML = renderImgTags(ctx);
             ctxArea.style.display = 'block';
         } else {
             ctxArea.style.display = 'none';
