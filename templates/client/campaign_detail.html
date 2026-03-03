@@ -104,6 +104,15 @@
         .progress-table th { background: #f1f5f9; color: #475569; font-weight: 600; padding: 10px 12px; text-align: left; border-bottom: 2px solid #e2e8f0; position: sticky; top: 0; }
         .progress-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
         .progress-table tr:hover td { background: #f8fafc; }
+        .paging-bar { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; flex-wrap: wrap; gap: 8px; }
+        .page-size-select { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; }
+        .page-size-select select { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #fff; }
+        .page-btns { display: flex; align-items: center; gap: 4px; }
+        .page-btns button { padding: 5px 10px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; font-size: 13px; cursor: pointer; color: #374151; }
+        .page-btns button:hover:not(:disabled) { background: #f1f5f9; }
+        .page-btns button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .page-btns .active { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .page-info { font-size: 13px; color: #6b7280; }
         .progress-table .status-badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
         .sb-신청, .sb-가이드전달 { background: #dbeafe; color: #1e40af; }
         .sb-구매완료 { background: #fef3c7; color: #92400e; }
@@ -264,6 +273,10 @@
                             <th>신청일</th>
                             <th>상품명</th>
                             <th>수취인명</th>
+                            <th>연락처</th>
+                            <th>아이디</th>
+                            <th>주문번호</th>
+                            <th>주소</th>
                             <th>상태</th>
                             <th>구매일</th>
                             <th>구매캡쳐</th>
@@ -274,24 +287,21 @@
                             <th>알림</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for p in progress_list %}
-                        <tr>
-                            <td>{{ p.date_str or '-' }}</td>
-                            <td>{{ p.product_name or '-' }}</td>
-                            <td>{{ p.recipient_name or p.reviewer_name or '-' }}</td>
-                            <td><span class="status-badge sb-{{ p.status or '' }}">{{ p.status or '-' }}</span></td>
-                            <td>{{ p.purchase_date or '-' }}</td>
-                            <td>{% if p.purchase_capture_url %}<a href="{{ p.purchase_capture_url }}" target="_blank" class="capture-link">보기</a>{% else %}-{% endif %}</td>
-                            <td>{{ p.review_deadline or '-' }}</td>
-                            <td>{% if p.review_capture_url %}<a href="{{ p.review_capture_url }}" target="_blank" class="capture-link">보기</a>{% else %}-{% endif %}</td>
-                            <td>{% if p.ai_review_result %}<span title="{{ p.ai_review_reason or '' }}">{{ p.ai_review_result }}</span>{% else %}-{% endif %}</td>
-                            <td>{{ p.remark or '-' }}</td>
-                            <td><button class="btn-notify" onclick="openNotifyModal({{ p.id }}, '{{ (p.recipient_name or p.reviewer_name or '')|e }}')">알림</button></td>
-                        </tr>
-                        {% endfor %}
+                    <tbody id="progressBody">
                     </tbody>
                 </table>
+            </div>
+            <div class="paging-bar">
+                <div class="page-size-select">
+                    <span>표시</span>
+                    <select id="pageSize" onchange="changePageSize()">
+                        <option value="10">10건</option>
+                        <option value="30" selected>30건</option>
+                        <option value="50">50건</option>
+                    </select>
+                </div>
+                <div class="page-info" id="pageInfo"></div>
+                <div class="page-btns" id="pageBtns"></div>
             </div>
         </div>
         {% endif %}
@@ -376,6 +386,96 @@
     </div>
 
     <script>
+    // ── 진행건 데이터 + 페이징 ──
+    var _allRows = [
+        {% for p in progress_list %}
+        {
+            id: {{ p.id }},
+            date_str: "{{ p.date_str or '-' }}",
+            product_name: "{{ (p.product_name or '-')|e }}",
+            recipient_name: "{{ (p.recipient_name or p.reviewer_name or '-')|e }}",
+            phone: "{{ (p.phone or '-')|e }}",
+            store_id: "{{ (p.store_id or '-')|e }}",
+            order_number: "{{ (p.order_number or '-')|e }}",
+            address: "{{ (p.address or '-')|e }}",
+            status: "{{ (p.status or '-')|e }}",
+            purchase_date: "{{ p.purchase_date or '-' }}",
+            purchase_capture_url: "{{ (p.purchase_capture_url or '')|e }}",
+            review_deadline: "{{ p.review_deadline or '-' }}",
+            review_capture_url: "{{ (p.review_capture_url or '')|e }}",
+            ai_review_result: "{{ (p.ai_review_result or '')|e }}",
+            ai_review_reason: "{{ (p.ai_review_reason or '')|e }}",
+            remark: "{{ (p.remark or '-')|e }}"
+        }{{ "," if not loop.last }}
+        {% endfor %}
+    ];
+    var _page = 1;
+    var _pageSize = 30;
+
+    function renderTable() {
+        var total = _allRows.length;
+        var totalPages = Math.ceil(total / _pageSize) || 1;
+        if (_page > totalPages) _page = totalPages;
+        var start = (_page - 1) * _pageSize;
+        var end = Math.min(start + _pageSize, total);
+        var rows = _allRows.slice(start, end);
+
+        var html = '';
+        for (var i = 0; i < rows.length; i++) {
+            var p = rows[i];
+            var capLink = p.purchase_capture_url
+                ? '<a href="' + p.purchase_capture_url + '" target="_blank" class="capture-link">보기</a>' : '-';
+            var revLink = p.review_capture_url
+                ? '<a href="' + p.review_capture_url + '" target="_blank" class="capture-link">보기</a>' : '-';
+            var ai = p.ai_review_result
+                ? '<span title="' + p.ai_review_reason + '">' + p.ai_review_result + '</span>' : '-';
+            html += '<tr>'
+                + '<td>' + p.date_str + '</td>'
+                + '<td>' + p.product_name + '</td>'
+                + '<td>' + p.recipient_name + '</td>'
+                + '<td>' + p.phone + '</td>'
+                + '<td>' + p.store_id + '</td>'
+                + '<td>' + p.order_number + '</td>'
+                + '<td>' + p.address + '</td>'
+                + '<td><span class="status-badge sb-' + p.status + '">' + p.status + '</span></td>'
+                + '<td>' + p.purchase_date + '</td>'
+                + '<td>' + capLink + '</td>'
+                + '<td>' + p.review_deadline + '</td>'
+                + '<td>' + revLink + '</td>'
+                + '<td>' + ai + '</td>'
+                + '<td>' + p.remark + '</td>'
+                + '<td><button class="btn-notify" onclick="openNotifyModal(' + p.id + ",'" + p.recipient_name + "'" + ')">알림</button></td>'
+                + '</tr>';
+        }
+        document.getElementById('progressBody').innerHTML = html;
+
+        // 페이지 정보
+        document.getElementById('pageInfo').textContent = total + '건 중 ' + (start + 1) + '-' + end + '건';
+
+        // 페이지 버튼
+        var btns = '<button onclick="goPage(1)" ' + (_page <= 1 ? 'disabled' : '') + '>&laquo;</button>';
+        btns += '<button onclick="goPage(' + (_page - 1) + ')" ' + (_page <= 1 ? 'disabled' : '') + '>&lsaquo;</button>';
+        var startP = Math.max(1, _page - 2);
+        var endP = Math.min(totalPages, startP + 4);
+        if (endP - startP < 4) startP = Math.max(1, endP - 4);
+        for (var pg = startP; pg <= endP; pg++) {
+            btns += '<button onclick="goPage(' + pg + ')" class="' + (pg === _page ? 'active' : '') + '">' + pg + '</button>';
+        }
+        btns += '<button onclick="goPage(' + (_page + 1) + ')" ' + (_page >= totalPages ? 'disabled' : '') + '>&rsaquo;</button>';
+        btns += '<button onclick="goPage(' + totalPages + ')" ' + (_page >= totalPages ? 'disabled' : '') + '>&raquo;</button>';
+        document.getElementById('pageBtns').innerHTML = btns;
+    }
+
+    function goPage(p) { _page = p; renderTable(); }
+    function changePageSize() {
+        _pageSize = parseInt(document.getElementById('pageSize').value);
+        _page = 1;
+        renderTable();
+    }
+
+    if (_allRows.length > 0) renderTable();
+
+    // ── 카톡 모달 ──
     let _progressId = null;
 
     function openNotifyModal(progressId, name) {
