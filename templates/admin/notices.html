@@ -64,7 +64,10 @@
                 <input type="number" id="noticePriority" placeholder="우선순위" value="0" style="width:80px;">
             </div>
             <textarea id="noticeContent" placeholder="공지 내용"></textarea>
-            <div style="text-align:right;margin-top:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+                <label style="font-size:13px;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                    <input type="checkbox" id="noticeVoteEnabled"> 투표 사용 (좋아요/싫어요)
+                </label>
                 <button class="btn btn-primary btn-sm" onclick="createNotice()">공지 등록</button>
             </div>
         </div>
@@ -75,6 +78,7 @@
                     <th>제목</th>
                     <th>유형</th>
                     <th>우선순위</th>
+                    <th>반응</th>
                     <th>상태</th>
                     <th>작성일</th>
                     <th>관리</th>
@@ -94,6 +98,14 @@
                         {% endif %}
                     </td>
                     <td style="text-align:center;">{{ n.priority }}</td>
+                    <td style="text-align:center;font-size:13px;">
+                        {% if n.vote_enabled %}
+                        {% set vs = vote_stats.get(n.id, {"like": 0, "dislike": 0}) %}
+                        &#x1f44d;{{ vs.like }} &#x1f44e;{{ vs.dislike }}
+                        {% else %}
+                        <span style="color:#d1d5db;">-</span>
+                        {% endif %}
+                    </td>
                     <td style="text-align:center;">
                         <button class="toggle-btn {{ 'on' if n.is_active else 'off' }}" onclick="toggleNotice({{ n.id }}, this)">{{ '활성' if n.is_active else '비활성' }}</button>
                     </td>
@@ -105,7 +117,7 @@
                 </tr>
                 {% endfor %}
                 {% if not notices %}
-                <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:40px;">등록된 공지가 없습니다</td></tr>
+                <tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:40px;">등록된 공지가 없습니다</td></tr>
                 {% endif %}
             </tbody>
         </table>
@@ -146,6 +158,11 @@
                     <input type="number" id="editPriority" style="width:70px;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;">
                 </div>
             </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:13px;color:#6b7280;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                    <input type="checkbox" id="editVoteEnabled"> 투표 사용 (좋아요/싫어요)
+                </label>
+            </div>
             <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end;">
                 <button class="btn btn-sm" onclick="closeEditModal()">취소</button>
                 <button class="btn btn-primary btn-sm" onclick="saveEdit()">저장</button>
@@ -175,10 +192,11 @@
         var ntype = document.getElementById('noticeType').value;
         var cid = document.getElementById('noticeCampaign').value;
         var priority = parseInt(document.getElementById('noticePriority').value) || 0;
+        var voteEnabled = document.getElementById('noticeVoteEnabled').checked;
         if (!title) { alert('제목을 입력해주세요'); return; }
         fetch('/admin/api/notice', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({title: title, content: content, notice_type: ntype, campaign_id: cid, priority: priority})
+            body: JSON.stringify({title: title, content: content, notice_type: ntype, campaign_id: cid, priority: priority, vote_enabled: voteEnabled})
         }).then(function(r) { return r.json(); }).then(function(d) {
             if (d.ok) { showToast('공지 등록 완료'); location.reload(); }
             else { alert(d.error || '등록 실패'); }
@@ -213,6 +231,7 @@
         document.getElementById('editType').value = n.notice_type || 'global';
         document.getElementById('editCampaign').value = n.campaign_id || '';
         document.getElementById('editPriority').value = n.priority || 0;
+        document.getElementById('editVoteEnabled').checked = !!n.vote_enabled;
         toggleEditCampaign();
         document.getElementById('editModal').style.display = 'flex';
     }
@@ -233,7 +252,8 @@
             content: document.getElementById('editContent').value.trim(),
             notice_type: document.getElementById('editType').value,
             campaign_id: document.getElementById('editCampaign').value,
-            priority: parseInt(document.getElementById('editPriority').value) || 0
+            priority: parseInt(document.getElementById('editPriority').value) || 0,
+            vote_enabled: document.getElementById('editVoteEnabled').checked
         };
         if (!data.title) { alert('제목을 입력해주세요'); return; }
         fetch('/admin/api/notice/' + id, {

@@ -170,6 +170,8 @@ def _promotion_loop():
                     submitted = _submit_promotion_tasks()
                     if submitted > 0:
                         logger.info("=== 홍보 태스크 %d건 등록 ===", submitted)
+                    # 기존리뷰어 1:1 모집 (하루 1회)
+                    recruit_count = _submit_reviewer_recruit_tasks()
                     last_promotion_time = now
         except Exception as e:
             import traceback
@@ -258,6 +260,105 @@ def _submit_promotion_tasks() -> int:
                 logger.info("홍보 태스크 등록: [%s] → [%s] (tid=%s)",
                             product_name, room_name, tid)
 
+    return submitted
+
+
+# 기존리뷰어 모집 — 마지막 실행 날짜 (하루 1회 제한)
+_last_recruit_date = ""
+
+
+def _submit_reviewer_recruit_tasks() -> int:
+    """기존리뷰어 1:1 모집 메시지 전송.
+
+    promo_categories에 '기존리뷰어'가 포함된 캠페인에 대해
+    Railway DB에서 미발송 리뷰어 목록을 가져와 promotion 태스크로 등록.
+    하루 1회만 실행.
+    """
+    global _last_recruit_date
+    if not promoter:
+        return 0
+
+    from datetime import datetime, timezone, timedelta
+    KST = timezone(timedelta(hours=9))
+    today = datetime.now(KST).strftime("%Y-%m-%d")
+    if _last_recruit_date == today:
+        return 0
+    _last_recruit_date = today
+
+    # Railway API에서 홍보 필요 캠페인 가져오기
+    campaigns = promoter.fetch_campaigns()
+    if not campaigns:
+        return 0
+
+    submitted = 0
+    cfg = _load_config()
+    railway_url = cfg.get("railway_url", "").rstrip("/")
+    api_key = cfg.get("api_key", "")
+
+    for campaign in campaigns:
+        campaign_id = campaign.get("캠페인ID", "")
+        recruit_msg = campaign.get("모집글", "")
+        if not recruit_msg or not campaign_id:
+            continue
+
+        # "기존리뷰어" 카테고리 체크
+        cat_str = campaign.get("_promo_categories", "")
+        categories = {c.strip() for c in cat_str.split(",") if c.strip()}
+        if "기존리뷰어" not in categories:
+            continue
+
+        # Railway에서 모집 대상 가져오기
+        try:
+            resp = requests.get(
+                f"{railway_url}/api/campaigns/{campaign_id}/recruit-targets",
+                headers={"X-API-Key": api_key},
+                params={"limit": 50},
+                timeout=10,
+            )
+            if not resp.ok:
+                logger.warning("모집 대상 API 실패: %s → %s", campaign_id, resp.status_code)
+                continue
+            targets = resp.json().get("targets", [])
+        except Exception as e:
+            logger.warning("모집 대상 API 오류: %s → %s", campaign_id, e)
+            continue
+
+        if not targets:
+            logger.info("모집 대상 없음: %s", campaign_id)
+            continue
+
+        product_name = campaign.get("상품명", "")
+        for t in targets:
+            name = t.get("name", "")
+            phone = t.get("phone", "")
+            if not name or not phone:
+                continue
+
+            friend_name = f"{name} {phone}"
+            tid = task_queue.submit("promotion", {
+                "room_name": friend_name,
+                "room_type": "normal",
+                "message": recruit_msg,
+                "campaign_id": campaign_id,
+            }, priority=TaskQueue.PRIORITY_LOW)
+
+            if tid:
+                # 발송 기록 (Railway DB에 기록)
+                try:
+                    requests.post(
+                        f"{railway_url}/api/campaigns/{campaign_id}/recruit-sent",
+                        json={"name": name, "phone": phone},
+                        headers={"X-API-Key": api_key},
+                        timeout=5,
+                    )
+                except Exception:
+                    pass
+                submitted += 1
+                logger.info("리뷰어 모집 태스크: [%s] → %s (tid=%s)",
+                            product_name, friend_name, tid)
+
+    if submitted:
+        logger.info("=== 리뷰어 모집 태스크 %d건 등록 ===", submitted)
     return submitted
 
 

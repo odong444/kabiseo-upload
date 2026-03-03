@@ -314,8 +314,18 @@ CREATE TABLE IF NOT EXISTS notices (
     campaign_id     TEXT DEFAULT '',
     is_active       BOOLEAN DEFAULT TRUE,
     priority        INTEGER DEFAULT 0,
+    vote_enabled    BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
     updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS notice_votes (
+    id          SERIAL PRIMARY KEY,
+    notice_id   INTEGER NOT NULL REFERENCES notices(id) ON DELETE CASCADE,
+    phone       TEXT NOT NULL,
+    vote        TEXT NOT NULL CHECK (vote IN ('like', 'dislike')),
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(notice_id, phone)
 );
 """
 
@@ -445,6 +455,11 @@ class DBManager:
                 try:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS client_id INTEGER")
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS reject_reason TEXT DEFAULT ''")
+                except Exception:
+                    pass
+                # notices.vote_enabled 컬럼 마이그레이션
+                try:
+                    cur.execute("ALTER TABLE notices ADD COLUMN IF NOT EXISTS vote_enabled BOOLEAN DEFAULT FALSE")
                 except Exception:
                     pass
                 # 기존 purchase_date 빈 건 일괄 수정 (구매캡쳐 있으면 created_at 기준)
@@ -2269,15 +2284,15 @@ class DBManager:
 
     def create_notice(self, title: str, content: str,
                       notice_type: str = "global", campaign_id: str = "",
-                      priority: int = 0) -> int:
+                      priority: int = 0, vote_enabled: bool = False) -> int:
         return self._execute_returning(
-            """INSERT INTO notices (title, content, notice_type, campaign_id, priority)
-               VALUES (%s, %s, %s, %s, %s) RETURNING id""",
-            (title, content, notice_type, campaign_id, priority)
+            """INSERT INTO notices (title, content, notice_type, campaign_id, priority, vote_enabled)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+            (title, content, notice_type, campaign_id, priority, vote_enabled)
         )
 
     def update_notice(self, notice_id: int, **kwargs):
-        allowed = ("title", "content", "notice_type", "campaign_id", "is_active", "priority")
+        allowed = ("title", "content", "notice_type", "campaign_id", "is_active", "priority", "vote_enabled")
         sets = []
         vals = []
         for k, v in kwargs.items():
@@ -2300,6 +2315,69 @@ class DBManager:
             "UPDATE notices SET is_active = NOT is_active, updated_at = NOW() WHERE id = %s",
             (notice_id,)
         )
+
+    # ─── 공지 투표 ───
+
+    def vote_notice(self, notice_id: int, phone: str, vote: str) -> str:
+        """공지 투표. 같은 값이면 취소(DELETE), 다른 값이면 변경. 반환: 'voted'|'changed'|'cancelled'"""
+        existing = self._fetchone(
+            "SELECT vote FROM notice_votes WHERE notice_id = %s AND phone = %s",
+            (notice_id, phone)
+        )
+        if existing:
+            if existing["vote"] == vote:
+                self._execute(
+                    "DELETE FROM notice_votes WHERE notice_id = %s AND phone = %s",
+                    (notice_id, phone)
+                )
+                return "cancelled"
+            else:
+                self._execute(
+                    "UPDATE notice_votes SET vote = %s, created_at = NOW() WHERE notice_id = %s AND phone = %s",
+                    (vote, notice_id, phone)
+                )
+                return "changed"
+        else:
+            self._execute(
+                "INSERT INTO notice_votes (notice_id, phone, vote) VALUES (%s, %s, %s)",
+                (notice_id, phone, vote)
+            )
+            return "voted"
+
+    def get_notice_votes(self, notice_id: int) -> dict:
+        """공지 투표 통계"""
+        rows = self._fetchall(
+            "SELECT vote, COUNT(*) as cnt FROM notice_votes WHERE notice_id = %s GROUP BY vote",
+            (notice_id,)
+        )
+        result = {"like": 0, "dislike": 0}
+        for r in rows:
+            result[r["vote"]] = r["cnt"]
+        return result
+
+    def get_notice_votes_bulk(self, notice_ids: list) -> dict:
+        """여러 공지 투표 통계 한번에"""
+        if not notice_ids:
+            return {}
+        rows = self._fetchall(
+            "SELECT notice_id, vote, COUNT(*) as cnt FROM notice_votes WHERE notice_id = ANY(%s) GROUP BY notice_id, vote",
+            (notice_ids,)
+        )
+        result = {}
+        for r in rows:
+            nid = r["notice_id"]
+            if nid not in result:
+                result[nid] = {"like": 0, "dislike": 0}
+            result[nid][r["vote"]] = r["cnt"]
+        return result
+
+    def get_user_notice_vote(self, notice_id: int, phone: str) -> str:
+        """유저의 현재 투표 상태 ('like'|'dislike'|'')"""
+        row = self._fetchone(
+            "SELECT vote FROM notice_votes WHERE notice_id = %s AND phone = %s",
+            (notice_id, phone)
+        )
+        return row["vote"] if row else ""
 
     # ─── 업체 (Clients) ─────────────────────────────────────────
 

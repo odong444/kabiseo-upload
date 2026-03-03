@@ -31,6 +31,12 @@
             <div style="font-size:22px;margin-bottom:10px;">&#x1f4e2;</div>
             <div id="noticeBannerTitle" style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:8px;"></div>
             <div id="noticeBannerContent" style="font-size:14px;color:#4b5563;line-height:1.6;white-space:pre-line;margin-bottom:20px;"></div>
+            <div id="noticeVoteArea" style="display:none;margin-bottom:16px;">
+                <div style="display:flex;gap:10px;justify-content:center;">
+                    <button id="noticeLikeBtn" onclick="voteNotice('like')" style="background:#f0fdf4;color:#16a34a;border:2px solid #bbf7d0;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;">&#x1f44d; <span id="noticeLikeCnt">0</span></button>
+                    <button id="noticeDislikeBtn" onclick="voteNotice('dislike')" style="background:#fef2f2;color:#dc2626;border:2px solid #fecaca;border-radius:10px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s;">&#x1f44e; <span id="noticeDislikeCnt">0</span></button>
+                </div>
+            </div>
             <div style="display:flex;gap:10px;justify-content:center;">
                 <button onclick="dismissNotice('today')" style="background:#f3f4f6;color:#4b5563;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">오늘 보지 않기</button>
                 <button onclick="dismissNotice('forever')" style="background:#3b82f6;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;">다시 보지 않기</button>
@@ -236,6 +242,16 @@
                     document.getElementById('noticeBannerContent').textContent = notice.content || '';
                     var nb = document.getElementById('noticeOverlay');
                     nb.dataset.noticeId = notice.id;
+                    // 투표 UI
+                    if (notice.vote_enabled) {
+                        document.getElementById('noticeVoteArea').style.display = 'block';
+                        document.getElementById('noticeLikeCnt').textContent = (notice.votes && notice.votes.like) || 0;
+                        document.getElementById('noticeDislikeCnt').textContent = (notice.votes && notice.votes.dislike) || 0;
+                        nb.dataset.myVote = notice.my_vote || '';
+                        updateVoteBtnStyle(notice.my_vote || '');
+                    } else {
+                        document.getElementById('noticeVoteArea').style.display = 'none';
+                    }
                     nb.style.display = 'flex';
                 })
                 .catch(function() {});
@@ -307,6 +323,40 @@
                 localStorage.setItem('kabiseo_dismissed_notices', JSON.stringify(dismissed));
             }
             nb.style.display = 'none';
+        };
+
+        function updateVoteBtnStyle(myVote) {
+            var likeBtn = document.getElementById('noticeLikeBtn');
+            var dislikeBtn = document.getElementById('noticeDislikeBtn');
+            if (myVote === 'like') {
+                likeBtn.style.background = '#16a34a'; likeBtn.style.color = '#fff'; likeBtn.style.borderColor = '#16a34a';
+                dislikeBtn.style.background = '#fef2f2'; dislikeBtn.style.color = '#dc2626'; dislikeBtn.style.borderColor = '#fecaca';
+            } else if (myVote === 'dislike') {
+                dislikeBtn.style.background = '#dc2626'; dislikeBtn.style.color = '#fff'; dislikeBtn.style.borderColor = '#dc2626';
+                likeBtn.style.background = '#f0fdf4'; likeBtn.style.color = '#16a34a'; likeBtn.style.borderColor = '#bbf7d0';
+            } else {
+                likeBtn.style.background = '#f0fdf4'; likeBtn.style.color = '#16a34a'; likeBtn.style.borderColor = '#bbf7d0';
+                dislikeBtn.style.background = '#fef2f2'; dislikeBtn.style.color = '#dc2626'; dislikeBtn.style.borderColor = '#fecaca';
+            }
+        }
+
+        window.voteNotice = function(vote) {
+            var nb = document.getElementById('noticeOverlay');
+            var nid = nb.dataset.noticeId;
+            if (!nid) return;
+            try { var u = JSON.parse(localStorage.getItem('kabiseo_user')); } catch(e) { return; }
+            if (!u || !u.phone) return;
+            fetch('/api/notices/' + nid + '/vote', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({phone: u.phone, vote: vote})
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.ok) {
+                    document.getElementById('noticeLikeCnt').textContent = d.votes.like || 0;
+                    document.getElementById('noticeDislikeCnt').textContent = d.votes.dislike || 0;
+                    nb.dataset.myVote = d.my_vote || '';
+                    updateVoteBtnStyle(d.my_vote || '');
+                }
+            }).catch(function() {});
         };
 
         // 문의 답변 알림 팝업

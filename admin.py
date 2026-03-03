@@ -2405,10 +2405,13 @@ def quote_preview(quote_id):
 def notices():
     items = []
     campaigns = []
+    vote_stats = {}
     if models.db_manager:
         items = models.db_manager.get_notices()
         campaigns = models.db_manager.get_all_campaigns()
-    return render_template("admin/notices.html", notices=items, campaigns=campaigns)
+        notice_ids = [n["id"] for n in items]
+        vote_stats = models.db_manager.get_notice_votes_bulk(notice_ids)
+    return render_template("admin/notices.html", notices=items, campaigns=campaigns, vote_stats=vote_stats)
 
 
 @admin_bp.route("/api/notice", methods=["POST"])
@@ -2424,7 +2427,8 @@ def api_notice_create():
     notice_type = data.get("notice_type", "global")
     campaign_id = data.get("campaign_id", "") if notice_type == "campaign" else ""
     priority = int(data.get("priority", 0))
-    nid = models.db_manager.create_notice(title, content, notice_type, campaign_id, priority)
+    vote_enabled = bool(data.get("vote_enabled", False))
+    nid = models.db_manager.create_notice(title, content, notice_type, campaign_id, priority, vote_enabled)
     return jsonify({"ok": True, "id": nid})
 
 
@@ -2435,7 +2439,7 @@ def api_notice_update(notice_id):
         return jsonify({"ok": False, "error": "시스템 초기화 중"})
     data = request.get_json(silent=True) or {}
     kwargs = {}
-    for k in ("title", "content", "notice_type", "campaign_id", "priority"):
+    for k in ("title", "content", "notice_type", "campaign_id", "priority", "vote_enabled"):
         if k in data:
             kwargs[k] = data[k]
     if "notice_type" in kwargs and kwargs["notice_type"] != "campaign":

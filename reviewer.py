@@ -807,11 +807,42 @@ def api_notices_active():
             pass
 
     notices = models.db_manager.get_active_notices(campaign_ids or None)
+    # 투표 통계 일괄 조회
+    notice_ids = [n["id"] for n in notices]
+    vote_stats = models.db_manager.get_notice_votes_bulk(notice_ids) if notice_ids else {}
+    # 유저 투표 상태
+    user_votes = {}
+    if phone:
+        for nid in notice_ids:
+            uv = models.db_manager.get_user_notice_vote(nid, phone)
+            if uv:
+                user_votes[nid] = uv
     return jsonify({"notices": [
         {"id": n["id"], "title": n["title"], "content": n["content"],
-         "notice_type": n["notice_type"], "priority": n.get("priority", 0)}
+         "notice_type": n["notice_type"], "priority": n.get("priority", 0),
+         "vote_enabled": n.get("vote_enabled", False),
+         "votes": vote_stats.get(n["id"], {"like": 0, "dislike": 0}),
+         "my_vote": user_votes.get(n["id"], "")}
         for n in notices
     ]})
+
+
+@reviewer_bp.route("/api/notices/<int:notice_id>/vote", methods=["POST"])
+def api_notice_vote(notice_id):
+    """공지 투표 (좋아요/싫어요)"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    phone = data.get("phone", "").strip()
+    vote = data.get("vote", "").strip()
+    if not phone:
+        return jsonify({"ok": False, "error": "phone 필수"})
+    if vote not in ("like", "dislike"):
+        return jsonify({"ok": False, "error": "like 또는 dislike"})
+    result = models.db_manager.vote_notice(notice_id, phone, vote)
+    votes = models.db_manager.get_notice_votes(notice_id)
+    my_vote = models.db_manager.get_user_notice_vote(notice_id, phone)
+    return jsonify({"ok": True, "result": result, "votes": votes, "my_vote": my_vote})
 
 
 @reviewer_bp.route("/api/kakao-friend-status")
