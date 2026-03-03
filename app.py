@@ -365,33 +365,6 @@ def api_fix_campaigns_public():
         return jsonify({"ok": False, "error": str(e)})
 
 
-@app.route("/api/debug/fix-client-id")
-def api_debug_fix_client_id():
-    """임시: client_id NULL인 캠페인 조회 + 수정"""
-    if not models.db_manager:
-        return jsonify({"ok": False, "error": "db_manager is None"})
-    try:
-        # 조회
-        rows = models.db_manager._fetchall(
-            "SELECT id, campaign_name, product_name, status, client_id, company FROM campaigns ORDER BY created_at DESC LIMIT 20"
-        )
-        # client_id 지정
-        cid_param = request.args.get("set_client_id", "")
-        campaign_param = request.args.get("campaign_id", "")
-        updated = None
-        if cid_param and campaign_param:
-            models.db_manager._execute(
-                "UPDATE campaigns SET client_id = %s WHERE id = %s",
-                (int(cid_param), campaign_param)
-            )
-            updated = f"campaign {campaign_param} → client_id={cid_param}"
-        # clients 목록
-        clients = models.db_manager._fetchall("SELECT id, login_id, company_name FROM clients")
-        return jsonify({"ok": True, "campaigns": rows, "clients": clients, "updated": updated})
-    except Exception as e:
-        import traceback
-        return jsonify({"ok": False, "error": str(e), "tb": traceback.format_exc()})
-
 
 @app.route("/api/debug/campaigns")
 def api_debug_campaigns():
