@@ -11,6 +11,7 @@ from functools import wraps
 from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify, flash, Response
 
 import models
+from modules.utils import safe_int
 
 logger = logging.getLogger(__name__)
 
