@@ -945,22 +945,36 @@
         promoTextarea.addEventListener('input', updateKakaoPreview);
     })();
 
-    // 업체(클라이언트) 선택 시 업체명 자동 채우기 + 대행사 연동
+    // 대행사 선택 → 클라이언트 필터링
     (function() {
         var clientSelect = document.getElementById('clientSelect');
         var agencySelect = document.getElementById('agencySelect');
-        if (!clientSelect) return;
+        if (!clientSelect || !agencySelect) return;
+
+        function filterClients() {
+            var agencyId = agencySelect.value;
+            var opts = clientSelect.options;
+            for (var i = 1; i < opts.length; i++) {
+                var oa = opts[i].dataset.agency || '';
+                opts[i].style.display = (!agencyId || oa === agencyId) ? '' : 'none';
+            }
+            if (clientSelect.value && clientSelect.options[clientSelect.selectedIndex].style.display === 'none') {
+                clientSelect.value = '';
+            }
+        }
+
+        agencySelect.addEventListener('change', filterClients);
+
         clientSelect.addEventListener('change', function() {
             var sel = this.options[this.selectedIndex];
             if (sel.value) {
                 var nameInput = document.querySelector('input[name="업체명"]');
                 if (nameInput) nameInput.value = sel.dataset.name || '';
-                // 대행사 자동 선택
-                if (agencySelect && sel.dataset.agency) {
-                    agencySelect.value = sel.dataset.agency;
-                }
+                if (sel.dataset.agency) agencySelect.value = sel.dataset.agency;
             }
         });
+
+        filterClients();
     })();
     </script>
 </body>
