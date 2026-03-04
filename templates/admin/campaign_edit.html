@@ -6,6 +6,11 @@
     <title>카비서 관리자 - 캠페인 수정</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
+        .hidden { display: none !important; }
+        .radio-group { display: flex; gap: 16px; align-items: center; padding: 10px 0; }
+        .radio-group label { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; margin-bottom: 0; }
+        .radio-group input[type="radio"] { width: auto; margin: 0; }
+        .dup-days-input { display: inline-block; width: 80px; margin: 0 6px; }
         .file-upload-area {
             border: 2px dashed #ddd; border-radius: 8px; padding: 20px;
             text-align: center; cursor: pointer; transition: border-color 0.2s;
@@ -172,7 +177,18 @@
                 <!-- 플랫폼 / 캠페인유형 -->
                 <div class="form-group">
                     <label>플랫폼</label>
-                    <input type="text" name="플랫폼" value="{{ campaign.get('플랫폼', '') }}">
+                    {% set cp = campaign.get('플랫폼', '') %}
+                    {% set known_platforms = ['스마트스토어','쿠팡','오늘의집','11번가','지마켓','올리브영'] %}
+                    <select name="플랫폼" id="platformSelect">
+                        <option value="스마트스토어" {{ 'selected' if cp == '스마트스토어' }}>스마트스토어</option>
+                        <option value="쿠팡" {{ 'selected' if cp == '쿠팡' }}>쿠팡</option>
+                        <option value="오늘의집" {{ 'selected' if cp == '오늘의집' }}>오늘의집</option>
+                        <option value="11번가" {{ 'selected' if cp == '11번가' }}>11번가</option>
+                        <option value="지마켓" {{ 'selected' if cp == '지마켓' }}>지마켓</option>
+                        <option value="올리브영" {{ 'selected' if cp == '올리브영' }}>올리브영</option>
+                        <option value="기타" {{ 'selected' if cp and cp not in known_platforms }}>기타 (직접입력)</option>
+                    </select>
+                    <input type="text" id="platformCustom" value="{{ cp if cp and cp not in known_platforms else '' }}" placeholder="플랫폼명 입력" style="margin-top:6px;{{ '' if cp and cp not in known_platforms else 'display:none;' }}">
                 </div>
                 <div class="form-group">
                     <label>캠페인유형</label>
@@ -309,11 +325,18 @@
                 <div class="form-group form-group-full">
                     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
                         <div>
-                            <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">중복허용</label>
-                            <select name="중복허용" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
-                                <option value="" {{ 'selected' if not campaign.get('중복허용', '') }}>N (기본: 불허)</option>
-                                <option value="Y" {{ 'selected' if campaign.get('중복허용', '') == 'Y' }}>Y (허용)</option>
-                            </select>
+                            {% set dup_val = campaign.get('중복허용', '') %}
+                            <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">중복진행 가능여부</label>
+                            <div class="radio-group" style="padding:4px 0;flex-wrap:wrap;">
+                                <label><input type="radio" name="중복진행" value="Y" {{ 'checked' if dup_val == 'Y' }}> 가능</label>
+                                <label><input type="radio" name="중복진행" value="N" {{ 'checked' if not dup_val or dup_val == 'N' }}> 불가능</label>
+                                <label>
+                                    <input type="radio" name="중복진행" value="텀" id="dupTermRadio" {{ 'checked' if dup_val and dup_val.startswith('텀') }}> 텀
+                                    <input type="number" class="dup-days-input {{ '' if dup_val and dup_val.startswith('텀') else 'hidden' }}" id="dupDaysInput" min="1" placeholder="일" value="{{ dup_val.split(':')[1] if dup_val and ':' in dup_val else '' }}">
+                                    <span class="{{ '' if dup_val and dup_val.startswith('텀') else 'hidden' }}" id="dupDaysLabel">일</span>
+                                </label>
+                            </div>
+                            <input type="hidden" name="중복허용" id="dupAllowValue" value="{{ dup_val }}">
                         </div>
                         <div>
                             <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">키워드</label>
@@ -676,9 +699,65 @@
         window.updateKakaoPreview();
     })();
 
-    // 폼 제출 전 구매시간 값 확인
+    // 플랫폼 기타 토글
+    (function() {
+        var platformSelect = document.getElementById('platformSelect');
+        var platformCustom = document.getElementById('platformCustom');
+        if (platformSelect && platformCustom) {
+            platformSelect.addEventListener('change', function() {
+                platformCustom.style.display = (this.value === '기타') ? '' : 'none';
+                if (this.value !== '기타') platformCustom.value = '';
+            });
+        }
+    })();
+
+    // 중복진행 라디오 → hidden 중복허용 값 동기화
+    (function() {
+        var dupRadios = document.querySelectorAll('input[name="중복진행"]');
+        var dupDaysInput = document.getElementById('dupDaysInput');
+        var dupDaysLabel = document.getElementById('dupDaysLabel');
+        var dupAllowValue = document.getElementById('dupAllowValue');
+        if (!dupRadios.length || !dupAllowValue) return;
+
+        dupRadios.forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                if (this.value === '텀') {
+                    dupDaysInput.classList.remove('hidden');
+                    dupDaysLabel.classList.remove('hidden');
+                    dupDaysInput.focus();
+                } else {
+                    dupDaysInput.classList.add('hidden');
+                    dupDaysLabel.classList.add('hidden');
+                    dupDaysInput.value = '';
+                }
+                updateDupValue();
+            });
+        });
+        dupDaysInput.addEventListener('input', updateDupValue);
+
+        function updateDupValue() {
+            var checked = document.querySelector('input[name="중복진행"]:checked');
+            if (!checked) return;
+            if (checked.value === '텀') {
+                dupAllowValue.value = '텀:' + (dupDaysInput.value || '30');
+            } else {
+                dupAllowValue.value = checked.value;
+            }
+        }
+    })();
+
+    // 폼 제출 전 구매시간 + 플랫폼 값 확인
     document.querySelector('form').addEventListener('submit', function() {
         updateBuyTime();
+        // 플랫폼 기타 값 적용
+        var ps = document.getElementById('platformSelect');
+        var pc = document.getElementById('platformCustom');
+        if (ps && pc && ps.value === '기타' && pc.value.trim()) {
+            ps.name = '';
+            var h = document.createElement('input');
+            h.type = 'hidden'; h.name = '플랫폼'; h.value = pc.value.trim();
+            this.appendChild(h);
+        }
     });
 
     // 사진 세트 파일 선택 시 미리보기
