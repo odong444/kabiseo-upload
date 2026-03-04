@@ -75,6 +75,7 @@
                         <td>
                             {% if item.status == '대기' %}
                             <button class="btn btn-sm btn-primary reply-btn" data-idx="{{ loop.index0 }}">답변</button>
+                            <button class="btn btn-sm confirm-btn" data-id="{{ item.id }}" style="background:#e5e7eb;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;">확인</button>
                             {% else %}
                             <button class="btn btn-sm view-btn" data-idx="{{ loop.index0 }}" style="background:#e5e7eb;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:12px;">보기</button>
                             {% endif %}
@@ -230,11 +231,30 @@
         });
     }
 
+    function confirmInquiry(id) {
+        fetch('/admin/api/inquiry/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ inquiry_id: id })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) location.reload();
+            else alert('실패: ' + (d.message || ''));
+        })
+        .catch(function(e) { alert('에러: ' + e.message); });
+    }
+
     // 이벤트 위임으로 버튼 클릭 처리
     document.addEventListener('click', function(e) {
         var btn = e.target.closest('.reply-btn');
         if (btn) {
             openReplyModal(parseInt(btn.dataset.idx));
+            return;
+        }
+        var cbtn = e.target.closest('.confirm-btn');
+        if (cbtn) {
+            confirmInquiry(parseInt(cbtn.dataset.id));
             return;
         }
         var vbtn = e.target.closest('.view-btn');

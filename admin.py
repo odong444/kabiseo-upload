@@ -1819,6 +1819,18 @@ def inquiries():
                            inquiries=items, status_filter=status_filter)
 
 
+@admin_bp.route("/api/inquiry/confirm", methods=["POST"])
+@admin_required
+def api_inquiry_confirm():
+    """문의 확인 처리 — 답변 없이 상태만 완료로 변경"""
+    data = request.get_json(silent=True) or {}
+    inquiry_id = data.get("inquiry_id")
+    if not inquiry_id or not models.db_manager:
+        return jsonify({"ok": False, "message": "inquiry_id 필수"})
+    ok = models.db_manager.reply_inquiry(int(inquiry_id), "(확인 완료)")
+    return jsonify({"ok": ok})
+
+
 @admin_bp.route("/api/inquiry/reply", methods=["POST"])
 @admin_required
 def api_inquiry_reply():
