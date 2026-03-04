@@ -484,17 +484,21 @@ def api_task(progress_id):
 
 @reviewer_bp.route("/api/verify-capture", methods=["POST"])
 def api_verify_capture():
-    """AI 캡쳐 검수 (Drive 업로드 전, bytes만)"""
-    file = request.files.get("capture")
+    """AI 캡쳐 검수 (Drive 업로드 전, bytes — 멀티 이미지 지원)"""
+    files = request.files.getlist("capture")
     capture_type = request.form.get("capture_type", "purchase")
     campaign_id = request.form.get("campaign_id", "")
 
-    if not file or file.filename == "":
+    if not files or not files[0].filename:
         return jsonify({"ok": False, "error": "파일을 선택해주세요"}), 400
 
     try:
-        image_bytes = file.read()
-        mime_type = file.content_type or "image/jpeg"
+        if len(files) == 1:
+            image_bytes = files[0].read()
+            mime_type = files[0].content_type or "image/jpeg"
+        else:
+            image_bytes = [f.read() for f in files if f.filename]
+            mime_type = [f.content_type or "image/jpeg" for f in files if f.filename]
 
         # AI 지침 + 캠페인 기준정보 조회
         ai_instructions = ""

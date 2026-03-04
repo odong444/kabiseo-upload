@@ -756,20 +756,22 @@
         });
 
         document.getElementById(`fileBtn_${sid}`).textContent = files.length > 1 ? files.length + '장 선택됨' : files[0].name;
-        // AI 검수는 첫 번째 파일만
-        runAiVerify(files[0], sid);
+        // AI 검수: 전체 이미지 한번에 전송
+        runAiVerify(files, sid);
     };
 
-    async function runAiVerify(file, sid) {
+    async function runAiVerify(files, sid) {
         const aiResult = document.getElementById(`aiResult_${sid}`);
         aiResult.style.display = 'block';
         aiResult.innerHTML = `<div class="ai-verifying">
             <div class="reviewer-spinner-sm"></div>
-            <span>AI 검수중...</span>
+            <span>AI 검수중... (${files.length}장)</span>
         </div>`;
 
         const formData = new FormData();
-        formData.append('capture', file);
+        for (let i = 0; i < files.length; i++) {
+            formData.append('capture', files[i]);
+        }
         formData.append('capture_type', 'purchase');
         formData.append('campaign_id', taskData.campaign_id);
 

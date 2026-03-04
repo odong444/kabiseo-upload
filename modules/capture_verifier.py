@@ -286,31 +286,38 @@ def _download_drive_image(file_id: str) -> tuple[bytes, str] | None:
         return None
 
 
-def _call_gemini(image_bytes: bytes, mime_type: str, prompt: str) -> dict | None:
-    """Gemini Vision API 호출"""
+def _call_gemini(image_bytes: bytes | list, mime_type: str | list, prompt: str) -> dict | None:
+    """Gemini Vision API 호출 (단일 또는 멀티 이미지)"""
     api_key = _GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         logger.error("GEMINI_API_KEY 환경변수가 설정되지 않았습니다")
         return None
 
     import base64
-    b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-    # mime 정리
-    if "png" in mime_type:
-        mime = "image/png"
-    elif "webp" in mime_type:
-        mime = "image/webp"
+    def _normalize_mime(mt):
+        if "png" in mt:
+            return "image/png"
+        if "webp" in mt:
+            return "image/webp"
+        return "image/jpeg"
+
+    # 멀티 이미지 → parts 배열 구성
+    if isinstance(image_bytes, list):
+        mime_list = mime_type if isinstance(mime_type, list) else [mime_type] * len(image_bytes)
+        parts = [{"text": prompt}]
+        for img_b, mt in zip(image_bytes, mime_list):
+            b64 = base64.b64encode(img_b).decode("utf-8")
+            parts.append({"inline_data": {"mime_type": _normalize_mime(mt), "data": b64}})
     else:
-        mime = "image/jpeg"
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        parts = [
+            {"text": prompt},
+            {"inline_data": {"mime_type": _normalize_mime(mime_type), "data": b64}},
+        ]
 
     payload = {
-        "contents": [{
-            "parts": [
-                {"text": prompt},
-                {"inline_data": {"mime_type": mime, "data": b64}},
-            ]
-        }],
+        "contents": [{"parts": parts}],
         "generationConfig": {
             "temperature": 0.1,
             "maxOutputTokens": 1024,
@@ -403,10 +410,10 @@ def _judge(analysis: dict, capture_type: str) -> dict:
 
 def verify_capture(drive_url: str, capture_type: str,
                    ai_instructions: str = "", campaign_info: dict | None = None) -> dict:
-    """캡쳐 검증 실행
+    """캡쳐 검증 실행 (멀티 이미지 지원 — 쉼표 구분 URL)
 
     Args:
-        drive_url: Google Drive 이미지 URL
+        drive_url: Google Drive 이미지 URL (쉼표 구분 가능)
         capture_type: "purchase" 또는 "review"
         ai_instructions: 캠페인별 추가 AI 지침
         campaign_info: 캠페인 기준 정보 (상품명, 상품금액, 플랫폼 등)
@@ -418,18 +425,33 @@ def verify_capture(drive_url: str, capture_type: str,
             "details": { ... Gemini 분석 결과 }
         }
     """
-    file_id = _extract_drive_file_id(drive_url)
-    if not file_id:
-        return {"result": "오류", "reason": "Drive URL에서 파일ID 추출 실패", "details": {}}
+    # 쉼표 구분 URL → 멀티 이미지 처리
+    urls = [u.strip() for u in drive_url.split(",") if u.strip()]
 
-    downloaded = _download_drive_image(file_id)
-    if not downloaded:
+    all_bytes = []
+    all_mimes = []
+    for url in urls:
+        file_id = _extract_drive_file_id(url)
+        if not file_id:
+            continue
+        downloaded = _download_drive_image(file_id)
+        if downloaded:
+            all_bytes.append(downloaded[0])
+            all_mimes.append(downloaded[1])
+
+    if not all_bytes:
         return {"result": "오류", "reason": "이미지 다운로드 실패", "details": {}}
 
-    image_bytes, content_type = downloaded
     full_prompt = _build_prompt(capture_type, campaign_info, ai_instructions)
+    if len(all_bytes) > 1:
+        full_prompt += f"\n\n[주의] 이 캡쳐는 총 {len(all_bytes)}장입니다. 모든 이미지를 종합하여 판단해주세요."
 
-    analysis = _call_gemini(image_bytes, content_type, full_prompt)
+    # 단일이면 단일, 멀티면 리스트로 전달
+    if len(all_bytes) == 1:
+        analysis = _call_gemini(all_bytes[0], all_mimes[0], full_prompt)
+    else:
+        analysis = _call_gemini(all_bytes, all_mimes, full_prompt)
+
     if not analysis:
         reject_label = "주문내역 캡쳐" if capture_type == "purchase" else "리뷰 캡쳐"
         return {
@@ -442,14 +464,14 @@ def verify_capture(drive_url: str, capture_type: str,
     return {**judgment, "details": analysis}
 
 
-def verify_capture_from_bytes(image_bytes: bytes, mime_type: str,
+def verify_capture_from_bytes(image_bytes: bytes | list, mime_type: str | list,
                               capture_type: str, ai_instructions: str = "",
                               campaign_info: dict | None = None) -> dict:
-    """이미지 bytes에서 직접 AI 검수 (Drive 업로드 없이)
+    """이미지 bytes에서 직접 AI 검수 (멀티 이미지 지원)
 
     Args:
-        image_bytes: 이미지 바이트 데이터
-        mime_type: 이미지 MIME type (image/jpeg, image/png 등)
+        image_bytes: 이미지 바이트 데이터 (단일 bytes 또는 list[bytes])
+        mime_type: 이미지 MIME type (단일 str 또는 list[str])
         capture_type: "purchase" 또는 "review"
         ai_instructions: 캠페인별 추가 AI 지침
         campaign_info: 캠페인 기준 정보 (상품명, 상품금액, 플랫폼 등)
@@ -466,8 +488,13 @@ def verify_capture_from_bytes(image_bytes: bytes, mime_type: str,
         return {"result": "오류", "reason": "이미지 데이터 없음", "details": {}, "parsed": {}}
 
     full_prompt = _build_prompt(capture_type, campaign_info, ai_instructions)
-    logger.info("AI 검수 요청: type=%s, campaign_info=%s, ai_instructions=%s",
-                capture_type, campaign_info, ai_instructions[:200] if ai_instructions else "없음")
+
+    img_count = len(image_bytes) if isinstance(image_bytes, list) else 1
+    if img_count > 1:
+        full_prompt += f"\n\n[주의] 이 캡쳐는 총 {img_count}장입니다. 모든 이미지를 종합하여 판단해주세요."
+
+    logger.info("AI 검수 요청: type=%s, images=%d, campaign_info=%s, ai_instructions=%s",
+                capture_type, img_count, campaign_info, ai_instructions[:200] if ai_instructions else "없음")
 
     analysis = _call_gemini(image_bytes, mime_type, full_prompt)
     if not analysis:
