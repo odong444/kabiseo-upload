@@ -272,6 +272,54 @@ def campaign_detail(campaign_id):
                            company_name=session.get("client_company", ""))
 
 
+# ─── 전체 진행건 API ───
+
+@client_bp.route("/api/all-progress")
+@client_required
+def api_all_progress():
+    """업체의 모든 캠페인 진행건 목록"""
+    client_id = session["client_id"]
+    rows = models.db_manager._fetchall(
+        """SELECT p.id,
+                  TO_CHAR(p.created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD') as date_str,
+                  COALESCE(NULLIF(c.campaign_name, ''), c.product_name, '') as campaign_name,
+                  c.product_name, r.name as reviewer_name,
+                  p.recipient_name, p.phone, p.bank, p.account, p.depositor,
+                  p.store_id, p.order_number, p.address, p.nickname,
+                  p.status, p.purchase_date, p.purchase_capture_url,
+                  p.review_deadline, p.review_submit_date, p.review_capture_url,
+                  p.ai_review_result, p.ai_review_reason, p.remark
+           FROM progress p
+           LEFT JOIN campaigns c ON c.id = p.campaign_id
+           LEFT JOIN reviewers r ON r.id = p.reviewer_id
+           WHERE c.client_id = %s
+           ORDER BY p.created_at DESC""",
+        (client_id,)
+    )
+    result = []
+    for p in rows:
+        result.append({
+            "id": p["id"],
+            "date_str": p["date_str"] or "-",
+            "campaign_name": p["campaign_name"] or "-",
+            "product_name": p["product_name"] or "-",
+            "recipient_name": p["recipient_name"] or p["reviewer_name"] or "-",
+            "phone": p["phone"] or "-",
+            "store_id": p["store_id"] or "-",
+            "order_number": p["order_number"] or "-",
+            "address": p["address"] or "-",
+            "status": p["status"] or "-",
+            "purchase_date": str(p["purchase_date"]) if p["purchase_date"] else "-",
+            "purchase_capture_url": p["purchase_capture_url"] or "",
+            "review_deadline": str(p["review_deadline"]) if p["review_deadline"] else "-",
+            "review_capture_url": p["review_capture_url"] or "",
+            "ai_review_result": p["ai_review_result"] or "",
+            "ai_review_reason": p["ai_review_reason"] or "",
+            "remark": p["remark"] or "-",
+        })
+    return jsonify(ok=True, data=result)
+
+
 # ─── 카톡 발송 API ───
 
 @client_bp.route("/api/send-message", methods=["POST"])

@@ -20,6 +20,7 @@ from modules.utils import now_kst
 from pathlib import Path
 
 from functools import wraps
+import requests
 from flask import Flask, jsonify, render_template, request
 
 # 프로젝트 루트
@@ -283,7 +284,6 @@ def _submit_reviewer_recruit_tasks() -> int:
     today = datetime.now(KST).strftime("%Y-%m-%d")
     if _last_recruit_date == today:
         return 0
-    _last_recruit_date = today
 
     # Railway API에서 홍보 필요 캠페인 가져오기
     campaigns = promoter.fetch_campaigns()
@@ -292,8 +292,9 @@ def _submit_reviewer_recruit_tasks() -> int:
 
     submitted = 0
     cfg = _load_config()
-    railway_url = cfg.get("railway_url", "").rstrip("/")
-    api_key = cfg.get("api_key", "")
+    upload_cfg = cfg.get("upload_server", {})
+    railway_url = upload_cfg.get("url", "").rstrip("/")
+    api_key = upload_cfg.get("api_key", "")
 
     for campaign in campaigns:
         campaign_id = campaign.get("캠페인ID", "")
@@ -335,11 +336,9 @@ def _submit_reviewer_recruit_tasks() -> int:
                 continue
 
             friend_name = f"{name} {phone}"
-            tid = task_queue.submit("promotion", {
-                "room_name": friend_name,
-                "room_type": "normal",
+            tid = task_queue.submit("notification", {
+                "name": friend_name,
                 "message": recruit_msg,
-                "campaign_id": campaign_id,
             }, priority=TaskQueue.PRIORITY_LOW)
 
             if tid:
@@ -357,6 +356,8 @@ def _submit_reviewer_recruit_tasks() -> int:
                 logger.info("리뷰어 모집 태스크: [%s] → %s (tid=%s)",
                             product_name, friend_name, tid)
 
+    # 실행 완료 후 날짜 기록 (실패 시 다음 사이클에 재시도)
+    _last_recruit_date = today
     if submitted:
         logger.info("=== 리뷰어 모집 태스크 %d건 등록 ===", submitted)
     return submitted
