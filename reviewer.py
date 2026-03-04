@@ -101,16 +101,6 @@ def api_campaigns():
             continue
         if status not in ("모집중", "진행중", ""):
             continue
-        # 시작일이 미래면 목록에서 제외
-        start_str = (c.get("시작일") or "").strip()
-        if start_str:
-            try:
-                start_date = _datetime.strptime(start_str, "%Y-%m-%d").date()
-                if start_date > _now_kst().date():
-                    continue
-            except ValueError:
-                pass
-
         total = safe_int(c.get("총수량", 0))
         done = actual_counts.get(campaign_id, 0) or safe_int(c.get("완료수량", 0))
         total_remaining = total - done
