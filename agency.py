@@ -579,3 +579,50 @@ def api_campaign_reject(campaign_id):
     models.db_manager.update_campaign(campaign_id, {"상태": "반려", "반려사유": reason})
     logger.info("대행사 캠페인 반려: %s, 사유: %s", campaign_id, reason)
     return jsonify({"ok": True})
+
+
+# ── AI 대화형 캠페인 등록 ──────────────────
+
+@agency_bp.route("/ai-register")
+@agency_required
+def ai_register():
+    return render_template("agency/ai_register.html", company_name=session.get("agency_company", ""))
+
+
+@agency_bp.route("/api/ai-chat", methods=["POST"])
+@agency_required
+def api_ai_chat():
+    from modules.ai_campaign_chat import get_chat_engine
+    data = request.get_json()
+    messages = data.get("messages", [])
+    try:
+        engine = get_chat_engine()
+        result = engine.chat(messages, portal="agency", owner_id=session.get("agency_id"))
+        return jsonify({"ok": True, "reply": result["reply"], "messages": result["messages"]})
+    except Exception as e:
+        logger.error(f"AI chat error: {e}", exc_info=True)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@agency_bp.route("/api/ai-chat/reset", methods=["POST"])
+@agency_required
+def api_ai_chat_reset():
+    return jsonify({"ok": True})
+
+
+@agency_bp.route("/api/ai-chat/upload-image", methods=["POST"])
+@agency_required
+def api_ai_chat_upload_image():
+    file = request.files.get("image")
+    if not file or not file.filename:
+        return jsonify({"ok": False, "error": "이미지 파일이 필요합니다"})
+    try:
+        if models.drive_uploader:
+            url = models.drive_uploader.upload_from_flask_file(
+                file, capture_type="purchase",
+                description="AI채팅 상품이미지"
+            )
+            return jsonify({"ok": True, "url": url})
+        return jsonify({"ok": False, "error": "Drive 업로더를 사용할 수 없습니다"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})

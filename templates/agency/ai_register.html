@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ company_name }} - AI 캠페인 등록</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f5f0ff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .header {
+            background: #6d28d9; color: #fff; padding: 0 24px; height: 56px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header h1 { font-size: 18px; font-weight: 700; }
+        .header .company { font-size: 14px; opacity: 0.85; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right a { color: #fff; text-decoration: none; font-size: 14px; opacity: 0.85; }
+        .header-right a:hover { opacity: 1; }
+
+        .chat-container {
+            max-width: 800px; margin: 24px auto; padding: 0 16px;
+            display: flex; flex-direction: column; height: calc(100vh - 56px - 48px);
+        }
+        .chat-header {
+            background: #fff; border-radius: 16px 16px 0 0; padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .chat-header h2 { font-size: 18px; font-weight: 700; color: #1e293b; }
+        .chat-header .subtitle { font-size: 13px; color: #6b7280; margin-top: 2px; }
+        .btn-reset {
+            padding: 8px 16px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;
+            border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        .btn-reset:hover { background: #e5e7eb; }
+
+        .chat-messages {
+            flex: 1; overflow-y: auto; background: #fff; padding: 20px 24px;
+            display: flex; flex-direction: column; gap: 16px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .msg { display: flex; gap: 10px; max-width: 85%; animation: fadeIn 0.3s ease; }
+        .msg.bot { align-self: flex-start; }
+        .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+        .msg-avatar {
+            width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; font-weight: 700; color: #fff;
+        }
+        .msg.bot .msg-avatar { background: #7c3aed; }
+        .msg.user .msg-avatar { background: #a78bfa; }
+        .msg-bubble {
+            padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6;
+            white-space: pre-wrap; word-break: break-word;
+        }
+        .msg.bot .msg-bubble { background: #f5f0ff; color: #1e293b; border-bottom-left-radius: 4px; }
+        .msg.user .msg-bubble { background: #7c3aed; color: #fff; border-bottom-right-radius: 4px; }
+        .msg-bubble img {
+            max-width: 200px; max-height: 200px; border-radius: 8px; margin-top: 8px;
+            display: block; cursor: pointer;
+        }
+        .msg-bubble img:hover { opacity: 0.9; }
+
+        .typing-indicator { display: none; align-self: flex-start; padding: 8px 0; }
+        .typing-indicator .dots { display: flex; gap: 4px; padding: 12px 16px; background: #f5f0ff; border-radius: 12px; }
+        .typing-indicator .dot {
+            width: 8px; height: 8px; background: #a78bfa; border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        .typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        .chat-input-area {
+            background: #fff; border-radius: 0 0 16px 16px; padding: 16px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06); border-top: 1px solid #f0f0f0;
+        }
+        .input-row { display: flex; gap: 8px; align-items: flex-end; }
+        .input-row textarea {
+            flex: 1; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 10px;
+            font-size: 14px; resize: none; min-height: 44px; max-height: 120px;
+            font-family: inherit; line-height: 1.5; outline: none;
+        }
+        .input-row textarea:focus { border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124,58,237,0.1); }
+        .btn-attach {
+            width: 44px; height: 44px; border-radius: 10px; border: 1px solid #d1d5db;
+            background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            color: #6b7280; font-size: 20px; flex-shrink: 0;
+        }
+        .btn-attach:hover { background: #f9fafb; border-color: #7c3aed; color: #7c3aed; }
+        .btn-send {
+            width: 44px; height: 44px; border-radius: 10px; border: none;
+            background: #7c3aed; color: #fff; cursor: pointer; display: flex;
+            align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
+        }
+        .btn-send:hover { background: #6d28d9; }
+        .btn-send:disabled { background: #d1d5db; cursor: not-allowed; }
+
+        .image-preview {
+            display: none; margin-bottom: 8px; position: relative;
+            background: #f9fafb; border-radius: 8px; padding: 8px; border: 1px solid #e5e7eb;
+        }
+        .image-preview img { max-height: 80px; border-radius: 6px; }
+        .image-preview .remove-img {
+            position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+            border-radius: 50%; background: rgba(0,0,0,0.5); color: #fff; border: none;
+            cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>카비서 대행사</h1>
+            <span class="company">{{ company_name }}</span>
+        </div>
+        <div class="header-right">
+            <a href="{{ url_for('agency.dashboard') }}">대시보드</a>
+            <a href="{{ url_for('agency.clients') }}">클라이언트</a>
+            <a href="{{ url_for('agency.campaign_new') }}">캠페인 생성</a>
+            <a href="{{ url_for('agency.ai_register') }}">AI 등록</a>
+            <a href="{{ url_for('agency.logout') }}">로그아웃</a>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <div>
+                <h2>AI 캠페인 등록</h2>
+                <div class="subtitle">AI와 대화하며 캠페인을 등록하세요</div>
+            </div>
+            <button class="btn-reset" onclick="resetChat()">새 대화</button>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <!-- messages will be rendered here -->
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <div class="image-preview" id="imagePreview">
+                <img id="previewImg" src="" alt="미리보기">
+                <button class="remove-img" onclick="removeImage()">&times;</button>
+            </div>
+            <div class="input-row">
+                <button class="btn-attach" onclick="document.getElementById('imageInput').click()" title="이미지 첨부">
+                    &#128247;
+                </button>
+                <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageSelect(this)">
+                <textarea id="chatInput" rows="1" placeholder="메시지를 입력하세요..." onkeydown="handleKeyDown(event)" oninput="autoResize(this)"></textarea>
+                <button class="btn-send" id="btnSend" onclick="sendMessage()" title="전송">&#10148;</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+var _messages = [];
+var _sending = false;
+var _pendingImageUrl = null;
+var _pendingImageFile = null;
+
+function scrollToBottom() {
+    var el = document.getElementById('chatMessages');
+    el.scrollTop = el.scrollHeight;
+}
+
+function renderMessages() {
+    var container = document.getElementById('chatMessages');
+    var html = '';
+    for (var i = 0; i < _messages.length; i++) {
+        var m = _messages[i];
+        if (m.role === 'system') continue;
+        var isUser = m.role === 'user';
+        var cls = isUser ? 'user' : 'bot';
+        var avatar = isUser ? '나' : 'AI';
+        var content = escHtml(m.content || '');
+        // Check for image
+        var imgHtml = '';
+        if (m._imageUrl) {
+            imgHtml = '<img src="' + escAttr(m._imageUrl) + '" onclick="window.open(this.src)" alt="첨부 이미지">';
+        }
+        html += '<div class="msg ' + cls + '">'
+            + '<div class="msg-avatar">' + avatar + '</div>'
+            + '<div class="msg-bubble">' + content + imgHtml + '</div>'
+            + '</div>';
+    }
+    container.innerHTML = html;
+    scrollToBottom();
+}
+
+function addMessage(role, content, imageUrl) {
+    var msg = { role: role, content: content };
+    if (imageUrl) msg._imageUrl = imageUrl;
+    _messages.push(msg);
+    renderMessages();
+}
+
+async function sendMessage() {
+    if (_sending) return;
+    var input = document.getElementById('chatInput');
+    var text = input.value.trim();
+    if (!text && !_pendingImageFile) return;
+
+    _sending = true;
+    document.getElementById('btnSend').disabled = true;
+
+    // Upload image first if present
+    var imageUrl = null;
+    if (_pendingImageFile) {
+        try {
+            var formData = new FormData();
+            formData.append('image', _pendingImageFile);
+            var uploadRes = await fetch('{{ url_for("agency.api_ai_chat_upload_image") }}', {
+                method: 'POST',
+                body: formData
+            });
+            var uploadData = await uploadRes.json();
+            if (uploadData.ok) {
+                imageUrl = uploadData.url;
+            }
+        } catch (e) {
+            // ignore upload error
+        }
+        removeImage();
+    }
+
+    // Add user message
+    var userContent = text;
+    if (imageUrl) {
+        userContent = (text ? text + '\n' : '') + '[상품이미지: ' + imageUrl + ']';
+    }
+    addMessage('user', userContent, imageUrl ? driveToDirectUrl(imageUrl) : null);
+    input.value = '';
+    autoResize(input);
+
+    // Show typing indicator
+    document.getElementById('typingIndicator').style.display = 'block';
+    scrollToBottom();
+
+    try {
+        // Build messages for API (exclude _imageUrl metadata)
+        var apiMessages = _messages.map(function(m) {
+            return { role: m.role, content: m.content };
+        });
+
+        var res = await fetch('{{ url_for("agency.api_ai_chat") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: apiMessages })
+        });
+        var data = await res.json();
+        if (data.ok) {
+            // Update messages from server (preserving local _imageUrl metadata)
+            if (data.messages) {
+                var oldMessages = _messages.slice();
+                _messages = data.messages;
+                // Re-attach _imageUrl from old messages
+                for (var i = 0; i < _messages.length && i < oldMessages.length; i++) {
+                    if (oldMessages[i]._imageUrl) {
+                        _messages[i]._imageUrl = oldMessages[i]._imageUrl;
+                    }
+                }
+            }
+            addMessage('assistant', data.reply);
+        } else {
+            addMessage('assistant', '오류가 발생했습니다: ' + (data.error || '알 수 없는 오류'));
+        }
+    } catch (e) {
+        addMessage('assistant', '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    }
+
+    document.getElementById('typingIndicator').style.display = 'none';
+    _sending = false;
+    document.getElementById('btnSend').disabled = false;
+    input.focus();
+}
+
+async function resetChat() {
+    if (_messages.length > 0 && !confirm('대화를 초기화하시겠습니까?')) return;
+    try {
+        await fetch('{{ url_for("agency.api_ai_chat_reset") }}', { method: 'POST' });
+    } catch (e) { /* ignore */ }
+    _messages = [];
+    renderMessages();
+    removeImage();
+}
+
+function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+}
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleImageSelect(input) {
+    var file = input.files[0];
+    if (!file) return;
+    _pendingImageFile = file;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('previewImg').src = e.target.result;
+        document.getElementById('imagePreview').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+}
+
+function removeImage() {
+    _pendingImageFile = null;
+    _pendingImageUrl = null;
+    document.getElementById('imagePreview').style.display = 'none';
+    document.getElementById('previewImg').src = '';
+}
+
+function driveToDirectUrl(url) {
+    var m = url.match(/\/file\/d\/([^/]+)/);
+    if (m) return 'https://lh3.googleusercontent.com/d/' + m[1] + '=w400';
+    m = url.match(/[?&]id=([^&]+)/);
+    if (m) return 'https://lh3.googleusercontent.com/d/' + m[1] + '=w400';
+    return url;
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+}
+function escAttr(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Initial greeting
+addMessage('assistant', '안녕하세요! AI 캠페인 등록 도우미입니다.\n\n등록하고 싶은 캠페인에 대해 알려주세요. 상품명, 플랫폼, 수량 등 기본 정보를 말씀해주시면 캠페인 등록을 도와드리겠습니다.\n\n상품 이미지가 있다면 첨부해주세요.');
+</script>
+</body>
+</html>

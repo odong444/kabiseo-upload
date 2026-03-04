@@ -240,6 +240,7 @@
                 <a href="{{ url_for('admin.agencies') }}">대행사</a>
                 <a href="{{ url_for('admin.clients') }}">업체{% if pending_campaign_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_campaign_count }}</span>{% endif %}</a>
                 <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.ai_register') }}">AI 등록</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
             </nav>
         </div>
