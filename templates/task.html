@@ -754,12 +754,16 @@
             const timeStr = mins.toString().padStart(2, '0') + ':' + secs.toString().padStart(2, '0');
             const deadlineStr = getDeadlineStr();
 
-            let extendBtn = '';
-            if (remainMs <= 300000) {
-                extendBtn = ` <button class="timer-extend-btn" onclick="window._extendTime()">+10분 연장</button>`;
+            // 타이머 텍스트만 업데이트 (버튼 DOM 유지)
+            var timerText = timerEl.querySelector('.timer-text');
+            if (!timerText) {
+                timerEl.innerHTML = '<span class="timer-text"></span><button class="timer-extend-btn" onclick="window._extendTime()" style="display:none">+10분 연장</button>';
+                timerText = timerEl.querySelector('.timer-text');
             }
+            timerText.innerHTML = `<span class="timer-icon">&#x23F1;</span> 양식 제출 마감 <strong>${timeStr}</strong> 남음 <span class="timer-deadline">(${deadlineStr}까지)</span>`;
 
-            timerEl.innerHTML = `<span class="timer-icon">&#x23F1;</span> 양식 제출 마감 <strong>${timeStr}</strong> 남음 <span class="timer-deadline">(${deadlineStr}까지)</span>${extendBtn}`;
+            var extendBtn = timerEl.querySelector('.timer-extend-btn');
+            extendBtn.style.display = remainMs <= 300000 ? 'inline-block' : 'none';
 
             if (remainMs <= 300000) {
                 timerEl.className = 'task-deadline-timer timer-danger';
