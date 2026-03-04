@@ -104,6 +104,7 @@
         {% endwith %}
 
         <form id="campaignForm" method="POST" action="{{ url_for('client.campaign_new_post') }}" enctype="multipart/form-data">
+            <input type="hidden" name="draft_id" id="draft_id" value="{{ draft.id if draft else '' }}">
 
             <!-- 캠페인 정보 -->
             <div class="form-section">
@@ -111,48 +112,50 @@
                 <div class="form-grid">
                     <div class="form-group form-group-full">
                         <label>캠페인명</label>
-                        <input type="text" name="캠페인명" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
+                        <input type="text" name="캠페인명" value="{{ draft.get('캠페인명', '') if draft else '' }}" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
                     </div>
                     <div class="form-group">
                         <label>상품명 *</label>
-                        <input type="text" name="상품명" required placeholder="예: 들기름 300ml">
+                        <input type="text" name="상품명" required value="{{ draft.get('상품명', '') if draft else '' }}" placeholder="예: 들기름 300ml">
                     </div>
                     <div class="form-group">
                         <label>옵션명</label>
-                        <input type="text" name="옵션" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
+                        <input type="text" name="옵션" value="{{ draft.get('옵션', '') if draft else '' }}" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
                         <small>리뷰어가 구매 시 선택할 옵션을 입력하세요</small>
                     </div>
                     <div class="form-group">
                         <label>플랫폼 *</label>
                         <select name="플랫폼" id="platformSelect" required>
-                            <option value="스마트스토어">스마트스토어</option>
-                            <option value="쿠팡">쿠팡</option>
-                            <option value="오늘의집">오늘의집</option>
-                            <option value="11번가">11번가</option>
-                            <option value="지마켓">지마켓</option>
-                            <option value="올리브영">올리브영</option>
-                            <option value="기타">기타 (직접입력)</option>
+                            {% set draft_platform = draft.get('플랫폼', '스마트스토어') if draft else '스마트스토어' %}
+                            {% set known_platforms = ['스마트스토어', '쿠팡', '오늘의집', '11번가', '지마켓', '올리브영'] %}
+                            <option value="스마트스토어" {{ 'selected' if draft_platform == '스마트스토어' else '' }}>스마트스토어</option>
+                            <option value="쿠팡" {{ 'selected' if draft_platform == '쿠팡' else '' }}>쿠팡</option>
+                            <option value="오늘의집" {{ 'selected' if draft_platform == '오늘의집' else '' }}>오늘의집</option>
+                            <option value="11번가" {{ 'selected' if draft_platform == '11번가' else '' }}>11번가</option>
+                            <option value="지마켓" {{ 'selected' if draft_platform == '지마켓' else '' }}>지마켓</option>
+                            <option value="올리브영" {{ 'selected' if draft_platform == '올리브영' else '' }}>올리브영</option>
+                            <option value="기타" {{ 'selected' if draft and draft_platform not in known_platforms else '' }}>기타 (직접입력)</option>
                         </select>
                     </div>
-                    <div class="form-group hidden" id="platformCustomWrap">
+                    <div class="form-group {{ '' if draft and draft.get('플랫폼','') not in ['스마트스토어','쿠팡','오늘의집','11번가','지마켓','올리브영',''] else 'hidden' }}" id="platformCustomWrap">
                         <label>플랫폼 직접입력</label>
-                        <input type="text" id="platformCustom" placeholder="플랫폼명 입력">
+                        <input type="text" id="platformCustom" value="{{ draft.get('플랫폼', '') if draft and draft.get('플랫폼','') not in ['스마트스토어','쿠팡','오늘의집','11번가','지마켓','올리브영',''] else '' }}" placeholder="플랫폼명 입력">
                     </div>
                     <div class="form-group">
                         <label>캠페인유형 *</label>
                         <select name="캠페인유형" required>
-                            <option value="실배송">실배송</option>
-                            <option value="빈박스">빈박스</option>
+                            <option value="실배송" {{ 'selected' if not draft or draft.get('캠페인유형', '실배송') == '실배송' else '' }}>실배송</option>
+                            <option value="빈박스" {{ 'selected' if draft and draft.get('캠페인유형', '') == '빈박스' else '' }}>빈박스</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>결제금액</label>
-                        <input type="text" name="상품금액" placeholder="예: 29,000 (택배비 포함)">
+                        <input type="text" name="상품금액" value="{{ draft.get('상품금액', '') if draft else '' }}" placeholder="예: 29,000 (택배비 포함)">
                         <small>택배비 포함해서 써주세요</small>
                     </div>
                     <div class="form-group form-group-full">
                         <label>상품링크</label>
-                        <input type="text" name="상품링크" placeholder="예: https://smartstore.naver.com/...">
+                        <input type="text" name="상품링크" value="{{ draft.get('상품링크', '') if draft else '' }}" placeholder="예: https://smartstore.naver.com/...">
                         <small>상품 페이지 링크를 입력해주세요</small>
                     </div>
                     <div class="form-group form-group-full">
@@ -166,26 +169,26 @@
                         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
                             <div>
                                 <label style="font-size:14px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">총 모집인원 *</label>
-                                <input type="number" name="총수량" id="totalCount" required min="1" placeholder="예: 20" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
+                                <input type="number" name="총수량" id="totalCount" required min="1" value="{{ draft.get('총수량', '') if draft else '' }}" placeholder="예: 20" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
                             </div>
                             <div>
                                 <label style="font-size:14px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">하루진행량</label>
-                                <input type="text" name="일수량" id="dailyCount" placeholder="숫자(예: 5) 또는 범위(예: 3-5)" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
+                                <input type="text" name="일수량" id="dailyCount" value="{{ draft.get('일수량', '') if draft else '' }}" placeholder="숫자(예: 5) 또는 범위(예: 3-5)" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
                             </div>
                             <div>
                                 <label style="font-size:14px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">진행일수</label>
-                                <input type="number" name="진행일수" id="dayCount" min="1" placeholder="예: 4" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
+                                <input type="number" name="진행일수" id="dayCount" min="1" value="{{ draft.get('진행일수', '') if draft else '' }}" placeholder="예: 4" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>1인 일일 제한</label>
-                        <input type="number" name="1인일일제한" min="0" placeholder="0 = 무제한">
+                        <input type="number" name="1인일일제한" min="0" value="{{ draft.get('1인일일제한', '') if draft else '' }}" placeholder="0 = 무제한">
                         <small>한 명이 하루에 참여 가능한 최대 건수</small>
                     </div>
                     <div class="form-group">
                         <label>시작일</label>
-                        <input type="date" name="시작일" id="startDate">
+                        <input type="date" name="시작일" id="startDate" value="{{ draft.get('시작일', '') if draft else '' }}">
                         <small>비우면 승인일로 설정됩니다</small>
                     </div>
                     <div class="form-group form-group-full">
@@ -219,46 +222,49 @@
                     </div>
                     <div class="form-group form-group-full">
                         <label>중복진행 가능여부</label>
+                        {% set dup_val = draft.get('중복허용', 'Y') if draft else 'Y' %}
                         <div class="radio-group">
-                            <label><input type="radio" name="중복진행" value="Y" checked> 가능</label>
-                            <label><input type="radio" name="중복진행" value="N"> 불가능</label>
+                            <label><input type="radio" name="중복진행" value="Y" {{ 'checked' if dup_val == 'Y' or dup_val == '' else '' }}> 가능</label>
+                            <label><input type="radio" name="중복진행" value="N" {{ 'checked' if dup_val == 'N' else '' }}> 불가능</label>
                             <label>
-                                <input type="radio" name="중복진행" value="텀" id="dupTermRadio"> 일정기간 텀
-                                <input type="number" class="dup-days-input hidden" id="dupDaysInput" min="1" placeholder="일">
-                                <span class="hidden" id="dupDaysLabel">일 후 가능</span>
+                                <input type="radio" name="중복진행" value="텀" id="dupTermRadio" {{ 'checked' if dup_val.startswith('텀') else '' }}> 일정기간 텀
+                                <input type="number" class="dup-days-input {{ '' if dup_val.startswith('텀') else 'hidden' }}" id="dupDaysInput" min="1" placeholder="일" value="{{ dup_val.split(':')[1] if ':' in dup_val else '' }}">
+                                <span class="{{ '' if dup_val.startswith('텀') else 'hidden' }}" id="dupDaysLabel">일 후 가능</span>
                             </label>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>키워드</label>
-                        <input type="text" name="키워드" placeholder="예: 들기름 국산">
+                        <input type="text" name="키워드" value="{{ draft.get('키워드', '') if draft else '' }}" placeholder="예: 들기름 국산">
                         <small>리뷰어가 검색할 키워드</small>
                     </div>
                     <div class="form-group">
                         <label>유입방식</label>
                         <select name="유입방식">
-                            <option value="키워드검색">키워드검색</option>
-                            <option value="직접유입">직접유입 (링크)</option>
-                            <option value="기타">기타</option>
+                            {% set draft_entry = draft.get('유입방식', '키워드검색') if draft else '키워드검색' %}
+                            <option value="키워드검색" {{ 'selected' if draft_entry == '키워드검색' else '' }}>키워드검색</option>
+                            <option value="직접유입" {{ 'selected' if draft_entry == '직접유입' else '' }}>직접유입 (링크)</option>
+                            <option value="기타" {{ 'selected' if draft_entry == '기타' else '' }}>기타</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label>리뷰기한 (일)</label>
-                        <input type="number" name="리뷰기한일수" min="1" placeholder="예: 7">
+                        <input type="number" name="리뷰기한일수" min="1" value="{{ draft.get('리뷰기한일수', '') if draft else '' }}" placeholder="예: 7">
                         <small>구매 후 리뷰 작성까지 기한</small>
                     </div>
                     <div class="form-group form-group-full">
                         <label>캠페인 가이드</label>
-                        <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용"></textarea>
+                        <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용">{{ draft.get('캠페인가이드', '') if draft else '' }}</textarea>
                     </div>
                 </div>
             </div>
 
             <!-- 숨겨진 필드 -->
-            <input type="hidden" name="중복허용" id="dupAllowValue" value="Y">
+            <input type="hidden" name="중복허용" id="dupAllowValue" value="{{ draft.get('중복허용', 'Y') if draft else 'Y' }}">
 
             <div class="form-actions">
                 <a href="{{ url_for('client.dashboard') }}" class="btn-cancel">취소</a>
+                <button type="button" onclick="saveDraft()" style="padding:12px 24px;background:#6b7280;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">임시저장</button>
                 <button type="submit" class="btn-submit">캠페인 요청</button>
             </div>
         </form>
@@ -449,6 +455,25 @@
             }
         });
     })();
+
+    // 임시저장
+    async function saveDraft() {
+        var form = document.getElementById('campaignForm');
+        var formData = new FormData(form);
+        formData.set('draft_id', document.getElementById('draft_id').value);
+        try {
+            var res = await fetch('{{ url_for("client.campaign_draft_save") }}', {method: 'POST', body: formData});
+            var data = await res.json();
+            if (data.ok) {
+                document.getElementById('draft_id').value = data.draft_id;
+                alert('임시저장되었습니다.');
+            } else {
+                alert('임시저장 실패: ' + (data.error || ''));
+            }
+        } catch(e) {
+            alert('임시저장 실패');
+        }
+    }
     </script>
 </body>
 </html>

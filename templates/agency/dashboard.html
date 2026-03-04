@@ -212,6 +212,45 @@
 
         <!-- 탭1: 캠페인별 보기 -->
         <div class="tab-content active" id="tab-campaigns">
+
+            <!-- 임시저장 목록 -->
+            {% if drafts %}
+            <div style="margin-bottom:24px;">
+                <div class="section-header">
+                    <h2 style="color:#6b7280;">임시저장 <span style="font-size:14px;font-weight:400;">({{ drafts|length }}건)</span></h2>
+                </div>
+                <div class="table-wrap">
+                    <table style="background:#fffbeb;">
+                        <thead>
+                            <tr>
+                                <th>캠페인명</th>
+                                <th>업체명</th>
+                                <th>상품명</th>
+                                <th>저장일시</th>
+                                <th>관리</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for d in drafts %}
+                            <tr>
+                                <td style="font-weight:600;">{{ d.get('캠페인명', '') or '(미입력)' }}</td>
+                                <td>{{ d.get('업체명', '') or '-' }}</td>
+                                <td>{{ d.get('상품명', '') or '-' }}</td>
+                                <td style="font-size:13px;color:#6b7280;">{{ d.get('등록일', '')[:10] }}</td>
+                                <td onclick="event.stopPropagation();">
+                                    <div style="display:flex;gap:6px;">
+                                        <a href="{{ url_for('agency.campaign_new', draft=d.get('캠페인ID','')) }}" class="btn-sm btn-approve" style="text-decoration:none;">이어쓰기</a>
+                                        <button class="btn-sm btn-reject" onclick="deleteDraft('{{ d.get('캠페인ID','') }}', this)">삭제</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
             <div class="section-header">
                 <h2>캠페인 목록</h2>
                 <a href="{{ url_for('agency.campaign_new') }}" class="btn-new">+ 캠페인 생성</a>
@@ -349,6 +388,22 @@
     </div>
 
     <script>
+    // ── 임시저장 삭제 ──
+    async function deleteDraft(id, btn) {
+        if (!confirm('임시저장을 삭제하시겠습니까?')) return;
+        try {
+            var res = await fetch('/agency/api/campaign/' + id + '/draft', { method: 'DELETE' });
+            var data = await res.json();
+            if (data.ok) {
+                btn.closest('tr').remove();
+            } else {
+                alert('삭제 실패: ' + (data.error || ''));
+            }
+        } catch(e) {
+            alert('삭제 실패');
+        }
+    }
+
     // ── 승인/반려 ──
     var _rejectId = '';
 

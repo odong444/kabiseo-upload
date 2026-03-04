@@ -153,7 +153,7 @@
     </header>
 
     <main class="admin-main">
-        <h1>{% if copy %}캠페인 복사 등록{% else %}캠페인 신규 등록{% endif %}</h1>
+        <h1>{% if draft %}캠페인 임시저장 이어쓰기{% elif copy %}캠페인 복사 등록{% else %}캠페인 신규 등록{% endif %}</h1>
 
         {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -166,6 +166,7 @@
         {% endwith %}
 
         <form id="campaignForm" method="POST" action="{{ url_for('admin.campaign_new_post') }}" enctype="multipart/form-data" class="admin-form">
+            <input type="hidden" name="draft_id" id="draft_id" value="{{ draft.get('캠페인ID', '') if draft else '' }}">
 
             <!-- 텍스트 자동 채우기 -->
             <div class="form-section">
@@ -513,6 +514,7 @@
 
             <div class="form-actions">
                 <button type="button" class="admin-btn admin-btn-preview" id="previewBtn">미리보기</button>
+                <button type="button" class="admin-btn" onclick="saveDraft()" style="background:#f0f4ff;color:#4a6cf7;border-color:#4a6cf7;margin-right:4px;">임시저장</button>
                 <button type="submit" class="admin-btn admin-btn-primary">등록</button>
                 <a href="{{ url_for('admin.campaigns') }}" class="admin-btn">취소</a>
             </div>
@@ -1043,6 +1045,111 @@
 
         filterClients();
     })();
+
+    // 드래프트/복사 데이터 프리필 (JS 기반 필드)
+    (function() {
+        {% if copy %}
+        // 구매가능시간 프리필
+        var buyTimeRaw = {{ copy.get('구매가능시간', '')|tojson }};
+        if (buyTimeRaw) {
+            var m = buyTimeRaw.match(/^(\d{1,2}).*?~\s*(익일)?\s*(\d{1,2})/);
+            if (m) {
+                document.getElementById('buyTimeStart').value = m[1].padStart(2, '0');
+                document.getElementById('buyTimeEnd').value = m[3].padStart(2, '0');
+                if (m[2]) document.getElementById('buyTimeNextDay').checked = true;
+                updateBuyTime();
+            }
+        }
+
+        // 중복허용 프리필
+        var dupVal = {{ copy.get('중복허용', 'Y')|tojson }};
+        if (dupVal === 'N') {
+            var r = document.querySelector('input[name="중복진행"][value="N"]');
+            if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+        } else if (dupVal && dupVal.startsWith('텀:')) {
+            var r = document.querySelector('input[name="중복진행"][value="텀"]');
+            if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+            var d = document.getElementById('dupDaysInput');
+            if (d) d.value = dupVal.split(':')[1] || '30';
+            document.getElementById('dupAllowValue').value = dupVal;
+        }
+
+        // 홍보 필드 프리필
+        var promoEnabled = {{ copy.get('홍보활성', '')|tojson }};
+        if (promoEnabled === 'Y') {
+            var cb = document.getElementById('promoEnabled');
+            if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
+        }
+
+        var promoCats = {{ copy.get('홍보카테고리', '')|tojson }};
+        if (promoCats) {
+            var cats = promoCats.split(',');
+            var cbs = document.querySelectorAll('.promo-cat-cb');
+            cats.forEach(function(cat) {
+                cat = cat.trim();
+                var found = false;
+                cbs.forEach(function(cb) {
+                    if (cb.value === cat && cb.id !== 'promoCatEtc') { cb.checked = true; found = true; }
+                });
+                if (!found && cat) {
+                    var etc = document.getElementById('promoCatEtc');
+                    var etcInput = document.getElementById('promoCatEtcInput');
+                    if (etc && etcInput) { etc.checked = true; etcInput.value = cat; }
+                }
+            });
+            document.getElementById('promoCategoriesValue').value = promoCats;
+        }
+
+        var promoStart = {{ copy.get('홍보시작시간', '')|tojson }};
+        if (promoStart) document.getElementById('promoStartTime').value = promoStart;
+        var promoEnd = {{ copy.get('홍보종료시간', '')|tojson }};
+        if (promoEnd) document.getElementById('promoEndTime').value = promoEnd;
+        var promoCooldown = {{ copy.get('홍보주기', '')|tojson }};
+        if (promoCooldown) document.getElementById('promoCooldown').value = promoCooldown;
+        var promoMsg = {{ copy.get('홍보메시지', '')|tojson }};
+        if (promoMsg) {
+            document.getElementById('promotionMessage').value = promoMsg;
+            var bubble = document.getElementById('kakaoPreviewBubble');
+            if (bubble) bubble.textContent = promoMsg;
+        }
+
+        // 캠페인명 프리필
+        var campName = {{ copy.get('캠페인명', '')|tojson }};
+        if (campName) {
+            var el = document.querySelector('[name="캠페인명"]');
+            if (el && !el.value) el.value = campName;
+        }
+        {% endif %}
+    })();
+
+    // 임시저장
+    async function saveDraft() {
+        var form = document.getElementById('campaignForm');
+        var formData = new FormData(form);
+        // 플랫폼 기타 처리
+        var ps = document.getElementById('platformSelect');
+        var pc = document.getElementById('platformCustom');
+        if (ps && ps.value === '기타' && pc && pc.value.trim()) {
+            formData.set('플랫폼', pc.value.trim());
+        }
+        formData.set('draft_id', document.getElementById('draft_id').value);
+
+        try {
+            var res = await fetch('{{ url_for("admin.campaign_draft_save") }}', {
+                method: 'POST',
+                body: formData
+            });
+            var data = await res.json();
+            if (data.ok) {
+                document.getElementById('draft_id').value = data.draft_id;
+                alert('임시저장되었습니다.');
+            } else {
+                alert('임시저장 실패: ' + (data.error || ''));
+            }
+        } catch(e) {
+            alert('임시저장 실패: ' + e.message);
+        }
+    }
     </script>
 </body>
 </html>

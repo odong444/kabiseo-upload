@@ -789,11 +789,23 @@ def campaign_new():
         src = models.db_manager.get_campaign_by_id(copy_id)
         if src:
             copy_data = src
+
+    # 임시저장 이어쓰기: ?draft=캠페인ID
+    draft = None
+    draft_id = request.args.get("draft", "").strip()
+    if draft_id and models.db_manager:
+        d = models.db_manager.get_campaign_by_id(draft_id)
+        if d and d.get("상태") == "임시저장":
+            draft = d
+            if not copy_data:
+                copy_data = d  # draft 데이터를 copy_data로도 전달 (기존 프리필 로직 재사용)
+
     agencies = models.db_manager.get_agencies() if models.db_manager else []
     clients_list = models.db_manager.get_clients() if models.db_manager else []
     return render_template("admin/campaign_new.html",
                           promo_category_list=categories,
                           copy=copy_data,
+                          draft=draft,
                           agencies=agencies,
                           clients=clients_list)
 
@@ -810,7 +822,8 @@ def campaign_new_post():
     import random
     from modules.utils import today_str, safe_int
 
-    campaign_id = str(uuid.uuid4())[:8]
+    draft_id = request.form.get("draft_id", "").strip()
+    campaign_id = draft_id if draft_id else str(uuid.uuid4())[:8]
 
     fields = [
         "캠페인유형", "플랫폼", "업체명", "캠페인명", "상품명", "옵션",
@@ -881,7 +894,11 @@ def campaign_new_post():
             logger.error(f"상품이미지 업로드 에러: {e}")
 
     try:
-        models.db_manager.create_campaign(data)
+        if draft_id:
+            # 임시저장 → 모집중으로 업데이트
+            models.db_manager.update_campaign(draft_id, data)
+        else:
+            models.db_manager.create_campaign(data)
         display_name = data.get('캠페인명', '').strip() or data['상품명']
         flash(f"캠페인 '{display_name}' 등록 완료 (ID: {campaign_id})")
 
@@ -911,6 +928,79 @@ def campaign_new_post():
         flash(f"등록 중 오류가 발생했습니다: {e}")
 
     return redirect(url_for("admin.campaigns"))
+
+
+# ──────── 캠페인 임시저장 ────────
+
+@admin_bp.route("/campaigns/draft", methods=["POST"])
+@admin_required
+def campaign_draft_save():
+    """캠페인 임시저장"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 500
+
+    import uuid
+
+    draft_id = request.form.get("draft_id", "").strip()
+
+    fields = [
+        "캠페인유형", "플랫폼", "업체명", "캠페인명", "상품명", "옵션",
+        "총수량", "일수량", "진행일수", "1인일일제한",
+        "상품금액", "결제금액", "리뷰비", "중복허용", "구매가능시간",
+        "키워드", "유입방식", "리뷰기한일수", "공개여부",
+        "캠페인가이드", "추가안내사항",
+        "상품링크", "홍보메시지",
+        "홍보활성", "홍보카테고리", "홍보시작시간", "홍보종료시간", "홍보주기",
+        "AI구매검수지침", "AI리뷰검수지침",
+    ]
+
+    data = {}
+    for f in fields:
+        val = request.form.get(f, "").strip()
+        if val:
+            data[f] = val
+    data["상태"] = "임시저장"
+
+    # 대행사/업체 연결
+    agency_id_str = request.form.get("대행사ID", "").strip()
+    if agency_id_str:
+        data["대행사ID"] = agency_id_str
+    client_id_str = request.form.get("업체ID_select", "").strip()
+    if client_id_str:
+        data["업체ID"] = client_id_str
+
+    try:
+        if draft_id:
+            models.db_manager.update_campaign(draft_id, data)
+        else:
+            campaign_id = str(uuid.uuid4())[:8]
+            data["캠페인ID"] = campaign_id
+            data["완료수량"] = "0"
+            draft_id = models.db_manager.create_campaign(data)
+        return jsonify({"ok": True, "draft_id": draft_id})
+    except Exception as e:
+        logger.error(f"임시저장 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/campaigns/drafts")
+@admin_required
+def campaign_drafts():
+    """임시저장 목록 JSON"""
+    if not models.db_manager:
+        return jsonify([])
+    drafts = models.db_manager.get_drafts("admin")
+    return jsonify(drafts)
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/draft", methods=["DELETE"])
+@admin_required
+def campaign_draft_delete(campaign_id):
+    """임시저장 삭제"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 500
+    ok = models.db_manager.delete_campaign(campaign_id)
+    return jsonify({"ok": ok})
 
 
 # ──────── 대화 이력 ────────

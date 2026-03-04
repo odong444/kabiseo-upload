@@ -603,7 +603,7 @@ class DBManager:
     # ─────────── campaigns ───────────
 
     def get_all_campaigns(self) -> list[dict]:
-        rows = self._fetchall("SELECT * FROM campaigns ORDER BY created_at DESC")
+        rows = self._fetchall("SELECT * FROM campaigns WHERE status != '임시저장' ORDER BY created_at DESC")
         # 하위 호환: 시트 컬럼명 매핑
         return [self._campaign_to_sheet_dict(r) for r in rows]
 
@@ -615,6 +615,9 @@ class DBManager:
         if status:
             conditions.append("status = %s")
             params.append(status)
+        else:
+            # 임시저장은 기본 목록에서 제외 (status 필터 없을 때)
+            conditions.append("status != '임시저장'")
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -682,7 +685,7 @@ class DBManager:
                 promotion_message,
                 promo_enabled, promo_categories, promo_start, promo_end, promo_cooldown,
                 exclusive_group, exclusive_days,
-                client_id,
+                client_id, agency_id,
                 ai_instructions, ai_purchase_instructions, ai_review_instructions
             ) VALUES (
                 %(id)s, %(status)s, %(company)s, %(campaign_name)s, %(product_name)s, %(product_link)s,
@@ -704,7 +707,7 @@ class DBManager:
                 %(promotion_message)s,
                 %(promo_enabled)s, %(promo_categories)s, %(promo_start)s, %(promo_end)s, %(promo_cooldown)s,
                 %(exclusive_group)s, %(exclusive_days)s,
-                %(client_id)s,
+                %(client_id)s, %(agency_id)s,
                 %(ai_instructions)s, %(ai_purchase_instructions)s, %(ai_review_instructions)s
             )
         """
@@ -2623,11 +2626,12 @@ class DBManager:
         )
 
     def get_agency_campaigns(self, agency_id: int) -> list:
-        """대행사 관련 캠페인: 직접 생성 + 소속 클라이언트 캠페인"""
+        """대행사 관련 캠페인: 직접 생성 + 소속 클라이언트 캠페인 (임시저장 제외)"""
         rows = self._fetchall(
             """SELECT * FROM campaigns
-               WHERE agency_id = %s
-                  OR client_id IN (SELECT id FROM clients WHERE agency_id = %s)
+               WHERE (agency_id = %s
+                  OR client_id IN (SELECT id FROM clients WHERE agency_id = %s))
+                 AND status != '임시저장'
                ORDER BY created_at DESC""",
             (agency_id, agency_id)
         )
@@ -2641,18 +2645,19 @@ class DBManager:
                 COUNT(*) FILTER (WHERE status = '대행사승인') as agency_approved,
                 COUNT(*) FILTER (WHERE status IN ('모집중', '진행중')) as active,
                 COUNT(*) FILTER (WHERE status IN ('마감', '종료')) as done,
-                COUNT(*) as total
+                COUNT(*) FILTER (WHERE status = '임시저장') as draft,
+                COUNT(*) FILTER (WHERE status != '임시저장') as total
                FROM campaigns
                WHERE agency_id = %s
                   OR client_id IN (SELECT id FROM clients WHERE agency_id = %s)""",
             (agency_id, agency_id)
         )
-        return dict(row) if row else {"pending": 0, "rejected": 0, "agency_approved": 0, "active": 0, "done": 0, "total": 0}
+        return dict(row) if row else {"pending": 0, "rejected": 0, "agency_approved": 0, "active": 0, "done": 0, "draft": 0, "total": 0}
 
     def get_client_campaigns(self, client_id: int) -> list[dict]:
-        """업체의 캠페인 목록 (시트 형식)"""
+        """업체의 캠페인 목록 (시트 형식, 임시저장 제외)"""
         rows = self._fetchall(
-            "SELECT * FROM campaigns WHERE client_id = %s ORDER BY created_at DESC",
+            "SELECT * FROM campaigns WHERE client_id = %s AND status != '임시저장' ORDER BY created_at DESC",
             (client_id,)
         )
         return [self._campaign_to_sheet_dict(r) for r in rows]
@@ -2665,16 +2670,47 @@ class DBManager:
                 COUNT(*) FILTER (WHERE status = '반려') as rejected,
                 COUNT(*) FILTER (WHERE status IN ('모집중', '진행중')) as active,
                 COUNT(*) FILTER (WHERE status IN ('마감', '종료')) as done,
-                COUNT(*) as total
+                COUNT(*) FILTER (WHERE status = '임시저장') as draft,
+                COUNT(*) FILTER (WHERE status != '임시저장') as total
                FROM campaigns WHERE client_id = %s""",
             (client_id,)
         )
-        return dict(row) if row else {"pending": 0, "rejected": 0, "active": 0, "done": 0, "total": 0}
+        return dict(row) if row else {"pending": 0, "rejected": 0, "active": 0, "done": 0, "draft": 0, "total": 0}
 
     def get_pending_campaign_count(self) -> int:
         """승인대기+대행사승인 캠페인 수 (관리자 배지용)"""
         row = self._fetchone("SELECT COUNT(*) as cnt FROM campaigns WHERE status IN ('승인대기', '대행사승인')")
         return row["cnt"] if row else 0
+
+    def get_drafts(self, owner_type: str = "admin", owner_id: int = None) -> list[dict]:
+        """임시저장 캠페인 목록 조회"""
+        if owner_type == "agency" and owner_id:
+            rows = self._fetchall(
+                """SELECT * FROM campaigns
+                   WHERE status = '임시저장'
+                     AND (agency_id = %s OR client_id IN (SELECT id FROM clients WHERE agency_id = %s))
+                   ORDER BY updated_at DESC NULLS LAST, created_at DESC""",
+                (owner_id, owner_id)
+            )
+        elif owner_type == "client" and owner_id:
+            rows = self._fetchall(
+                "SELECT * FROM campaigns WHERE status = '임시저장' AND client_id = %s ORDER BY updated_at DESC NULLS LAST, created_at DESC",
+                (owner_id,)
+            )
+        else:
+            # admin: 전체 임시저장
+            rows = self._fetchall(
+                "SELECT * FROM campaigns WHERE status = '임시저장' ORDER BY updated_at DESC NULLS LAST, created_at DESC"
+            )
+        return [self._campaign_to_sheet_dict(r) for r in rows]
+
+    def delete_campaign(self, campaign_id: str) -> bool:
+        """캠페인 삭제 (임시저장 상태인 경우만)"""
+        row = self._fetchone("SELECT status FROM campaigns WHERE id = %s", (campaign_id,))
+        if not row or row["status"] != "임시저장":
+            return False
+        self._execute("DELETE FROM campaigns WHERE id = %s AND status = '임시저장'", (campaign_id,))
+        return True
 
     # ─────────── 기존리뷰어 모집 ───────────
 

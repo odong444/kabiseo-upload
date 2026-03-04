@@ -273,7 +273,31 @@
                 {% endfor %}
             </select>
             <button class="btn-filter" onclick="applyCampaignFilter()">필터 적용</button>
+            <button class="btn-filter" onclick="toggleDraftList()" id="draftToggleBtn" style="background:#f0f4ff;color:#4a6cf7;border-color:#4a6cf7;">임시저장 <span id="draftCountBadge" style="display:none;background:#4a6cf7;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">0</span></button>
             <span style="font-size:13px;color:#6b7280;margin-left:8px;">총 <strong>{{ total }}</strong>건</span>
+        </div>
+
+        <!-- 임시저장 목록 -->
+        <div id="draftListSection" style="display:none;margin-bottom:24px;">
+            <h2 style="font-size:16px;font-weight:700;color:#4a6cf7;margin-bottom:12px;">임시저장 목록 <span id="draftListCount" style="font-size:13px;font-weight:500;color:#6b7280;"></span></h2>
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>캠페인명</th>
+                            <th>업체명</th>
+                            <th>플랫폼</th>
+                            <th>총수량</th>
+                            <th>결제금액</th>
+                            <th>저장일</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="draftListBody">
+                        <tr><td colspan="7" style="text-align:center;color:#94a3b8;">로딩 중...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- 캠페인 요청 (승인대기/반려) -->
@@ -575,6 +599,97 @@
     </main>
 
     <script>
+    // 임시저장 목록
+    var _draftListLoaded = false;
+    function toggleDraftList() {
+        var sec = document.getElementById('draftListSection');
+        if (sec.style.display === 'none') {
+            sec.style.display = '';
+            if (!_draftListLoaded) loadDraftList();
+        } else {
+            sec.style.display = 'none';
+        }
+    }
+    function loadDraftList() {
+        _draftListLoaded = true;
+        fetch('{{ url_for("admin.campaign_drafts") }}')
+            .then(function(r) { return r.json(); })
+            .then(function(drafts) {
+                var tbody = document.getElementById('draftListBody');
+                var countEl = document.getElementById('draftListCount');
+                var badge = document.getElementById('draftCountBadge');
+                countEl.textContent = '(' + drafts.length + '건)';
+                if (drafts.length > 0) {
+                    badge.textContent = drafts.length;
+                    badge.style.display = '';
+                } else {
+                    badge.style.display = 'none';
+                }
+                if (drafts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8;">임시저장된 캠페인이 없습니다.</td></tr>';
+                    return;
+                }
+                var html = '';
+                drafts.forEach(function(d) {
+                    var name = d['캠페인명'] || d['상품명'] || '(이름 없음)';
+                    var company = d['업체명'] || '-';
+                    var platform = d['플랫폼'] || '-';
+                    var total = d['총수량'] || '-';
+                    var price = d['결제금액'] || d['상품금액'] || '-';
+                    var date = d['등록일'] || '-';
+                    var cid = d['캠페인ID'] || '';
+                    html += '<tr>'
+                        + '<td style="font-weight:600;">' + name + '</td>'
+                        + '<td>' + company + '</td>'
+                        + '<td>' + platform + '</td>'
+                        + '<td class="num-cell">' + total + '</td>'
+                        + '<td>' + price + '</td>'
+                        + '<td>' + date + '</td>'
+                        + '<td>'
+                        + '<div class="campaign-actions">'
+                        + '<a href="{{ url_for("admin.campaign_new") }}?draft=' + cid + '" class="admin-btn admin-btn-sm" style="background:#f0f4ff;color:#4a6cf7;">이어쓰기</a>'
+                        + '<button type="button" class="admin-btn admin-btn-sm admin-btn-danger" onclick="deleteDraft(\'' + cid + '\', this)">삭제</button>'
+                        + '</div>'
+                        + '</td>'
+                        + '</tr>';
+                });
+                tbody.innerHTML = html;
+            })
+            .catch(function() {
+                document.getElementById('draftListBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">목록 로드 실패</td></tr>';
+            });
+    }
+    function deleteDraft(campaignId, btn) {
+        if (!confirm('이 임시저장을 삭제하시겠습니까?')) return;
+        btn.disabled = true;
+        fetch('/admin/api/campaign/' + campaignId + '/draft', { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.ok) {
+                    _draftListLoaded = false;
+                    loadDraftList();
+                } else {
+                    alert('삭제 실패');
+                    btn.disabled = false;
+                }
+            })
+            .catch(function() { alert('서버 연결 오류'); btn.disabled = false; });
+    }
+
+    // 페이지 로드 시 임시저장 건수 확인
+    (function() {
+        fetch('{{ url_for("admin.campaign_drafts") }}')
+            .then(function(r) { return r.json(); })
+            .then(function(drafts) {
+                var badge = document.getElementById('draftCountBadge');
+                if (drafts.length > 0) {
+                    badge.textContent = drafts.length;
+                    badge.style.display = '';
+                }
+            })
+            .catch(function() {});
+    })();
+
     // 캠페인 상태 필터
     function applyCampaignFilter() {
         var status = document.getElementById('campaignStatusFilter').value;

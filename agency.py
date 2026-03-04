@@ -111,8 +111,12 @@ def dashboard():
         c["purchased"] = counts["purchased"]
         c["reviewed"] = counts["reviewed"]
 
+    # 임시저장 목록
+    drafts = models.db_manager.get_drafts("agency", agency_id)
+
     return render_template("agency/dashboard.html",
                            campaigns=campaigns, stats=stats, clients=clients,
+                           drafts=drafts,
                            company_name=session.get("agency_company", ""))
 
 
@@ -208,8 +212,17 @@ def api_client_delete(client_id):
 def campaign_new():
     agency_id = session["agency_id"]
     clients = models.db_manager.get_agency_clients(agency_id)
+
+    # 임시저장 불러오기
+    draft = None
+    draft_id = request.args.get("draft")
+    if draft_id:
+        draft = models.db_manager.get_campaign_by_id(draft_id)
+        if draft and (draft.get("상태") != "임시저장" or str(draft.get("대행사ID", "")) != str(agency_id)):
+            draft = None
+
     return render_template("agency/campaign_request.html",
-                           clients=clients,
+                           clients=clients, draft=draft,
                            company_name=session.get("agency_company", ""))
 
 
@@ -221,7 +234,7 @@ def campaign_new_post():
         return redirect(url_for("agency.dashboard"))
 
     agency_id = session["agency_id"]
-    campaign_id = str(uuid.uuid4())[:8]
+    draft_id = request.form.get("draft_id", "").strip()
 
     fields = [
         "캠페인유형", "플랫폼", "업체명", "캠페인명", "상품명",
@@ -230,13 +243,22 @@ def campaign_new_post():
         "상품링크", "옵션", "키워드", "유입방식", "리뷰기한일수",
     ]
 
-    data = {
-        "캠페인ID": campaign_id,
-        "등록일": today_str(),
-        "상태": "대행사승인",  # 대행사가 생성하면 대행사승인 상태 (관리자 최종 승인 대기)
-        "완료수량": "0",
-        "대행사ID": agency_id,
-    }
+    if draft_id:
+        # 임시저장에서 정식 제출: update
+        data = {
+            "상태": "대행사승인",
+            "등록일": today_str(),
+            "대행사ID": agency_id,
+        }
+    else:
+        campaign_id = str(uuid.uuid4())[:8]
+        data = {
+            "캠페인ID": campaign_id,
+            "등록일": today_str(),
+            "상태": "대행사승인",  # 대행사가 생성하면 대행사승인 상태 (관리자 최종 승인 대기)
+            "완료수량": "0",
+            "대행사ID": agency_id,
+        }
 
     # 클라이언트 선택 (선택사항)
     client_id = safe_int(request.form.get("client_id", ""))
@@ -299,14 +321,98 @@ def campaign_new_post():
             logger.error(f"상품이미지 업로드 에러: {e}")
 
     try:
-        models.db_manager.create_campaign(data)
-        display_name = data.get("캠페인명", "").strip() or data["상품명"]
+        if draft_id:
+            models.db_manager.update_campaign(draft_id, data)
+            display_name = data.get("캠페인명", "").strip() or data.get("상품명", "")
+        else:
+            models.db_manager.create_campaign(data)
+            display_name = data.get("캠페인명", "").strip() or data["상품명"]
         flash(f"캠페인 '{display_name}' 요청이 접수되었습니다. 관리자 승인 후 진행됩니다.")
     except Exception as e:
         logger.error(f"캠페인 생성 에러: {e}")
         flash(f"요청 중 오류가 발생했습니다: {e}")
 
     return redirect(url_for("agency.dashboard"))
+
+
+# ─── 캠페인 임시저장 ───
+
+@agency_bp.route("/campaign/draft", methods=["POST"])
+@agency_required
+def campaign_draft_save():
+    """대행사 캠페인 임시저장"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+
+    agency_id = session["agency_id"]
+    draft_id = request.form.get("draft_id", "").strip()
+
+    fields = [
+        "캠페인유형", "플랫폼", "업체명", "캠페인명", "상품명",
+        "총수량", "일수량", "진행일수", "1인일일제한",
+        "상품금액", "리뷰비", "중복허용", "구매가능시간", "캠페인가이드",
+        "상품링크", "옵션", "키워드", "유입방식", "리뷰기한일수",
+    ]
+
+    data = {}
+    for f in fields:
+        val = request.form.get(f, "")
+        if val:
+            data[f] = val
+
+    data["상태"] = "임시저장"
+    data["대행사ID"] = agency_id
+
+    # 클라이언트 선택
+    client_id = safe_int(request.form.get("client_id", ""))
+    if client_id:
+        client = models.db_manager.get_client_by_id(client_id)
+        if client and safe_int(client.get("agency_id")) == agency_id:
+            data["업체ID"] = client_id
+            if not data.get("업체명"):
+                data["업체명"] = client.get("company_name", "")
+
+    # 시작일/일정
+    start_date = request.form.get("시작일", "").strip()
+    if start_date:
+        data["시작일"] = start_date
+    manual_schedule = request.form.get("일정", "").strip()
+    if manual_schedule:
+        data["일정"] = [safe_int(x) for x in re.split(r"[,\s]+", manual_schedule) if x.strip()]
+
+    try:
+        if draft_id:
+            # 기존 임시저장 업데이트 — 소유권 확인
+            existing = models.db_manager.get_campaign_by_id(draft_id)
+            if not existing or existing.get("상태") != "임시저장" or str(existing.get("대행사ID", "")) != str(agency_id):
+                return jsonify({"ok": False, "error": "접근 권한이 없습니다."}), 403
+            models.db_manager.update_campaign(draft_id, data)
+        else:
+            campaign_id = str(uuid.uuid4())[:8]
+            data["캠페인ID"] = campaign_id
+            data["등록일"] = today_str()
+            data["완료수량"] = "0"
+            draft_id = models.db_manager.create_campaign(data)
+            if not draft_id:
+                draft_id = campaign_id
+        return jsonify({"ok": True, "draft_id": draft_id})
+    except Exception as e:
+        logger.error("대행사 임시저장 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@agency_bp.route("/api/campaign/<campaign_id>/draft", methods=["DELETE"])
+@agency_required
+def campaign_draft_delete(campaign_id):
+    """대행사 임시저장 삭제"""
+    agency_id = session["agency_id"]
+    campaign = models.db_manager.get_campaign_by_id(campaign_id)
+    if not campaign or campaign.get("상태") != "임시저장":
+        return jsonify({"ok": False, "error": "임시저장 캠페인이 아닙니다."}), 404
+    if str(campaign.get("대행사ID", "")) != str(agency_id):
+        return jsonify({"ok": False, "error": "접근 권한이 없습니다."}), 403
+    ok = models.db_manager.delete_campaign(campaign_id)
+    return jsonify({"ok": ok})
 
 
 # ─── 캠페인 상세 ───
