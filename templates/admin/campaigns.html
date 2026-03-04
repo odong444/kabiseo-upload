@@ -469,45 +469,91 @@
                         <td colspan="12" class="detail-cell">
                             <div class="detail-grid">
                                 <div class="detail-item">
+                                    <div class="detail-label">캠페인유형</div>
+                                    <div class="detail-value">{{ c.get('캠페인유형', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
                                     <div class="detail-label">플랫폼</div>
                                     <div class="detail-value">{{ c.get('플랫폼', '-') or '-' }}</div>
                                 </div>
                                 <div class="detail-item">
-                                    <div class="detail-label">구매시간</div>
-                                    <div class="detail-value">{{ c.get('구매가능시간', '') or '24시간' }}</div>
+                                    <div class="detail-label">옵션</div>
+                                    <div class="detail-value">{{ c.get('옵션', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">결제금액</div>
+                                    <div class="detail-value">{{ c.get('결제금액', '-') or '-' }}</div>
                                 </div>
                                 <div class="detail-item">
                                     <div class="detail-label">리뷰비</div>
                                     <div class="detail-value">{{ c.get('리뷰비', '-') or '-' }}</div>
                                 </div>
                                 <div class="detail-item">
-                                    <div class="detail-label">시작일</div>
-                                    <div class="detail-value">{{ c.get('시작일', '-') or '-' }}</div>
+                                    <div class="detail-label">1인일일제한</div>
+                                    <div class="detail-value">{{ c.get('1인일일제한', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">구매시간</div>
+                                    <div class="detail-value">{{ c.get('구매가능시간', '') or '24시간' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">중복허용</div>
+                                    <div class="detail-value">{% set dup = c.get('중복허용', '') %}{% if dup == 'Y' %}가능{% elif dup and dup.startswith('텀:') %}{{ dup }}{% else %}불가{% endif %}</div>
                                 </div>
                                 <div class="detail-item">
                                     <div class="detail-label">키워드</div>
                                     <div class="detail-value">{{ c.get('키워드', '-') or '-' }}</div>
                                 </div>
                                 <div class="detail-item">
+                                    <div class="detail-label">유입방식</div>
+                                    <div class="detail-value">{{ c.get('유입방식', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">시작일</div>
+                                    <div class="detail-value">{{ c.get('시작일', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">리뷰기한</div>
+                                    <div class="detail-value">{% set rd = c.get('리뷰기한일수', '') %}{% if rd and rd != '0' %}{{ rd }}일{% else %}-{% endif %}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">공개여부</div>
+                                    <div class="detail-value">{{ '공개' if c.get('공개여부') in ('Y', True, 'True') else '비공개' }}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">동시진행그룹</div>
+                                    <div class="detail-value">{{ c.get('동시진행그룹', '-') or '-' }}</div>
+                                </div>
+                                <div class="detail-item" style="grid-column:1/-1;">
                                     <div class="detail-label">상품링크</div>
                                     <div class="detail-value">
                                         {% set link = c.get('상품링크', '') %}
                                         {% if link %}
-                                        <a href="{{ link }}" target="_blank" rel="noopener">{{ link[:50] }}{% if link|length > 50 %}...{% endif %}</a>
+                                        <a href="{{ link }}" target="_blank" rel="noopener">{{ link[:80] }}{% if link|length > 80 %}...{% endif %}</a>
                                         {% else %}-{% endif %}
                                     </div>
                                 </div>
-                                <div class="detail-item">
-                                    <div class="detail-label">상품이미지</div>
-                                    <div class="detail-value">
-                                        {% set img = c.get('상품이미지', '') %}
-                                        {% if img %}
-                                        <img src="{{ img.replace('/file/d/', '/thumbnail?id=').replace('/view', '&sz=w300') if '/file/d/' in img else img }}"
-                                             alt="상품이미지" style="max-width:200px;border-radius:8px;border:1px solid #ddd;"
-                                             onerror="this.style.display='none'">
-                                        {% else %}-{% endif %}
-                                    </div>
+                                {% set guide = c.get('캠페인가이드', '') %}
+                                {% if guide %}
+                                <div class="detail-item" style="grid-column:1/-1;">
+                                    <div class="detail-label">캠페인가이드</div>
+                                    <div class="detail-value" style="white-space:pre-wrap;max-height:120px;overflow-y:auto;background:#fff;padding:8px;border-radius:6px;border:1px solid #e2e8f0;font-size:12px;">{{ guide }}</div>
                                 </div>
+                                {% endif %}
+                                {% set extra = c.get('추가안내사항', '') %}
+                                {% if extra %}
+                                <div class="detail-item" style="grid-column:1/-1;">
+                                    <div class="detail-label">추가안내사항</div>
+                                    <div class="detail-value" style="white-space:pre-wrap;max-height:80px;overflow-y:auto;background:#fff;padding:8px;border-radius:6px;border:1px solid #e2e8f0;font-size:12px;">{{ extra }}</div>
+                                </div>
+                                {% endif %}
+                                {% set memo = c.get('메모', '') %}
+                                {% if memo %}
+                                <div class="detail-item" style="grid-column:1/-1;">
+                                    <div class="detail-label">메모</div>
+                                    <div class="detail-value" style="white-space:pre-wrap;max-height:80px;overflow-y:auto;background:#fffbeb;padding:8px;border-radius:6px;border:1px solid #fde68a;font-size:12px;">{{ memo }}</div>
+                                </div>
+                                {% endif %}
                             </div>
                             <!-- 일별 일정 -->
                             <div style="margin-top:8px;">
