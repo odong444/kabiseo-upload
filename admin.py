@@ -2210,6 +2210,66 @@ def api_progress_extend_time():
         return jsonify({"ok": False, "message": str(e)})
 
 
+@admin_bp.route("/api/progress/bulk-delete", methods=["POST"])
+@admin_required
+def api_progress_bulk_delete():
+    """일괄 삭제"""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("progress_ids", [])
+    if not ids or not models.db_manager:
+        return jsonify({"ok": False, "message": "항목 없음"})
+    done = 0
+    for pid in ids:
+        try:
+            if models.db_manager.delete_progress(int(pid)):
+                done += 1
+        except Exception:
+            pass
+    return jsonify({"ok": True, "done": done, "total": len(ids)})
+
+
+@admin_bp.route("/api/progress/bulk-status", methods=["POST"])
+@admin_required
+def api_progress_bulk_status():
+    """일괄 상태 변경"""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("progress_ids", [])
+    status = data.get("status", "")
+    if not ids or not status or not models.db_manager:
+        return jsonify({"ok": False, "message": "항목/상태 없음"})
+    done = 0
+    for pid in ids:
+        try:
+            models.db_manager.update_progress_field(int(pid), "상태", status)
+            done += 1
+        except Exception:
+            pass
+    return jsonify({"ok": True, "done": done, "total": len(ids)})
+
+
+@admin_bp.route("/api/progress/bulk-extend", methods=["POST"])
+@admin_required
+def api_progress_bulk_extend():
+    """일괄 시간 연장"""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("progress_ids", [])
+    if not ids or not models.db_manager:
+        return jsonify({"ok": False, "message": "항목 없음"})
+    from app import _touch_reviewer_by_row
+    done = 0
+    for pid in ids:
+        try:
+            models.db_manager._execute(
+                "UPDATE progress SET created_at = NOW(), updated_at = NOW() WHERE id = %s",
+                (int(pid),)
+            )
+            _touch_reviewer_by_row(int(pid))
+            done += 1
+        except Exception:
+            pass
+    return jsonify({"ok": True, "done": done, "total": len(ids)})
+
+
 @admin_bp.route("/api/progress/delete", methods=["POST"])
 @admin_required
 def api_progress_delete():

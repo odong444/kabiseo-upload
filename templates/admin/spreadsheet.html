@@ -412,6 +412,9 @@
             <span>검색 결과: <strong>{{ total }}</strong>건 ({{ page }}/{{ total_pages }}페이지)</span>
             <button class="btn-kakao" style="font-size:13px;padding:6px 16px;" onclick="bulkKakao()">선택 카톡 발송</button>
             <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#eff6ff;color:#1d4ed8;font-weight:600;cursor:pointer;" onclick="runAiBatch()">AI 일괄검수</button>
+            <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#f0fdf4;color:#16a34a;font-weight:600;cursor:pointer;" onclick="bulkStatus()">상태변경</button>
+            <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#eff6ff;color:#2563eb;font-weight:600;cursor:pointer;" onclick="bulkExtend()">일괄연장</button>
+            <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:600;cursor:pointer;" onclick="bulkDelete()">일괄삭제</button>
             <span id="aiBatchResult" style="font-size:13px;color:#888;"></span>
         </div>
 
@@ -561,6 +564,26 @@
         </div>
     </div>
 
+    <!-- 상태변경 모달 -->
+    <div id="statusModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+        <div style="background:#fff;border-radius:12px;padding:24px;max-width:360px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="margin:0;">일괄 상태변경</h3>
+                <button onclick="document.getElementById('statusModal').style.display='none'" style="border:none;background:none;font-size:20px;cursor:pointer;">&times;</button>
+            </div>
+            <p id="statusTarget" style="color:#666;margin-bottom:12px;">대상: 0건</p>
+            <select id="bulkStatusSelect" style="width:100%;padding:10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;">
+                {% for s in ['신청','가이드전달','구매캡쳐대기','리뷰대기','리뷰제출','입금대기','입금완료','타임아웃취소'] %}
+                <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+            <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                <button onclick="document.getElementById('statusModal').style.display='none'" style="padding:8px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">취소</button>
+                <button onclick="confirmBulkStatus()" style="padding:8px 16px;border:none;border-radius:6px;background:#16a34a;color:#fff;cursor:pointer;font-weight:600;">변경</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 캡쳐 이미지 모달 -->
     <div id="captureModal" class="capture-modal-overlay">
         <div class="capture-modal">
@@ -684,6 +707,72 @@
             el.textContent = '네트워크 오류';
             el.style.color = '#dc2626';
         });
+    }
+
+    // --- 일괄 작업 공통 ---
+    function getCheckedIds() {
+        var ids = [];
+        document.querySelectorAll('.row-check:checked').forEach(function(cb) {
+            ids.push(parseInt(cb.value));
+        });
+        return ids;
+    }
+
+    function bulkDelete() {
+        var ids = getCheckedIds();
+        if (ids.length === 0) { alert('삭제할 항목을 선택해주세요.'); return; }
+        if (!confirm(ids.length + '건을 삭제하시겠습니까?')) return;
+        fetch('/admin/api/progress/bulk-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress_ids: ids })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) { alert(d.done + '/' + d.total + '건 삭제 완료'); location.reload(); }
+            else alert('실패: ' + (d.message || ''));
+        })
+        .catch(function() { alert('네트워크 오류'); });
+    }
+
+    function bulkStatus() {
+        var ids = getCheckedIds();
+        if (ids.length === 0) { alert('변경할 항목을 선택해주세요.'); return; }
+        document.getElementById('statusTarget').textContent = '대상: ' + ids.length + '건';
+        document.getElementById('statusModal').style.display = 'flex';
+    }
+    function confirmBulkStatus() {
+        var ids = getCheckedIds();
+        var status = document.getElementById('bulkStatusSelect').value;
+        document.getElementById('statusModal').style.display = 'none';
+        fetch('/admin/api/progress/bulk-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress_ids: ids, status: status })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) { alert(d.done + '/' + d.total + '건 → ' + status + ' 변경 완료'); location.reload(); }
+            else alert('실패: ' + (d.message || ''));
+        })
+        .catch(function() { alert('네트워크 오류'); });
+    }
+
+    function bulkExtend() {
+        var ids = getCheckedIds();
+        if (ids.length === 0) { alert('연장할 항목을 선택해주세요.'); return; }
+        if (!confirm(ids.length + '건 시간 연장(+30분)?')) return;
+        fetch('/admin/api/progress/bulk-extend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ progress_ids: ids })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) { alert(d.done + '/' + d.total + '건 연장 완료'); location.reload(); }
+            else alert('실패: ' + (d.message || ''));
+        })
+        .catch(function() { alert('네트워크 오류'); });
     }
 
     function bulkKakao() {
