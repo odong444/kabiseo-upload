@@ -675,7 +675,7 @@ def api_task_purchase(progress_id):
                review_fee = %s, payment_total = %s,
                status = '리뷰대기',
                purchase_date = COALESCE(purchase_date, (NOW() AT TIME ZONE 'Asia/Seoul')::date),
-               remark = CASE WHEN remark LIKE '구매캡쳐 반려%%' THEN '' ELSE remark END,
+               remark = CASE WHEN remark LIKE '구매캡쳐 반려%%' OR remark LIKE 'AI 자동반려%%' THEN '' ELSE remark END,
                updated_at = NOW()
                WHERE id = %s""",
             (

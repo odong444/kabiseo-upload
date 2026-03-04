@@ -508,7 +508,7 @@ class DBManager:
                 try:
                     cur.execute("""
                         UPDATE progress SET remark = ''
-                        WHERE remark LIKE '구매캡쳐 반려%%'
+                        WHERE (remark LIKE '구매캡쳐 반려%%' OR remark LIKE 'AI 자동반려%%')
                           AND purchase_capture_url IS NOT NULL AND purchase_capture_url != ''
                     """)
                     if cur.rowcount > 0:
