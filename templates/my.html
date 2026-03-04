@@ -148,16 +148,10 @@
                     actionBtn = `<a href="/task/${item.id}" class="btn btn-primary btn-xs">제출</a>`;
                     break;
                 case '리뷰대기':
-                    actionBtn = '<span class="my-status-text-sm">리뷰대기</span>';
-                    break;
                 case '리뷰제출':
-                    actionBtn = '<span class="my-status-text-sm">검수중</span>';
-                    break;
                 case '입금대기':
-                    actionBtn = '<span class="my-status-text-sm">입금대기</span>';
-                    break;
                 case '입금완료':
-                    actionBtn = '<span class="my-status-text-sm done">완료</span>';
+                    actionBtn = '';
                     break;
             }
             const remarkHtml = item.remark && item.remark.startsWith('반려')
