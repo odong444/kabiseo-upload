@@ -125,9 +125,11 @@ class TimeoutManager:
         return 0.0
 
     def _check_all(self):
+        active_count = 0
         for state in self.state_store.all_states():
             if state.step < 4:
                 continue
+            active_count += 1
 
             # 이중 타임아웃: DB created_at vs 인메모리 last_activity 중 더 나중 기준
             db_created = self._get_db_created_epoch(state)
@@ -137,6 +139,7 @@ class TimeoutManager:
 
             # 30분 초과 → 취소
             if elapsed >= self.timeout:
+                logger.info("[MEM] 타임아웃 취소: rid=%s step=%s elapsed=%.0fs", rid, state.step, elapsed)
                 self._do_timeout_cancel(state)
                 continue
 
@@ -330,14 +333,15 @@ class TimeoutManager:
             effective_start = self._calc_effective_start(r["created_at"], buy_time_str, now)
             elapsed = (now - effective_start).total_seconds()
 
-            # 디버그 로깅 (buy_time 있는 건만)
-            if buy_time_str:
-                created_kst = self._to_kst(r["created_at"], now.tzinfo)
-                logger.debug(
-                    "buy_time 체크: id=%s buy_time=%s created=%s effective=%s elapsed=%.0fs (%.1fmin)",
-                    r["id"], buy_time_str, created_kst.strftime("%H:%M"),
-                    effective_start.strftime("%H:%M"), elapsed, elapsed / 60
-                )
+            # 상세 로깅 (모든 건)
+            created_kst = self._to_kst(r["created_at"], now.tzinfo)
+            logger.info(
+                "[DB] id=%s bt=%s created=%s eff=%s elapsed=%.0fs(%.1fm)",
+                r["id"], buy_time_str or "none",
+                created_kst.strftime("%H:%M"),
+                effective_start.strftime("%H:%M"),
+                elapsed, elapsed / 60
+            )
 
             # 구매시간 전이면 아직 타임아웃 시작 안 됨
             if elapsed < 0:
@@ -347,13 +351,15 @@ class TimeoutManager:
             if buy_time_str and r["id"] not in self._buy_time_notified:
                 if is_within_buy_time(buy_time_str) and elapsed < self.warning:
                     # effective_start가 created_kst보다 늦으면 → 구매시간 전에 신청한 것
-                    created_kst = self._to_kst(r["created_at"], now.tzinfo)
-                    if effective_start > created_kst:
+                    created_kst2 = self._to_kst(r["created_at"], now.tzinfo)
+                    if effective_start > created_kst2:
                         to_buy_time_notify.setdefault(key, []).append(r)
 
             if elapsed >= self.timeout:
+                logger.info("[DB] CANCEL: id=%s bt=%s eff=%s elapsed=%.0fs", r["id"], buy_time_str, effective_start, elapsed)
                 to_cancel.setdefault(key, []).append(r)
             elif elapsed >= self.warning:
+                logger.info("[DB] WARN: id=%s bt=%s eff=%s elapsed=%.0fs", r["id"], buy_time_str, effective_start, elapsed)
                 to_warn.setdefault(key, []).append(r)
 
         # ── 구매시간 시작 알림 (카톡) ──
