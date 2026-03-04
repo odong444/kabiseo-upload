@@ -1904,12 +1904,12 @@ body {
 .id-row .id-name {
     font-weight: 600; font-size: 14px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    min-width: 0; max-width: 120px;
+    min-width: 0; flex: 1;
 }
-.id-row .status-badge { flex-shrink: 0; }
-.id-row .id-action { margin-left: auto; flex-shrink: 0; }
+.id-row .status-badge { flex-shrink: 0; margin-left: auto; }
+.id-row .id-action { flex-shrink: 0; }
 .id-remark {
-    color: #e74c3c; font-size: 11px; flex-shrink: 0;
+    color: #e74c3c; font-size: 11px;
     flex-basis: 100%; padding-left: 2px; margin-top: -2px;
 }
 .btn-xs { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
