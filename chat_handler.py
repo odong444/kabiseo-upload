@@ -50,8 +50,8 @@ def register_handlers(socketio):
         if history:
             emit("chat_history", {"messages": history})
 
-        # 환영 메시지
-        if models.step_machine:
+        # 환영 메시지 — 이력이 없을 때만 (재접속 시 중복 방지)
+        if not history and models.step_machine:
             welcome = models.step_machine.get_welcome(name, phone)
             if welcome:
                 if isinstance(welcome, dict):
