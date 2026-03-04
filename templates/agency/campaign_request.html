@@ -137,6 +137,11 @@
                         <input type="text" name="상품명" required placeholder="예: 들기름 300ml">
                     </div>
                     <div class="form-group">
+                        <label>옵션명</label>
+                        <input type="text" name="옵션" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
+                        <small>리뷰어가 구매 시 선택할 옵션을 입력하세요</small>
+                    </div>
+                    <div class="form-group">
                         <label>플랫폼 *</label>
                         <select name="플랫폼" id="platformSelect" required>
                             <option value="스마트스토어">스마트스토어</option>
@@ -176,34 +181,31 @@
                             <div class="file-upload-label" id="imageLabel">클릭하여 이미지를 선택하세요 (JPG, PNG)</div>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- 운영 설정 -->
-            <div class="form-section">
-                <h3>운영 설정</h3>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>총 모집인원 *</label>
-                        <input type="number" name="총수량" id="totalCount" required min="1" placeholder="예: 20">
-                    </div>
-                    <div class="form-group">
-                        <label>하루진행량</label>
-                        <input type="text" name="일수량" id="dailyCount" placeholder="숫자(예: 5) 또는 범위(예: 3-5)">
-                    </div>
-                    <div class="form-group">
-                        <label>진행일수</label>
-                        <input type="number" name="진행일수" id="dayCount" min="1" placeholder="예: 4">
-                    </div>
-                    <div class="form-group">
-                        <label>시작일</label>
-                        <input type="date" name="시작일" id="startDate">
-                        <small>비우면 승인일로 설정됩니다</small>
+                    <div class="form-group form-group-full">
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">총 모집인원 *</label>
+                                <input type="number" name="총수량" id="totalCount" required min="1" placeholder="예: 20" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
+                            </div>
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">하루진행량</label>
+                                <input type="text" name="일수량" id="dailyCount" placeholder="숫자(예: 5) 또는 범위(예: 3-5)" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
+                            </div>
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;margin-bottom:6px;display:block;">진행일수</label>
+                                <input type="number" name="진행일수" id="dayCount" min="1" placeholder="예: 4" style="padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;width:100%;">
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>1인 일일 제한</label>
                         <input type="number" name="1인일일제한" min="0" placeholder="0 = 무제한">
                         <small>한 명이 하루에 참여 가능한 최대 건수</small>
+                    </div>
+                    <div class="form-group">
+                        <label>시작일</label>
+                        <input type="date" name="시작일" id="startDate">
+                        <small>비우면 승인일로 설정됩니다</small>
                     </div>
                     <div class="form-group form-group-full">
                         <div class="calc-hint hidden" id="calcHint"></div>
@@ -214,7 +216,7 @@
                         <input type="text" name="일정" id="scheduleInput" placeholder="예: 3, 5, 4, 3, 4, 2 (쉼표 구분)">
                         <small>자동 생성된 일정을 직접 수정할 수 있습니다</small>
                     </div>
-                    <div class="form-group form-group-full">
+                    <div class="form-group form-group-full" style="max-width:600px;">
                         <label>모집 및 구매진행시간</label>
                         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                             <select id="buyTimeStart" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;">
@@ -245,11 +247,6 @@
                                 <span class="hidden" id="dupDaysLabel">일 후 가능</span>
                             </label>
                         </div>
-                    </div>
-                    <div class="form-group form-group-full">
-                        <label>옵션명</label>
-                        <input type="text" name="옵션" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
-                        <small>리뷰어가 구매 시 선택할 옵션을 입력하세요</small>
                     </div>
                     <div class="form-group">
                         <label>키워드</label>

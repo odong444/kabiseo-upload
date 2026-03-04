@@ -123,6 +123,7 @@
 
         <form method="POST" action="{{ url_for('admin.campaign_edit_post', campaign_id=row) }}" enctype="multipart/form-data" class="admin-form">
             <div class="form-grid">
+                <!-- 상태 / 캠페인명 -->
                 <div class="form-group">
                     <label>상태</label>
                     <select name="상태">
@@ -131,17 +132,12 @@
                         {% endfor %}
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label>캠페인명</label>
                     <input type="text" name="캠페인명" value="{{ campaign.get('캠페인명', '') }}" placeholder="비우면 상품명으로 표시">
                 </div>
 
-                <div class="form-group">
-                    <label>상품명</label>
-                    <input type="text" name="상품명" value="{{ campaign.get('상품명', '') }}">
-                </div>
-
+                <!-- 대행사 / 업체명 -->
                 <div class="form-group">
                     <label>대행사</label>
                     <select name="대행사ID" id="agencySelect">
@@ -151,7 +147,6 @@
                         {% endfor %}
                     </select>
                 </div>
-
                 <div class="form-group">
                     <label>업체명</label>
                     <select name="업체ID_select" id="clientSelect">
@@ -163,11 +158,21 @@
                     <input type="text" name="업체명" id="companyNameInput" value="{{ campaign.get('업체명', '') }}" placeholder="업체명 직접입력" style="margin-top:6px;{{ 'display:none;' if client_info }}">
                 </div>
 
+                <!-- 상품명 / 옵션 -->
+                <div class="form-group">
+                    <label>상품명</label>
+                    <input type="text" name="상품명" value="{{ campaign.get('상품명', '') }}">
+                </div>
+                <div class="form-group">
+                    <label>옵션명</label>
+                    <input type="text" name="옵션" value="{{ campaign.get('옵션', '') }}" placeholder="예: 300ml / 블랙 (쉼표로 구분)">
+                </div>
+
+                <!-- 플랫폼 / 캠페인유형 -->
                 <div class="form-group">
                     <label>플랫폼</label>
                     <input type="text" name="플랫폼" value="{{ campaign.get('플랫폼', '') }}">
                 </div>
-
                 <div class="form-group">
                     <label>캠페인유형</label>
                     <select name="캠페인유형">
@@ -177,42 +182,84 @@
                     </select>
                 </div>
 
+                <!-- 상품링크 (full width) -->
+                <div class="form-group form-group-full">
+                    <label>상품링크</label>
+                    <input type="text" name="상품링크" value="{{ campaign.get('상품링크', '') }}">
+                </div>
+
+                <!-- 상품코드 (full width) -->
+                <div class="form-group form-group-full">
+                    <label>상품코드 (자동추출)</label>
+                    {% set codes = campaign.get('상품코드', {}) %}
+                    {% if codes and codes.get('codes') %}
+                    <div style="background:#f0f7ff;padding:8px 12px;border-radius:6px;font-size:13px;">
+                        <span style="color:#666;">{{ codes.get('platform', '') }}:</span>
+                        {% for k, v in codes.get('codes', {}).items() %}
+                        <span style="margin-left:8px;"><b>{{ k }}</b>={{ v }}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div style="color:#999;font-size:13px;">상품링크 저장 시 자동 추출됩니다</div>
+                    {% endif %}
+                </div>
+
+                <!-- 상품이미지 (full width) -->
+                <div class="form-group form-group-full">
+                    <label>상품이미지</label>
+                    {% set current_image = campaign.get('상품이미지', '') %}
+                    {% if current_image %}
+                    <div class="current-image">
+                        <p style="font-size:12px;color:#666;margin-bottom:4px;">현재 이미지:</p>
+                        <img src="{{ current_image.replace('/file/d/', '/thumbnail?id=').replace('/view', '&sz=w300') if '/file/d/' in current_image else current_image }}" alt="상품이미지" onerror="this.style.display='none'">
+                    </div>
+                    {% endif %}
+                    <div class="file-upload-area" id="imageUploadArea" style="margin-top:8px;">
+                        <input type="file" name="상품이미지" id="imageFile" accept="image/*">
+                        <div class="file-upload-label" id="imageLabel">{{ '새 이미지로 교체하려면 클릭' if current_image else '클릭하여 이미지를 선택하세요 (JPG, PNG)' }}</div>
+                    </div>
+                </div>
+
+                <!-- 결제금액 / 리뷰비 -->
                 <div class="form-group">
                     <label>결제금액</label>
                     <input type="text" name="결제금액" value="{{ campaign.get('결제금액', '') or campaign.get('상품금액', '') }}">
                 </div>
-
                 <div class="form-group">
                     <label>리뷰비 (원)</label>
                     <input type="text" name="리뷰비" value="{{ campaign.get('리뷰비', '') }}" placeholder="예: 15000">
                 </div>
 
-                <div class="form-group">
-                    <label>총수량</label>
-                    <input type="number" name="총수량" value="{{ campaign.get('총수량', '') }}">
+                <!-- 총수량 / 일수량 / 진행일수 (3 columns) -->
+                <div class="form-group form-group-full">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                        <div>
+                            <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">총수량</label>
+                            <input type="number" name="총수량" value="{{ campaign.get('총수량', '') }}" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">일수량</label>
+                            <input type="text" name="일수량" value="{{ campaign.get('일수량', '') }}" placeholder="숫자 또는 범위(3-5)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">진행일수</label>
+                            <input type="number" name="진행일수" value="{{ campaign.get('진행일수', '') }}" min="1" placeholder="예: 4" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label>일수량</label>
-                    <input type="text" name="일수량" value="{{ campaign.get('일수량', '') }}" placeholder="숫자 또는 범위(3-5)">
-                </div>
-
-                <div class="form-group">
-                    <label>진행일수</label>
-                    <input type="number" name="진행일수" value="{{ campaign.get('진행일수', '') }}" min="1" placeholder="예: 4">
-                </div>
-
+                <!-- 1인일일제한 / 시작일 -->
                 <div class="form-group">
                     <label>1인 일일 제한</label>
                     <input type="number" name="1인일일제한" value="{{ campaign.get('1인일일제한', '') }}" min="0" placeholder="0 = 무제한">
                     <small style="color:#888;font-size:12px;">한 명이 하루에 참여 가능한 최대 건수 (0이면 제한 없음)</small>
                 </div>
-
                 <div class="form-group">
                     <label>시작일</label>
                     <input type="date" name="시작일" value="{{ campaign.get('시작일', '') }}">
                 </div>
 
+                <!-- 진행일정 (full width) -->
                 <div class="form-group form-group-full">
                     <label>일별 진행일정</label>
                     {% set schedule = campaign.get('일정', []) %}
@@ -235,7 +282,8 @@
                     <button type="button" onclick="regenerateSchedule()" style="margin-top:4px;padding:4px 12px;border:1px solid #ddd;border-radius:6px;background:#f9f9f9;cursor:pointer;font-size:12px;">일정 재생성</button>
                 </div>
 
-                <div class="form-group form-group-full">
+                <!-- 구매가능시간 (full width, narrower) -->
+                <div class="form-group form-group-full" style="max-width:600px;">
                     <label>구매가능시간</label>
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                         <select id="buyTimeStart" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
@@ -256,62 +304,32 @@
                     <small style="color:#888;font-size:12px;">비우면 24시간. 이 시간에만 캠페인 노출</small>
                 </div>
 
-                <div class="form-group">
-                    <label>중복허용</label>
-                    <select name="중복허용">
-                        <option value="" {{ 'selected' if not campaign.get('중복허용', '') }}>N (기본: 불허)</option>
-                        <option value="Y" {{ 'selected' if campaign.get('중복허용', '') == 'Y' }}>Y (허용)</option>
-                    </select>
-                </div>
-
-                {% if campaign.get('동시진행그룹', '') %}
-                <div class="form-group">
-                    <label>동시진행그룹</label>
-                    <span style="font-size:13px;color:#8b5cf6;font-weight:600;">설정됨</span>
-                    <small style="color:#888;font-size:12px;">캠페인 목록에서 체크 후 묶기/해제 가능</small>
-                </div>
-                {% endif %}
-
-                <div class="form-group">
-                    <label>상품링크</label>
-                    <input type="text" name="상품링크" value="{{ campaign.get('상품링크', '') }}">
-                </div>
-
-                <div class="form-group">
-                    <label>상품코드 (자동추출)</label>
-                    {% set codes = campaign.get('상품코드', {}) %}
-                    {% if codes and codes.get('codes') %}
-                    <div style="background:#f0f7ff;padding:8px 12px;border-radius:6px;font-size:13px;">
-                        <span style="color:#666;">{{ codes.get('platform', '') }}:</span>
-                        {% for k, v in codes.get('codes', {}).items() %}
-                        <span style="margin-left:8px;"><b>{{ k }}</b>={{ v }}</span>
-                        {% endfor %}
+                <!-- 중복허용 / 키워드 / 유입방식 (3 columns) -->
+                <div class="form-group form-group-full">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                        <div>
+                            <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">중복허용</label>
+                            <select name="중복허용" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                                <option value="" {{ 'selected' if not campaign.get('중복허용', '') }}>N (기본: 불허)</option>
+                                <option value="Y" {{ 'selected' if campaign.get('중복허용', '') == 'Y' }}>Y (허용)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">키워드</label>
+                            <input type="text" name="키워드" value="{{ campaign.get('키워드', '') }}" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">유입방식</label>
+                            <input type="text" name="유입방식" value="{{ campaign.get('유입방식', '') }}" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                        </div>
                     </div>
-                    {% else %}
-                    <div style="color:#999;font-size:13px;">상품링크 저장 시 자동 추출됩니다</div>
-                    {% endif %}
                 </div>
 
-                <div class="form-group">
-                    <label>옵션명</label>
-                    <input type="text" name="옵션" value="{{ campaign.get('옵션', '') }}" placeholder="예: 300ml / 블랙 (쉼표로 구분)">
-                </div>
-
-                <div class="form-group">
-                    <label>키워드</label>
-                    <input type="text" name="키워드" value="{{ campaign.get('키워드', '') }}">
-                </div>
-
-                <div class="form-group">
-                    <label>유입방식</label>
-                    <input type="text" name="유입방식" value="{{ campaign.get('유입방식', '') }}">
-                </div>
-
+                <!-- 리뷰기한일수 / 공개여부 -->
                 <div class="form-group">
                     <label>리뷰기한일수</label>
                     <input type="number" name="리뷰기한일수" value="{{ campaign.get('리뷰기한일수', '') }}">
                 </div>
-
                 <div class="form-group">
                     <label>공개여부</label>
                     <select name="공개여부">
@@ -320,15 +338,26 @@
                     </select>
                 </div>
 
+                <!-- 캠페인 가이드 (full width) -->
                 <div class="form-group form-group-full">
                     <label>캠페인 가이드</label>
                     <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드">{{ campaign.get('캠페인가이드', '') }}</textarea>
                 </div>
 
+                <!-- 구매 주의사항 (full width) -->
                 <div class="form-group form-group-full">
                     <label>구매 주의사항 <span style="font-size:12px;color:#6b7280;font-weight:400;">(가이드 전달 시 팝업으로 강조 표시)</span></label>
                     <textarea name="추가안내사항" rows="4" placeholder="구매 시 꼭 확인해야 할 주의사항 (예: 쿠폰 사용 금지, 배송메모 필수 등)">{{ campaign.get('추가안내사항', '') }}</textarea>
                 </div>
+
+                <!-- 동시진행그룹 (only if exists) -->
+                {% if campaign.get('동시진행그룹', '') %}
+                <div class="form-group form-group-full">
+                    <label>동시진행그룹</label>
+                    <span style="font-size:13px;color:#8b5cf6;font-weight:600;">설정됨</span>
+                    <small style="color:#888;font-size:12px;">캠페인 목록에서 체크 후 묶기/해제 가능</small>
+                </div>
+                {% endif %}
 
             </div>
 
@@ -440,54 +469,42 @@
                 </div>
             </div>
 
-            <!-- 기타 설정 -->
-            <div class="form-grid">
-                <div class="form-group form-group-full">
-                    <label>상품이미지</label>
-                    {% set current_image = campaign.get('상품이미지', '') %}
-                    {% if current_image %}
-                    <div class="current-image">
-                        <p style="font-size:12px;color:#666;margin-bottom:4px;">현재 이미지:</p>
-                        <img src="{{ current_image.replace('/file/d/', '/thumbnail?id=').replace('/view', '&sz=w300') if '/file/d/' in current_image else current_image }}" alt="상품이미지" onerror="this.style.display='none'">
+            <!-- 추가 설정 -->
+            <div class="form-section" style="margin-top:24px;">
+                <h3>추가 설정</h3>
+                <div class="form-grid">
+                    <div class="form-group form-group-full">
+                        <label>리뷰용 사진 세트</label>
+                        {% set photo_sets = campaign.get('_photo_set_count', 0) %}
+                        {% if photo_sets %}
+                        <p style="font-size:13px;color:#475569;margin-bottom:6px;">현재 등록된 사진 세트: <b>{{ photo_sets }}세트</b> (새 파일 선택 시 기존 사진이 교체됩니다)</p>
+                        {% endif %}
+                        <div class="file-upload-area">
+                            <input type="file" name="사진세트" id="photoSetFiles" accept="image/*" multiple>
+                            <div class="file-upload-label" id="photoSetLabel">{{ '새 사진으로 교체하려면 클릭' if photo_sets else '클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)' }}</div>
+                        </div>
+                        <div style="color:#999;font-size:12px;margin-top:4px;">
+                            파일명 규칙: <b>세트번호.확장자</b> 또는 <b>세트번호-인덱스.확장자</b><br>
+                            예) 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg → 세트1(1장), 세트2(2장), 세트3(1장)
+                        </div>
+                        <div id="photoSetPreview" style="margin-top:8px;font-size:13px;color:#475569;"></div>
                     </div>
-                    {% endif %}
-                    <div class="file-upload-area" id="imageUploadArea" style="margin-top:8px;">
-                        <input type="file" name="상품이미지" id="imageFile" accept="image/*">
-                        <div class="file-upload-label" id="imageLabel">{{ '새 이미지로 교체하려면 클릭' if current_image else '클릭하여 이미지를 선택하세요 (JPG, PNG)' }}</div>
-                    </div>
-                </div>
 
-                <div class="form-group form-group-full">
-                    <label>리뷰용 사진 세트</label>
-                    {% set photo_sets = campaign.get('_photo_set_count', 0) %}
-                    {% if photo_sets %}
-                    <p style="font-size:13px;color:#475569;margin-bottom:6px;">현재 등록된 사진 세트: <b>{{ photo_sets }}세트</b> (새 파일 선택 시 기존 사진이 교체됩니다)</p>
-                    {% endif %}
-                    <div class="file-upload-area">
-                        <input type="file" name="사진세트" id="photoSetFiles" accept="image/*" multiple>
-                        <div class="file-upload-label" id="photoSetLabel">{{ '새 사진으로 교체하려면 클릭' if photo_sets else '클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)' }}</div>
+                    <div class="form-group form-group-full">
+                        <label>AI 구매캡쳐 검수 지침</label>
+                        <textarea name="AI구매검수지침" rows="3" placeholder="예: 반드시 판매자배송으로 구매해야 합니다. 로켓배송은 불가합니다.">{{ campaign.get('AI구매검수지침', '') }}</textarea>
+                        <small style="color:#888;">구매내역 캡쳐 업로드 시 AI 검수에 사용됩니다. (설정 페이지의 기본지침에 추가로 적용)</small>
                     </div>
-                    <div style="color:#999;font-size:12px;margin-top:4px;">
-                        파일명 규칙: <b>세트번호.확장자</b> 또는 <b>세트번호-인덱스.확장자</b><br>
-                        예) 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg → 세트1(1장), 세트2(2장), 세트3(1장)
+                    <div class="form-group form-group-full">
+                        <label>AI 리뷰캡쳐 검수 지침</label>
+                        <textarea name="AI리뷰검수지침" rows="3" placeholder="예: 리뷰에 사진이 반드시 포함되어야 합니다. 텍스트 100자 이상이어야 합니다.">{{ campaign.get('AI리뷰검수지침', '') }}</textarea>
+                        <small style="color:#888;">리뷰 캡쳐 업로드 시 AI 검수에 사용됩니다. (설정 페이지의 기본지침에 추가로 적용)</small>
                     </div>
-                    <div id="photoSetPreview" style="margin-top:8px;font-size:13px;color:#475569;"></div>
-                </div>
 
-                <div class="form-group form-group-full">
-                    <label>AI 구매캡쳐 검수 지침</label>
-                    <textarea name="AI구매검수지침" rows="3" placeholder="예: 반드시 판매자배송으로 구매해야 합니다. 로켓배송은 불가합니다.">{{ campaign.get('AI구매검수지침', '') }}</textarea>
-                    <small style="color:#888;">구매내역 캡쳐 업로드 시 AI 검수에 사용됩니다. (설정 페이지의 기본지침에 추가로 적용)</small>
-                </div>
-                <div class="form-group form-group-full">
-                    <label>AI 리뷰캡쳐 검수 지침</label>
-                    <textarea name="AI리뷰검수지침" rows="3" placeholder="예: 리뷰에 사진이 반드시 포함되어야 합니다. 텍스트 100자 이상이어야 합니다.">{{ campaign.get('AI리뷰검수지침', '') }}</textarea>
-                    <small style="color:#888;">리뷰 캡쳐 업로드 시 AI 검수에 사용됩니다. (설정 페이지의 기본지침에 추가로 적용)</small>
-                </div>
-
-                <div class="form-group form-group-full">
-                    <label>메모</label>
-                    <textarea name="메모" rows="3">{{ campaign.get('메모', '') }}</textarea>
+                    <div class="form-group form-group-full">
+                        <label>메모</label>
+                        <textarea name="메모" rows="3">{{ campaign.get('메모', '') }}</textarea>
+                    </div>
                 </div>
             </div>
 

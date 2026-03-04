@@ -183,13 +183,10 @@
             <div class="form-section">
                 <h3>캠페인 정보</h3>
                 <div class="form-grid">
+                    <!-- 캠페인명 / 대행사 -->
                     <div class="form-group">
                         <label>캠페인명</label>
                         <input type="text" name="캠페인명" value="{{ copy.get('캠페인명', '') }}" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
-                    </div>
-                    <div class="form-group">
-                        <label>상품명 *</label>
-                        <input type="text" name="상품명" required value="{{ copy.get('상품명', '') }}" placeholder="예: 들기름 300ml">
                     </div>
                     <div class="form-group">
                         <label>대행사</label>
@@ -200,6 +197,8 @@
                             {% endfor %}
                         </select>
                     </div>
+
+                    <!-- 업체명 (full, with select + text input) -->
                     <div class="form-group">
                         <label>업체명 *</label>
                         <select name="업체ID_select" id="clientSelect">
@@ -211,6 +210,18 @@
                         {% set has_client = copy.get('업체ID') and (copy.get('업체ID')|string != '0') %}
                         <input type="text" name="업체명" id="companyNameInput" value="{{ copy.get('업체명', '') }}" placeholder="업체명 직접입력" style="margin-top:6px;{{ 'display:none;' if has_client }}" {{ 'required' if not has_client }}>
                     </div>
+
+                    <!-- 상품명 / 옵션 -->
+                    <div class="form-group">
+                        <label>상품명 *</label>
+                        <input type="text" name="상품명" required value="{{ copy.get('상품명', '') }}" placeholder="예: 들기름 300ml">
+                    </div>
+                    <div class="form-group">
+                        <label>옵션명</label>
+                        <input type="text" name="옵션" value="{{ copy.get('옵션', '') }}" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
+                    </div>
+
+                    <!-- 플랫폼 / 캠페인유형 -->
                     <div class="form-group">
                         <label>플랫폼 *</label>
                         <select name="플랫폼" id="platformSelect" required>
@@ -236,6 +247,24 @@
                             <option value="빈박스" {{ 'selected' if copy.get('캠페인유형') == '빈박스' }}>빈박스</option>
                         </select>
                     </div>
+
+                    <!-- 상품링크 (full width) -->
+                    <div class="form-group form-group-full">
+                        <label>상품링크</label>
+                        <input type="text" name="상품링크" value="{{ copy.get('상품링크', '') }}" placeholder="예: https://smartstore.naver.com/...">
+                        <div style="color:#999;font-size:12px;margin-top:4px;">중복 리뷰어 체크 및 키워드 자동 추출에 사용됩니다</div>
+                    </div>
+
+                    <!-- 상품이미지 (full width) -->
+                    <div class="form-group form-group-full">
+                        <label>상품이미지</label>
+                        <div class="file-upload-area" id="imageUploadArea">
+                            <input type="file" name="상품이미지" id="imageFile" accept="image/*">
+                            <div class="file-upload-label" id="imageLabel">클릭하여 이미지를 선택하세요 (JPG, PNG)</div>
+                        </div>
+                    </div>
+
+                    <!-- 결제금액 / 리뷰비 -->
                     <div class="form-group">
                         <label>결제금액</label>
                         <input type="text" name="결제금액" value="{{ copy.get('결제금액', '') or copy.get('상품금액', '') }}" placeholder="예: 29,000">
@@ -244,59 +273,38 @@
                         <label>리워드 (리뷰비)</label>
                         <input type="text" name="리뷰비" value="{{ copy.get('리뷰비', '') }}" placeholder="예: 15,000">
                     </div>
-                    <div class="form-group form-group-full">
-                        <label>상품링크</label>
-                        <input type="text" name="상품링크" value="{{ copy.get('상품링크', '') }}" placeholder="예: https://smartstore.naver.com/...">
-                        <div style="color:#999;font-size:12px;margin-top:4px;">중복 리뷰어 체크 및 키워드 자동 추출에 사용됩니다</div>
-                    </div>
-                    <div class="form-group form-group-full">
-                        <label>상품이미지</label>
-                        <div class="file-upload-area" id="imageUploadArea">
-                            <input type="file" name="상품이미지" id="imageFile" accept="image/*">
-                            <div class="file-upload-label" id="imageLabel">클릭하여 이미지를 선택하세요 (JPG, PNG)</div>
-                        </div>
-                    </div>
-                    <div class="form-group form-group-full">
-                        <label>리뷰용 사진 세트</label>
-                        <div class="file-upload-area">
-                            <input type="file" name="사진세트" id="photoSetFiles" accept="image/*" multiple>
-                            <div class="file-upload-label" id="photoSetLabel">클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)</div>
-                        </div>
-                        <div style="color:#999;font-size:12px;margin-top:4px;">
-                            파일명 규칙: <b>세트번호.확장자</b> 또는 <b>세트번호-인덱스.확장자</b><br>
-                            예) 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg → 세트1(1장), 세트2(2장), 세트3(1장)
-                        </div>
-                        <div id="photoSetPreview" style="margin-top:8px;font-size:13px;color:#475569;"></div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- 운영 설정 -->
-            <div class="form-section">
-                <h3>운영 설정</h3>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>총 모집인원 *</label>
-                        <input type="number" name="총수량" id="totalCount" required min="1" value="{{ copy.get('총수량', '') }}" placeholder="예: 20">
+                    <!-- 총수량 / 일수량 / 진행일수 (3 columns) -->
+                    <div class="form-group form-group-full">
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">총 모집인원 *</label>
+                                <input type="number" name="총수량" id="totalCount" required min="1" value="{{ copy.get('총수량', '') }}" placeholder="예: 20" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                            </div>
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">하루진행량</label>
+                                <input type="text" name="일수량" id="dailyCount" value="{{ copy.get('일수량', '') }}" placeholder="숫자 또는 범위(3-5)" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                            </div>
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">진행일수</label>
+                                <input type="number" name="진행일수" id="dayCount" min="1" value="{{ copy.get('진행일수', '') }}" placeholder="예: 4" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- 1인일일제한 / 시작일 -->
                     <div class="form-group">
-                        <label>하루진행량</label>
-                        <input type="text" name="일수량" id="dailyCount" value="{{ copy.get('일수량', '') }}" placeholder="숫자(예: 5) 또는 범위(예: 3-5)">
-                    </div>
-                    <div class="form-group">
-                        <label>진행일수</label>
-                        <input type="number" name="진행일수" id="dayCount" min="1" value="{{ copy.get('진행일수', '') }}" placeholder="예: 4">
+                        <label>1인 일일 제한</label>
+                        <input type="number" name="1인일일제한" min="0" value="{{ copy.get('1인일일제한', '') }}" placeholder="0 = 무제한">
+                        <small style="color:#888;font-size:12px;">한 명이 하루에 참여 가능한 최대 건수 (0이면 제한 없음)</small>
                     </div>
                     <div class="form-group">
                         <label>시작일</label>
                         <input type="date" name="시작일" id="startDate" value="{{ copy.get('시작일', '') }}">
                         <small style="color:#888;font-size:12px;">비우면 등록일(오늘)로 설정됩니다</small>
                     </div>
-                    <div class="form-group">
-                        <label>1인 일일 제한</label>
-                        <input type="number" name="1인일일제한" min="0" value="{{ copy.get('1인일일제한', '') }}" placeholder="0 = 무제한">
-                        <small style="color:#888;font-size:12px;">한 명이 하루에 참여 가능한 최대 건수 (0이면 제한 없음)</small>
-                    </div>
+
+                    <!-- 진행일정 (full width) -->
                     <div class="form-group form-group-full">
                         <div class="calc-hint hidden" id="calcHint"></div>
                     </div>
@@ -306,7 +314,9 @@
                         <input type="text" name="일정" id="scheduleInput" placeholder="예: 3, 5, 4, 3, 4, 2 (쉼표 구분)">
                         <small style="color:#888;font-size:12px;">자동 생성된 일정을 직접 수정할 수 있습니다</small>
                     </div>
-                    <div class="form-group form-group-full">
+
+                    <!-- 구매가능시간 (full width, narrower) -->
+                    <div class="form-group form-group-full" style="max-width:600px;">
                         <label>모집 및 구매진행시간</label>
                         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                             <select id="buyTimeStart" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
@@ -326,30 +336,75 @@
                         <input type="hidden" name="구매가능시간" id="buyTimeValue">
                         <small style="color:#888;font-size:12px;">비우면 24시간. 이 시간에만 캠페인 노출 + 카톡 홍보</small>
                     </div>
+
+                    <!-- 중복허용 / 키워드 / 유입방식 (3 columns) -->
                     <div class="form-group form-group-full">
-                        <label>중복진행 가능여부</label>
-                        <div class="radio-group">
-                            <label><input type="radio" name="중복진행" value="Y" checked> 가능</label>
-                            <label><input type="radio" name="중복진행" value="N"> 불가능</label>
-                            <label>
-                                <input type="radio" name="중복진행" value="텀" id="dupTermRadio"> 일정기간 텀
-                                <input type="number" class="dup-days-input hidden" id="dupDaysInput" min="1" placeholder="일">
-                                <span class="hidden" id="dupDaysLabel">일 후 가능</span>
-                            </label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">중복진행 가능여부</label>
+                                <div class="radio-group" style="padding:4px 0;">
+                                    <label><input type="radio" name="중복진행" value="Y" checked> 가능</label>
+                                    <label><input type="radio" name="중복진행" value="N"> 불가능</label>
+                                    <label>
+                                        <input type="radio" name="중복진행" value="텀" id="dupTermRadio"> 텀
+                                        <input type="number" class="dup-days-input hidden" id="dupDaysInput" min="1" placeholder="일">
+                                        <span class="hidden" id="dupDaysLabel">일</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">키워드</label>
+                                <input type="text" name="키워드" value="{{ copy.get('키워드', '') }}" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                            </div>
+                            <div>
+                                <label style="font-size:14px;font-weight:600;color:#374151;display:block;margin-bottom:6px;">유입방식</label>
+                                <input type="text" name="유입방식" value="{{ copy.get('유입방식', '') }}" style="width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+                            </div>
                         </div>
                     </div>
-                    <div class="form-group form-group-full">
-                        <label>옵션명</label>
-                        <input type="text" name="옵션" value="{{ copy.get('옵션', '') }}" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
-                        <div style="color:#999;font-size:12px;margin-top:4px;">리뷰어가 구매 시 선택할 옵션을 입력하세요</div>
+
+                    <!-- 리뷰기한일수 / 공개여부 -->
+                    <div class="form-group">
+                        <label>리뷰기한일수</label>
+                        <input type="number" name="리뷰기한일수" value="{{ copy.get('리뷰기한일수', '') }}">
                     </div>
+                    <div class="form-group">
+                        <label>공개여부</label>
+                        <select name="공개여부">
+                            <option value="Y" {{ 'selected' if copy.get('공개여부', '') != 'N' }}>Y (공개)</option>
+                            <option value="N" {{ 'selected' if copy.get('공개여부', '') == 'N' }}>N (비공개)</option>
+                        </select>
+                    </div>
+
+                    <!-- 캠페인 가이드 (full width) -->
                     <div class="form-group form-group-full">
                         <label>캠페인 가이드</label>
                         <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용">{{ copy.get('캠페인가이드', '') }}</textarea>
                     </div>
+
+                    <!-- 구매 주의사항 (full width) -->
                     <div class="form-group form-group-full">
                         <label>구매 주의사항 <span style="font-size:12px;color:#6b7280;font-weight:400;">(가이드 전달 시 팝업으로 강조 표시)</span></label>
                         <textarea name="추가안내사항" rows="4" placeholder="구매 시 꼭 확인해야 할 주의사항 (예: 쿠폰 사용 금지, 배송메모 필수 등)">{{ copy.get('추가안내사항', '') }}</textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 추가 설정 -->
+            <div class="form-section">
+                <h3>추가 설정</h3>
+                <div class="form-grid">
+                    <div class="form-group form-group-full">
+                        <label>리뷰용 사진 세트</label>
+                        <div class="file-upload-area">
+                            <input type="file" name="사진세트" id="photoSetFiles" accept="image/*" multiple>
+                            <div class="file-upload-label" id="photoSetLabel">클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)</div>
+                        </div>
+                        <div style="color:#999;font-size:12px;margin-top:4px;">
+                            파일명 규칙: <b>세트번호.확장자</b> 또는 <b>세트번호-인덱스.확장자</b><br>
+                            예) 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg → 세트1(1장), 세트2(2장), 세트3(1장)
+                        </div>
+                        <div id="photoSetPreview" style="margin-top:8px;font-size:13px;color:#475569;"></div>
                     </div>
                     <div class="form-group form-group-full">
                         <label>AI 구매캡쳐 검수 지침</label>
