@@ -116,6 +116,91 @@ def dashboard():
                            company_name=session.get("agency_company", ""))
 
 
+# ─── 클라이언트 관리 ───
+
+@agency_bp.route("/clients")
+@agency_required
+def clients():
+    agency_id = session["agency_id"]
+    client_list = models.db_manager.get_agency_clients(agency_id)
+    return render_template("agency/clients.html",
+                           clients=client_list,
+                           company_name=session.get("agency_company", ""))
+
+
+@agency_bp.route("/api/client", methods=["POST"])
+@agency_required
+def api_client_create():
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    agency_id = session["agency_id"]
+    data = request.get_json(silent=True) or {}
+    login_id = data.get("login_id", "").strip()
+    password = data.get("password", "").strip()
+    company_name = data.get("company_name", "").strip()
+    if not login_id or not password or not company_name:
+        return jsonify({"ok": False, "error": "아이디, 비밀번호, 업체명은 필수입니다."})
+    from werkzeug.security import generate_password_hash
+    try:
+        cid = models.db_manager.create_client(
+            login_id=login_id,
+            password_hash=generate_password_hash(password),
+            company_name=company_name,
+            contact_name=data.get("contact_name", "").strip(),
+            contact_phone=data.get("contact_phone", "").strip(),
+            contact_email=data.get("contact_email", "").strip(),
+            memo=data.get("memo", "").strip(),
+            agency_id=agency_id,
+        )
+        return jsonify({"ok": True, "id": cid})
+    except Exception as e:
+        logger.error("대행사 클라이언트 생성 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@agency_bp.route("/api/client/<int:client_id>", methods=["PUT"])
+@agency_required
+def api_client_update(client_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    agency_id = session["agency_id"]
+    # 소속 확인
+    client = models.db_manager.get_client_by_id(client_id)
+    if not client or safe_int(client.get("agency_id")) != agency_id:
+        return jsonify({"ok": False, "error": "접근 권한이 없습니다."})
+    data = request.get_json(silent=True) or {}
+    if "password" in data:
+        pw = data.pop("password")
+        if pw.strip():
+            from werkzeug.security import generate_password_hash
+            data["password_hash"] = generate_password_hash(pw)
+    # agency_id 변경 방지
+    data.pop("agency_id", None)
+    try:
+        models.db_manager.update_client(client_id, **data)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("대행사 클라이언트 수정 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@agency_bp.route("/api/client/<int:client_id>", methods=["DELETE"])
+@agency_required
+def api_client_delete(client_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    agency_id = session["agency_id"]
+    client = models.db_manager.get_client_by_id(client_id)
+    if not client or safe_int(client.get("agency_id")) != agency_id:
+        return jsonify({"ok": False, "error": "접근 권한이 없습니다."})
+    try:
+        models.db_manager.delete_client(client_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("대행사 클라이언트 삭제 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
 # ─── 캠페인 생성 ───
 
 @agency_bp.route("/campaign/new", methods=["GET"])
