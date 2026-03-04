@@ -510,7 +510,7 @@ body {
     align-items: center;
     margin-bottom: 10px;
 }
-.product-name { font-size: 16px; font-weight: 700; }
+.product-name { font-size: 16px; font-weight: 700; word-break: break-word; }
 .status-badge { font-size: 13px; display: flex; align-items: center; gap: 4px; }
 .status-dot {
     width: 8px;
@@ -1176,9 +1176,7 @@ body {
     font-size: 15px;
     font-weight: 700;
     color: #92400e;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
 }
 .campaign-remain-badge {
     font-size: 11px;
