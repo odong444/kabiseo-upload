@@ -330,6 +330,15 @@ class TimeoutManager:
             effective_start = self._calc_effective_start(r["created_at"], buy_time_str, now)
             elapsed = (now - effective_start).total_seconds()
 
+            # 디버그 로깅 (buy_time 있는 건만)
+            if buy_time_str:
+                created_kst = self._to_kst(r["created_at"], now.tzinfo)
+                logger.info(
+                    "buy_time 체크: id=%s buy_time=%s created=%s effective=%s elapsed=%.0fs (%.1fmin)",
+                    r["id"], buy_time_str, created_kst.strftime("%H:%M"),
+                    effective_start.strftime("%H:%M"), elapsed, elapsed / 60
+                )
+
             # 구매시간 전이면 아직 타임아웃 시작 안 됨
             if elapsed < 0:
                 continue
