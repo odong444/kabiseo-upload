@@ -275,19 +275,35 @@
         margin-bottom: 12px;
         align-items: center;
     }
+    .timeout-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-top: 3px;
+    }
     .timeout-badge {
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 700;
-        padding: 1px 5px;
+        padding: 1px 6px;
         border-radius: 4px;
-        margin-top: 2px;
-        display: inline-block;
         white-space: nowrap;
     }
     .timeout-badge.normal { background: #dbeafe; color: #1d4ed8; }
     .timeout-badge.warn { background: #fef3c7; color: #92400e; }
     .timeout-badge.urgent { background: #fee2e2; color: #dc2626; }
     .timeout-badge.waiting { background: #f3e8ff; color: #7c3aed; }
+    .extend-btn {
+        font-size: 11px;
+        padding: 1px 6px;
+        border: 1px solid #93c5fd;
+        border-radius: 4px;
+        background: #eff6ff;
+        cursor: pointer;
+        color: #2563eb;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .extend-btn:hover { background: #dbeafe; }
     .timeout-panel {
         margin-bottom: 20px;
         border: 1px solid #fbbf24;
@@ -476,7 +492,10 @@
                                 <option value="{{ s }}" {% if item.get('상태', '') == s %}selected{% endif %}>{{ s }}</option>
                                 {% endfor %}
                             </select>
-                            <div class="timeout-badge" style="display:none;"></div>
+                            <div class="timeout-row" style="display:none;">
+                                <span class="timeout-badge"></span>
+                                <button class="extend-btn" data-pid="{{ item.get('_row_idx', '') }}">+30분</button>
+                            </div>
                         </td>
                         <td class="editable" data-field="구매일">{% if item.get('구매일') %}{{ item.get('구매일')[5:].replace('-','/') }}{% endif %}</td>
                         <td class="editable" data-field="리뷰기한">{% if item.get('리뷰기한') %}{{ item.get('리뷰기한')[5:].replace('-','/') }}{% endif %}</td>
@@ -774,18 +793,18 @@
         var s = totalSec % 60;
         return m + ':' + (s < 10 ? '0' : '') + s;
     }
-    function extendTime(progressId, btn) {
+    function extendTime(btn) {
+        var pid = btn.getAttribute('data-pid');
         btn.disabled = true;
         btn.textContent = '...';
         fetch('/admin/api/progress/extend-time', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: progressId })
+            body: JSON.stringify({ id: pid })
         })
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.ok) {
-                // created_at을 NOW()로 리셋 → KST ISO로 data-created 갱신
                 var kst = new Date(Date.now() + 9 * 3600000);
                 var iso = kst.getUTCFullYear() + '-'
                     + String(kst.getUTCMonth()+1).padStart(2,'0') + '-'
@@ -798,40 +817,41 @@
                 alert('연장 실패: ' + (d.message || ''));
             }
             btn.disabled = false;
-            btn.textContent = '+30';
+            btn.textContent = '+30분';
         })
-        .catch(function() { btn.disabled = false; btn.textContent = '+30'; });
+        .catch(function() { btn.disabled = false; btn.textContent = '+30분'; });
     }
+    // 연장 버튼 이벤트 위임
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.extend-btn');
+        if (btn) extendTime(btn);
+    });
     function updateRowTimers() {
-        var nowUtc = Date.now(); // UTC epoch ms
-        // KST 계산용
+        var nowUtc = Date.now();
         var kstDate = new Date(nowUtc + 9 * 3600000);
         var kstY = kstDate.getUTCFullYear();
         var kstM = kstDate.getUTCMonth();
         var kstD = kstDate.getUTCDate();
 
         document.querySelectorAll('td[data-field="상태"]').forEach(function(td) {
-            var badge = td.querySelector('.timeout-badge');
-            if (!badge) return;
+            var row = td.querySelector('.timeout-row');
+            if (!row) return;
+            var badge = row.querySelector('.timeout-badge');
+            var extBtn = row.querySelector('.extend-btn');
             var sel = td.querySelector('select');
             var status = sel ? sel.value : '';
             if (status !== '신청' && status !== '가이드전달') {
-                badge.style.display = 'none';
-                var eb = td.querySelector('.extend-btn');
-                if (eb) eb.style.display = 'none';
+                row.style.display = 'none';
                 return;
             }
             var createdIso = td.getAttribute('data-created');
-            if (!createdIso) { badge.style.display = 'none'; return; }
+            if (!createdIso) { row.style.display = 'none'; return; }
             var created = new Date(createdIso);
             var buyTimeStr = td.getAttribute('data-buytime') || '';
             var bt = parseBuyTime(buyTimeStr);
-            var progressId = td.closest('tr').getAttribute('data-id');
 
-            // effective_start (UTC epoch ms)
             var effectiveMs = created.getTime();
             if (bt) {
-                // 오늘 buy_time 시작 = KST YYYY-MM-DD bt.sh:bt.sm → UTC로 변환 (-9h)
                 var buyStartUtc = Date.UTC(kstY, kstM, kstD, bt.sh, bt.sm, 0) - 9 * 3600000;
                 if (effectiveMs < buyStartUtc) {
                     effectiveMs = buyStartUtc;
@@ -839,46 +859,26 @@
             }
 
             var elapsedSec = (nowUtc - effectiveMs) / 1000;
-
-            // 연장 버튼 (없으면 생성)
-            var extBtn = td.querySelector('.extend-btn');
-            if (!extBtn) {
-                extBtn = document.createElement('button');
-                extBtn.className = 'extend-btn';
-                extBtn.textContent = '+30';
-                extBtn.style.cssText = 'font-size:10px;padding:2px 6px;border:1px solid #93c5fd;border-radius:4px;background:#eff6ff;cursor:pointer;margin-left:4px;color:#2563eb;font-weight:600;vertical-align:middle;';
-                extBtn.onclick = function() { extendTime(progressId, extBtn); };
-                td.appendChild(extBtn);
-            }
+            row.style.display = 'flex';
 
             if (elapsedSec < 0) {
-                // 구매시간 전 — 실제 대기 시간 표시
                 var waitSec = Math.abs(Math.floor(elapsedSec));
                 badge.textContent = '-' + fmtTime(waitSec);
                 badge.className = 'timeout-badge waiting';
-                badge.style.display = 'inline-block';
-                extBtn.style.display = 'inline-block';
                 return;
             }
 
             var remainSec = Math.max(0, Math.floor(TIMEOUT_SEC - elapsedSec));
-            if (remainSec <= 0) {
-                badge.textContent = '0:00';
-                badge.className = 'timeout-badge urgent';
-                badge.style.display = 'inline-block';
-                extBtn.style.display = 'inline-block';
-                return;
-            }
             badge.textContent = fmtTime(remainSec);
-            if (remainSec < 300) {
+            if (remainSec <= 0) {
+                badge.className = 'timeout-badge urgent';
+            } else if (remainSec < 300) {
                 badge.className = 'timeout-badge urgent';
             } else if (remainSec < 600) {
                 badge.className = 'timeout-badge warn';
             } else {
                 badge.className = 'timeout-badge normal';
             }
-            badge.style.display = 'inline-block';
-            extBtn.style.display = 'inline-block';
         });
     }
     updateRowTimers();
