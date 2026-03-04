@@ -1546,9 +1546,9 @@ class DBManager:
             for r in rows
         ]
 
-    def delete_old_cancelled_rows(self, days: int = 1) -> int:
-        """신청일+N일 지난 취소/타임아웃취소 행 삭제"""
-        cutoff = now_kst() - timedelta(days=days)
+    def delete_old_cancelled_rows(self, hours: int = 1) -> int:
+        """타임아웃취소/취소 후 N시간 경과 행 삭제"""
+        cutoff = now_kst() - timedelta(hours=hours)
         with self._conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -1559,7 +1559,7 @@ class DBManager:
                 count = cur.rowcount
             conn.commit()
         if count:
-            logger.info("취소 행 삭제: %d건 (신청일+%d일 초과)", count, days)
+            logger.info("취소 행 삭제: %d건 (%d시간 초과)", count, hours)
         return count
 
     def count_all_campaigns(self) -> dict:

@@ -76,6 +76,7 @@ class TimeoutManager:
     def _check_loop(self):
         db_check_counter = 0
         deadline_check_counter = 0
+        cleanup_counter = 0
         while self._running:
             try:
                 self._check_all()
@@ -99,6 +100,15 @@ class TimeoutManager:
                     self._check_review_deadlines()
                 except Exception as e:
                     logger.error(f"리뷰 기한 체크 에러: {e}")
+
+            # 타임아웃취소 자동삭제: 1시간마다 (15초 * 240)
+            cleanup_counter += 1
+            if cleanup_counter >= 240:
+                cleanup_counter = 0
+                try:
+                    self._cleanup_timeout_cancelled()
+                except Exception as e:
+                    logger.error(f"타임아웃취소 정리 에러: {e}")
 
             time.sleep(15)  # 15초마다 체크
 
@@ -414,6 +424,14 @@ class TimeoutManager:
             for cid in affected_campaigns:
                 self._try_reopen_campaign(cid)
 
-        deleted = self._db_manager.delete_old_cancelled_rows()
+        deleted = self._db_manager.delete_old_cancelled_rows(hours=1)
         if deleted:
             logger.info("취소 행 자동 삭제: %d건", deleted)
+
+    def _cleanup_timeout_cancelled(self):
+        """타임아웃취소 상태 1시간 경과 행 주기적 삭제"""
+        if not self._db_manager:
+            return
+        deleted = self._db_manager.delete_old_cancelled_rows(hours=1)
+        if deleted:
+            logger.info("타임아웃취소 정기 삭제: %d건", deleted)
