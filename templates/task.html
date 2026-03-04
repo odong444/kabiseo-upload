@@ -724,9 +724,10 @@
             // 구매시간 전 대기 중
             if (_waitingBuyTime && now < effectiveMs) {
                 const waitMs = effectiveMs - now;
-                const wMins = Math.floor(waitMs / 60000);
+                const wHours = Math.floor(waitMs / 3600000);
+                const wMins = Math.floor((waitMs % 3600000) / 60000);
                 const wSecs = Math.floor((waitMs % 60000) / 1000);
-                const wStr = wMins.toString().padStart(2, '0') + ':' + wSecs.toString().padStart(2, '0');
+                const wStr = wHours.toString().padStart(2, '0') + ':' + wMins.toString().padStart(2, '0') + ':' + wSecs.toString().padStart(2, '0');
                 timerEl.innerHTML = `<span class="timer-icon">&#x23F1;</span> 구매시간까지 <strong>${wStr}</strong> 남음 <span class="timer-deadline">(${buyTimeStr})</span>`;
                 timerEl.className = 'task-deadline-timer timer-normal';
                 setTimeout(update, 1000);
