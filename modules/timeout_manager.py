@@ -333,7 +333,7 @@ class TimeoutManager:
             # 디버그 로깅 (buy_time 있는 건만)
             if buy_time_str:
                 created_kst = self._to_kst(r["created_at"], now.tzinfo)
-                logger.info(
+                logger.debug(
                     "buy_time 체크: id=%s buy_time=%s created=%s effective=%s elapsed=%.0fs (%.1fmin)",
                     r["id"], buy_time_str, created_kst.strftime("%H:%M"),
                     effective_start.strftime("%H:%M"), elapsed, elapsed / 60
