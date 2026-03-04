@@ -437,7 +437,7 @@
             id: {{ p.id }},
             date_str: "{{ p.date_str or '-' }}",
             product_name: "{{ (p.product_name or '-')|e }}",
-            recipient_name: "{{ (p.recipient_name or p.reviewer_name or '-')|e }}",
+            recipient_name: "{{ (p.recipient_name or '-')|e }}",
             phone: "{{ (p.phone or '-')|e }}",
             store_id: "{{ (p.store_id or '-')|e }}",
             order_number: "{{ (p.order_number or '-')|e }}",

@@ -404,7 +404,7 @@ def api_all_progress():
             "date_str": p["date_str"] or "-",
             "campaign_name": p["campaign_name"] or "-",
             "product_name": p["product_name"] or "-",
-            "recipient_name": p["recipient_name"] or p["reviewer_name"] or "-",
+            "recipient_name": p["recipient_name"] or "-",
             "phone": p["phone"] or "-",
             "store_id": p["store_id"] or "-",
             "order_number": p["order_number"] or "-",
