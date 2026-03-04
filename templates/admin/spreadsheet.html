@@ -785,20 +785,31 @@
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.ok) {
-                // created_at 갱신 → data-created 업데이트
-                var nowIso = new Date(Date.now() + 9 * 3600000).toISOString();
-                btn.closest('td').setAttribute('data-created', nowIso);
+                // created_at을 NOW()로 리셋 → KST ISO로 data-created 갱신
+                var kst = new Date(Date.now() + 9 * 3600000);
+                var iso = kst.getUTCFullYear() + '-'
+                    + String(kst.getUTCMonth()+1).padStart(2,'0') + '-'
+                    + String(kst.getUTCDate()).padStart(2,'0') + 'T'
+                    + String(kst.getUTCHours()).padStart(2,'0') + ':'
+                    + String(kst.getUTCMinutes()).padStart(2,'0') + ':'
+                    + String(kst.getUTCSeconds()).padStart(2,'0') + '+09:00';
+                btn.closest('td').setAttribute('data-created', iso);
             } else {
                 alert('연장 실패: ' + (d.message || ''));
             }
             btn.disabled = false;
-            btn.textContent = '+30분';
+            btn.textContent = '+30';
         })
-        .catch(function() { btn.disabled = false; btn.textContent = '+30분'; });
+        .catch(function() { btn.disabled = false; btn.textContent = '+30'; });
     }
     function updateRowTimers() {
-        var nowMs = Date.now() + 9 * 3600000; // KST
-        var nowKst = new Date(nowMs);
+        var nowUtc = Date.now(); // UTC epoch ms
+        // KST 계산용
+        var kstDate = new Date(nowUtc + 9 * 3600000);
+        var kstY = kstDate.getUTCFullYear();
+        var kstM = kstDate.getUTCMonth();
+        var kstD = kstDate.getUTCDate();
+
         document.querySelectorAll('td[data-field="상태"]').forEach(function(td) {
             var badge = td.querySelector('.timeout-badge');
             if (!badge) return;
@@ -817,27 +828,27 @@
             var bt = parseBuyTime(buyTimeStr);
             var progressId = td.closest('tr').getAttribute('data-id');
 
-            // effective_start = max(created, today buy_time start)
-            var effectiveStart = created;
+            // effective_start (UTC epoch ms)
+            var effectiveMs = created.getTime();
             if (bt) {
-                var todayBuyStart = new Date(nowKst);
-                todayBuyStart.setUTCHours(bt.sh, bt.sm, 0, 0);
-                if (created < todayBuyStart) {
-                    effectiveStart = todayBuyStart;
+                // 오늘 buy_time 시작 = KST YYYY-MM-DD bt.sh:bt.sm → UTC로 변환 (-9h)
+                var buyStartUtc = Date.UTC(kstY, kstM, kstD, bt.sh, bt.sm, 0) - 9 * 3600000;
+                if (effectiveMs < buyStartUtc) {
+                    effectiveMs = buyStartUtc;
                 }
             }
 
-            var elapsedSec = (nowMs - effectiveStart.getTime()) / 1000;
+            var elapsedSec = (nowUtc - effectiveMs) / 1000;
 
             // 연장 버튼 (없으면 생성)
             var extBtn = td.querySelector('.extend-btn');
             if (!extBtn) {
                 extBtn = document.createElement('button');
                 extBtn.className = 'extend-btn';
-                extBtn.textContent = '+30분';
-                extBtn.style.cssText = 'font-size:9px;padding:1px 4px;border:1px solid #d1d5db;border-radius:3px;background:#fff;cursor:pointer;margin-left:3px;color:#6b7280;';
+                extBtn.textContent = '+30';
+                extBtn.style.cssText = 'font-size:9px;padding:1px 4px;border:1px solid #d1d5db;border-radius:3px;background:#fff;cursor:pointer;margin-left:3px;color:#6b7280;vertical-align:middle;';
                 extBtn.onclick = function() { extendTime(progressId, extBtn); };
-                badge.parentNode.appendChild(extBtn);
+                td.appendChild(extBtn);
             }
 
             if (elapsedSec < 0) {
