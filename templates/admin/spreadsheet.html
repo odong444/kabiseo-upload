@@ -275,6 +275,19 @@
         margin-bottom: 12px;
         align-items: center;
     }
+    .timeout-badge {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 5px;
+        border-radius: 4px;
+        margin-top: 2px;
+        display: inline-block;
+        white-space: nowrap;
+    }
+    .timeout-badge.normal { background: #dbeafe; color: #1d4ed8; }
+    .timeout-badge.warn { background: #fef3c7; color: #92400e; }
+    .timeout-badge.urgent { background: #fee2e2; color: #dc2626; }
+    .timeout-badge.waiting { background: #f3e8ff; color: #7c3aed; }
     .timeout-panel {
         margin-bottom: 20px;
         border: 1px solid #fbbf24;
@@ -457,12 +470,13 @@
                         <td class="editable" data-field="아이디">{{ item.get('아이디', '') }}</td>
                         <td class="editable" data-field="주문번호">{{ item.get('주문번호', '') }}</td>
                         <td class="editable" data-field="주소">{{ item.get('주소', '') }}</td>
-                        <td data-field="상태">
+                        <td data-field="상태" data-created="{{ item.get('created_at_iso', '') }}" data-buytime="{{ item.get('buy_time', '') }}">
                             <select class="cell-select" data-field="상태" data-id="{{ item.get('_row_idx', '') }}" onchange="saveSelect(this)">
                                 {% for s in ['신청','가이드전달','구매캡쳐대기','리뷰대기','리뷰제출','입금대기','입금완료','타임아웃취소'] %}
                                 <option value="{{ s }}" {% if item.get('상태', '') == s %}selected{% endif %}>{{ s }}</option>
                                 {% endfor %}
                             </select>
+                            <div class="timeout-badge" style="display:none;"></div>
                         </td>
                         <td class="editable" data-field="구매일">{{ item.get('구매일', '') }}</td>
                         <td class="editable" data-field="리뷰기한">{{ item.get('리뷰기한', '') }}</td>
@@ -746,6 +760,77 @@
     }
     loadTimeouts();
     setInterval(loadTimeouts, 15000);
+
+    // --- Row Timeout Timers ---
+    var TIMEOUT_SEC = 1800; // 30분
+    function parseBuyTime(s) {
+        if (!s || !s.trim()) return null;
+        var m = s.match(/(\d{1,2}):(\d{2})\s*~\s*(\d{1,2}):(\d{2})/);
+        if (!m) return null;
+        return { sh: parseInt(m[1]), sm: parseInt(m[2]), eh: parseInt(m[3]), em: parseInt(m[4]) };
+    }
+    function updateRowTimers() {
+        var nowMs = Date.now() + 9 * 3600000; // KST
+        var nowKst = new Date(nowMs);
+        document.querySelectorAll('td[data-field="상태"]').forEach(function(td) {
+            var badge = td.querySelector('.timeout-badge');
+            if (!badge) return;
+            var sel = td.querySelector('select');
+            var status = sel ? sel.value : '';
+            if (status !== '신청' && status !== '가이드전달') {
+                badge.style.display = 'none';
+                return;
+            }
+            var createdIso = td.getAttribute('data-created');
+            if (!createdIso) { badge.style.display = 'none'; return; }
+            var created = new Date(createdIso);
+            var buyTimeStr = td.getAttribute('data-buytime') || '';
+            var bt = parseBuyTime(buyTimeStr);
+
+            // effective_start = max(created, today buy_time start)
+            var effectiveStart = created;
+            if (bt) {
+                var todayBuyStart = new Date(nowKst);
+                todayBuyStart.setUTCHours(bt.sh, bt.sm, 0, 0);
+                if (created < todayBuyStart) {
+                    effectiveStart = todayBuyStart;
+                }
+            }
+
+            var elapsedSec = (nowMs - effectiveStart.getTime()) / 1000;
+
+            if (elapsedSec < 0) {
+                // 구매시간 전
+                var waitSec = Math.abs(Math.floor(elapsedSec));
+                var wMin = Math.floor(waitSec / 60);
+                badge.textContent = '구매시간 ' + wMin + '분 후';
+                badge.className = 'timeout-badge waiting';
+                badge.style.display = 'inline-block';
+                return;
+            }
+
+            var remainSec = Math.max(0, Math.floor(TIMEOUT_SEC - elapsedSec));
+            if (remainSec <= 0) {
+                badge.textContent = '타임아웃';
+                badge.className = 'timeout-badge urgent';
+                badge.style.display = 'inline-block';
+                return;
+            }
+            var min = Math.floor(remainSec / 60);
+            var sec = remainSec % 60;
+            badge.textContent = min + ':' + (sec < 10 ? '0' : '') + sec;
+            if (remainSec < 300) {
+                badge.className = 'timeout-badge urgent';
+            } else if (remainSec < 600) {
+                badge.className = 'timeout-badge warn';
+            } else {
+                badge.className = 'timeout-badge normal';
+            }
+            badge.style.display = 'inline-block';
+        });
+    }
+    updateRowTimers();
+    setInterval(updateRowTimers, 1000);
 
     // --- Filter ---
     function applyFilters() {

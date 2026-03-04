@@ -1357,7 +1357,7 @@ class DBManager:
                    r.kakao_friend,
                    COALESCE(NULLIF(c.campaign_name,''), c.product_name) AS product_label,
                    c.campaign_name, c.product_name AS c_product_name,
-                   c.company
+                   c.company, c.buy_time
             FROM progress p
             JOIN reviewers r ON p.reviewer_id = r.id
             LEFT JOIN campaigns c ON p.campaign_id = c.id
@@ -1411,6 +1411,7 @@ class DBManager:
                 "AI검수시간": row["ai_verified_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("ai_verified_at") else "",
                 "AI관리자판정": row.get("ai_override", ""),
                 "사진세트": row.get("photo_set_number"),
+                "buy_time": row.get("buy_time", ""),
             })
         return items, total
 
