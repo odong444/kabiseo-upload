@@ -148,6 +148,15 @@
         background: #f0fdf4; color: #16a34a; border-color: #86efac;
     }
     .admin-btn-resume:hover { background: #bbf7d0; }
+    .admin-btn-visible {
+        background: #eff6ff; color: #2563eb; border-color: #93c5fd;
+    }
+    .admin-btn-visible:hover { background: #dbeafe; }
+    .admin-btn-hidden {
+        background: #f5f5f5; color: #999; border-color: #d4d4d4;
+    }
+    .admin-btn-hidden:hover { background: #e5e5e5; }
+    .hidden-campaign { opacity: 0.55; }
     .admin-btn-danger {
         background: #fef2f2; color: #dc2626; border-color: #fca5a5;
     }
@@ -383,7 +392,8 @@
                     {% set rate = ((active / total * 100)|round(1)) if total > 0 else 0 %}
                     {% set rate_class = 'high' if rate >= 70 else ('mid' if rate >= 40 else 'low') %}
                     <!-- 메인 행 -->
-                    <tr class="campaign-row" data-idx="{{ loop.index0 }}" data-cid="{{ c.get('캠페인ID', '') }}" data-group="{{ c.get('동시진행그룹', '') }}" onclick="toggleDetail({{ loop.index0 }})">
+                    {% set is_hidden = c.get('공개여부', 'Y') in ('N', 'n', False) %}
+                    <tr class="campaign-row{{ ' hidden-campaign' if is_hidden }}" data-idx="{{ loop.index0 }}" data-cid="{{ c.get('캠페인ID', '') }}" data-group="{{ c.get('동시진행그룹', '') }}" onclick="toggleDetail({{ loop.index0 }})">
                         <td onclick="event.stopPropagation();"><input type="checkbox" class="campaign-check" value="{{ c.get('캠페인ID', '') }}" onchange="updateGroupButtons()"></td>
                         <td><button type="button" class="toggle-btn" id="toggleBtn{{ loop.index0 }}">&#9660;</button></td>
                         <td style="font-weight:600;">
@@ -435,6 +445,13 @@
                                 <button type="button" class="admin-btn admin-btn-sm"
                                         onclick="event.stopPropagation(); openPhotoModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');"
                                         style="background:#fef3c7;color:#92400e;">사진</button>
+                                {% if is_hidden %}
+                                <button type="button" class="admin-btn admin-btn-sm admin-btn-hidden"
+                                        onclick="event.stopPropagation(); toggleVisibility('{{ c.get('캠페인ID', '') }}', this);">노출중지</button>
+                                {% else %}
+                                <button type="button" class="admin-btn admin-btn-sm admin-btn-visible"
+                                        onclick="event.stopPropagation(); toggleVisibility('{{ c.get('캠페인ID', '') }}', this);">노출</button>
+                                {% endif %}
                                 {% if c.get('상태', '모집중') == '중지' %}
                                 <button type="button" class="admin-btn admin-btn-sm admin-btn-resume"
                                         onclick="event.stopPropagation(); campaignResume('{{ c.get('캠페인ID', '') }}', this);">재개</button>
@@ -861,6 +878,40 @@
                 btn.parentNode.replaceChild(pauseBtn, btn);
             } else {
                 alert('재개 실패: ' + (data.message || ''));
+                btn.disabled = false;
+            }
+        })
+        .catch(function() { alert('요청 실패'); btn.disabled = false; });
+    }
+
+    function toggleVisibility(campaignId, btn) {
+        var isHidden = btn.classList.contains('admin-btn-hidden');
+        var action = isHidden ? '노출' : '노출중지';
+        btn.disabled = true;
+        fetch('/admin/api/campaigns/' + campaignId + '/toggle-visibility', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                var row = btn.closest('tr');
+                var newBtn = document.createElement('button');
+                newBtn.type = 'button';
+                newBtn.className = 'admin-btn admin-btn-sm';
+                newBtn.onclick = function(e) { e.stopPropagation(); toggleVisibility(campaignId, newBtn); };
+                if (data.is_public) {
+                    newBtn.classList.add('admin-btn-visible');
+                    newBtn.textContent = '노출';
+                    row.classList.remove('hidden-campaign');
+                } else {
+                    newBtn.classList.add('admin-btn-hidden');
+                    newBtn.textContent = '노출중지';
+                    row.classList.add('hidden-campaign');
+                }
+                btn.parentNode.replaceChild(newBtn, btn);
+            } else {
+                alert(action + ' 실패: ' + (data.message || ''));
                 btn.disabled = false;
             }
         })

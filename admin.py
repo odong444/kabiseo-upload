@@ -406,6 +406,25 @@ def api_campaign_resume(campaign_id):
         return jsonify({"ok": False, "message": str(e)})
 
 
+@admin_bp.route("/api/campaigns/<campaign_id>/toggle-visibility", methods=["POST"])
+@admin_required
+def api_campaign_toggle_visibility(campaign_id):
+    """캠페인 공개/비공개 토글"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    try:
+        campaign = models.db_manager.get_campaign_by_id(campaign_id)
+        if not campaign:
+            return jsonify({"ok": False, "message": "캠페인 없음"})
+        current = campaign.get("공개여부", "Y")
+        new_val = "N" if current in ("Y", "y", True, "") else "Y"
+        models.db_manager.update_campaign(campaign_id, {"공개여부": new_val})
+        return jsonify({"ok": True, "is_public": new_val == "Y"})
+    except Exception as e:
+        logger.error(f"캠페인 노출 토글 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
 @admin_bp.route("/api/promotion/status", methods=["GET"])
 @admin_required
 def api_promotion_status():
