@@ -880,15 +880,18 @@
                 <p>${result.reason}</p>
                 <p class="ai-warn-note">제출은 가능하지만, 담당자 확인이 필요합니다.</p>
             </div>`;
-        } else {
-            aiResult.innerHTML = `<div class="ai-result ai-reject">
-                <strong>검수 오류</strong>
+        } else if (result.result === '오류') {
+            aiResult.innerHTML = `<div class="ai-result ai-warn">
+                <strong>AI 검수 일시 오류</strong>
                 <p>${result.reason}</p>
-                <p class="ai-warn-note">다시 캡쳐해주세요.</p>
+                <p class="ai-warn-note">제출은 가능합니다. 담당자가 수동 검수합니다.</p>
             </div>`;
-            selectedFiles[sid] = null;
-            document.getElementById(`preview_${sid}`).style.display = 'none';
-            return;
+        } else {
+            aiResult.innerHTML = `<div class="ai-result ai-warn">
+                <strong>검수 결과 확인</strong>
+                <p>${result.reason}</p>
+                <p class="ai-warn-note">제출은 가능합니다.</p>
+            </div>`;
         }
 
         // 파싱 데이터 자동입력

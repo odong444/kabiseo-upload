@@ -453,10 +453,9 @@ def verify_capture(drive_url: str, capture_type: str,
         analysis = _call_gemini(all_bytes, all_mimes, full_prompt)
 
     if not analysis:
-        reject_label = "주문내역 캡쳐" if capture_type == "purchase" else "리뷰 캡쳐"
         return {
-            "result": "자동반려",
-            "reason": f"올바른 {reject_label}가 아닌 것으로 보입니다. 정확한 캡쳐를 다시 첨부해주세요.",
+            "result": "오류",
+            "reason": "AI 검수 서버 응답 실패. 다시 시도해주세요.",
             "details": {},
         }
 
@@ -498,11 +497,10 @@ def verify_capture_from_bytes(image_bytes: bytes | list, mime_type: str | list,
 
     analysis = _call_gemini(image_bytes, mime_type, full_prompt)
     if not analysis:
-        # Gemini가 JSON 파싱 실패 = 주문내역/리뷰 캡쳐가 아닌 이미지일 가능성 높음
-        reject_label = "주문내역 캡쳐" if capture_type == "purchase" else "리뷰 캡쳐"
+        # Gemini API 실패 → 오류 반환 (자동반려 아님, 재시도 가능)
         return {
-            "result": "자동반려",
-            "reason": f"올바른 {reject_label}가 아닌 것으로 보입니다. 정확한 캡쳐를 다시 첨부해주세요.",
+            "result": "오류",
+            "reason": "AI 검수 서버 응답 실패. 다시 시도해주세요.",
             "details": {},
             "parsed": {},
         }
