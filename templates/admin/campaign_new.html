@@ -201,17 +201,15 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>업체 (클라이언트)</label>
+                        <label>업체명 *</label>
                         <select name="업체ID_select" id="clientSelect">
                             <option value="">직접입력</option>
                             {% for c in clients %}
                             <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" {{ 'selected' if copy.get('업체ID')|string == c.id|string }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
                             {% endfor %}
                         </select>
-                    </div>
-                    <div class="form-group">
-                        <label>업체명 *</label>
-                        <input type="text" name="업체명" required value="{{ copy.get('업체명', '') }}" placeholder="예: 건강한들녘">
+                        {% set has_client = copy.get('업체ID') and (copy.get('업체ID')|string != '0') %}
+                        <input type="text" name="업체명" id="companyNameInput" value="{{ copy.get('업체명', '') }}" placeholder="업체명 직접입력" style="margin-top:6px;{{ 'display:none;' if has_client }}" {{ 'required' if not has_client }}>
                     </div>
                     <div class="form-group">
                         <label>플랫폼 *</label>
@@ -945,11 +943,12 @@
         promoTextarea.addEventListener('input', updateKakaoPreview);
     })();
 
-    // 대행사 선택 → 클라이언트 필터링
+    // 대행사 선택 → 클라이언트 필터링 + 업체명 토글
     (function() {
         var clientSelect = document.getElementById('clientSelect');
         var agencySelect = document.getElementById('agencySelect');
-        if (!clientSelect || !agencySelect) return;
+        var input = document.getElementById('companyNameInput');
+        if (!clientSelect || !agencySelect || !input) return;
 
         function filterClients() {
             var agencyId = agencySelect.value;
@@ -961,17 +960,29 @@
             if (clientSelect.value && clientSelect.options[clientSelect.selectedIndex].style.display === 'none') {
                 clientSelect.value = '';
             }
+            toggleInput();
+        }
+
+        function toggleInput() {
+            if (clientSelect.value) {
+                var sel = clientSelect.options[clientSelect.selectedIndex];
+                input.value = sel.dataset.name || '';
+                input.style.display = 'none';
+                input.removeAttribute('required');
+            } else {
+                input.style.display = '';
+                input.setAttribute('required', '');
+            }
         }
 
         agencySelect.addEventListener('change', filterClients);
 
         clientSelect.addEventListener('change', function() {
             var sel = this.options[this.selectedIndex];
-            if (sel.value) {
-                var nameInput = document.querySelector('input[name="업체명"]');
-                if (nameInput) nameInput.value = sel.dataset.name || '';
-                if (sel.dataset.agency) agencySelect.value = sel.dataset.agency;
+            if (sel.value && sel.dataset.agency) {
+                agencySelect.value = sel.dataset.agency;
             }
+            toggleInput();
         });
 
         filterClients();

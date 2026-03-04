@@ -143,11 +143,6 @@
                 </div>
 
                 <div class="form-group">
-                    <label>업체명</label>
-                    <input type="text" name="업체명" value="{{ campaign.get('업체명', '') }}">
-                </div>
-
-                <div class="form-group">
                     <label>대행사</label>
                     <select name="대행사ID" id="agencySelect">
                         <option value="">없음</option>
@@ -158,13 +153,14 @@
                 </div>
 
                 <div class="form-group">
-                    <label>업체 (클라이언트)</label>
+                    <label>업체명</label>
                     <select name="업체ID_select" id="clientSelect">
                         <option value="">직접입력</option>
                         {% for c in (clients or []) %}
                         <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" {{ 'selected' if client_info and client_info.id == c.id }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
                         {% endfor %}
                     </select>
+                    <input type="text" name="업체명" id="companyNameInput" value="{{ campaign.get('업체명', '') }}" placeholder="업체명 직접입력" style="margin-top:6px;{{ 'display:none;' if client_info }}">
                 </div>
 
                 <div class="form-group">
@@ -698,36 +694,45 @@
     function filterClients() {
         var agencyId = document.getElementById('agencySelect').value;
         var clientSel = document.getElementById('clientSelect');
-        var current = clientSel.value;
         var opts = clientSel.options;
         for (var i = 1; i < opts.length; i++) {
             var oa = opts[i].dataset.agency || '';
-            if (!agencyId) {
-                opts[i].style.display = '';
-            } else {
-                opts[i].style.display = (oa === agencyId) ? '' : 'none';
-            }
+            opts[i].style.display = (!agencyId || oa === agencyId) ? '' : 'none';
         }
-        // 현재 선택이 숨겨졌으면 초기화
-        if (current && clientSel.options[clientSel.selectedIndex].style.display === 'none') {
+        if (clientSel.value && clientSel.options[clientSel.selectedIndex].style.display === 'none') {
             clientSel.value = '';
+            toggleCompanyInput();
+        }
+    }
+
+    // 직접입력 ↔ 클라이언트 선택 토글
+    function toggleCompanyInput() {
+        var clientSel = document.getElementById('clientSelect');
+        var input = document.getElementById('companyNameInput');
+        if (clientSel.value) {
+            // 클라이언트 선택됨 → 텍스트 숨기고 값 동기화
+            var sel = clientSel.options[clientSel.selectedIndex];
+            input.value = sel.dataset.name || '';
+            input.style.display = 'none';
+        } else {
+            // 직접입력 → 텍스트 표시
+            input.style.display = '';
         }
     }
 
     document.getElementById('agencySelect').addEventListener('change', filterClients);
 
-    // 클라이언트 선택 시 업체명+대행사 자동 연결
     document.getElementById('clientSelect').addEventListener('change', function() {
         var sel = this.options[this.selectedIndex];
-        if (sel.value) {
-            document.querySelector('input[name="업체명"]').value = sel.dataset.name || '';
-            var agencyId = sel.dataset.agency || '';
-            if (agencyId) document.getElementById('agencySelect').value = agencyId;
+        if (sel.value && sel.dataset.agency) {
+            document.getElementById('agencySelect').value = sel.dataset.agency;
         }
+        toggleCompanyInput();
     });
 
-    // 초기 로드 시 필터 적용
+    // 초기 로드
     filterClients();
+    toggleCompanyInput();
     </script>
 </body>
 </html>
