@@ -769,6 +769,33 @@
         if (!m) return null;
         return { sh: parseInt(m[1]), sm: parseInt(m[2]), eh: parseInt(m[3]), em: parseInt(m[4]) };
     }
+    function fmtTime(totalSec) {
+        var m = Math.floor(totalSec / 60);
+        var s = totalSec % 60;
+        return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+    function extendTime(progressId, btn) {
+        btn.disabled = true;
+        btn.textContent = '...';
+        fetch('/admin/api/progress/extend-time', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: progressId })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                // created_at 갱신 → data-created 업데이트
+                var nowIso = new Date(Date.now() + 9 * 3600000).toISOString();
+                btn.closest('td').setAttribute('data-created', nowIso);
+            } else {
+                alert('연장 실패: ' + (d.message || ''));
+            }
+            btn.disabled = false;
+            btn.textContent = '+30분';
+        })
+        .catch(function() { btn.disabled = false; btn.textContent = '+30분'; });
+    }
     function updateRowTimers() {
         var nowMs = Date.now() + 9 * 3600000; // KST
         var nowKst = new Date(nowMs);
@@ -779,6 +806,8 @@
             var status = sel ? sel.value : '';
             if (status !== '신청' && status !== '가이드전달') {
                 badge.style.display = 'none';
+                var eb = td.querySelector('.extend-btn');
+                if (eb) eb.style.display = 'none';
                 return;
             }
             var createdIso = td.getAttribute('data-created');
@@ -786,6 +815,7 @@
             var created = new Date(createdIso);
             var buyTimeStr = td.getAttribute('data-buytime') || '';
             var bt = parseBuyTime(buyTimeStr);
+            var progressId = td.closest('tr').getAttribute('data-id');
 
             // effective_start = max(created, today buy_time start)
             var effectiveStart = created;
@@ -799,26 +829,36 @@
 
             var elapsedSec = (nowMs - effectiveStart.getTime()) / 1000;
 
+            // 연장 버튼 (없으면 생성)
+            var extBtn = td.querySelector('.extend-btn');
+            if (!extBtn) {
+                extBtn = document.createElement('button');
+                extBtn.className = 'extend-btn';
+                extBtn.textContent = '+30분';
+                extBtn.style.cssText = 'font-size:9px;padding:1px 4px;border:1px solid #d1d5db;border-radius:3px;background:#fff;cursor:pointer;margin-left:3px;color:#6b7280;';
+                extBtn.onclick = function() { extendTime(progressId, extBtn); };
+                badge.parentNode.appendChild(extBtn);
+            }
+
             if (elapsedSec < 0) {
-                // 구매시간 전
+                // 구매시간 전 — 실제 대기 시간 표시
                 var waitSec = Math.abs(Math.floor(elapsedSec));
-                var wMin = Math.floor(waitSec / 60);
-                badge.textContent = '구매시간 ' + wMin + '분 후';
+                badge.textContent = '-' + fmtTime(waitSec);
                 badge.className = 'timeout-badge waiting';
                 badge.style.display = 'inline-block';
+                extBtn.style.display = 'inline-block';
                 return;
             }
 
             var remainSec = Math.max(0, Math.floor(TIMEOUT_SEC - elapsedSec));
             if (remainSec <= 0) {
-                badge.textContent = '타임아웃';
+                badge.textContent = '0:00';
                 badge.className = 'timeout-badge urgent';
                 badge.style.display = 'inline-block';
+                extBtn.style.display = 'inline-block';
                 return;
             }
-            var min = Math.floor(remainSec / 60);
-            var sec = remainSec % 60;
-            badge.textContent = min + ':' + (sec < 10 ? '0' : '') + sec;
+            badge.textContent = fmtTime(remainSec);
             if (remainSec < 300) {
                 badge.className = 'timeout-badge urgent';
             } else if (remainSec < 600) {
@@ -827,6 +867,7 @@
                 badge.className = 'timeout-badge normal';
             }
             badge.style.display = 'inline-block';
+            extBtn.style.display = 'inline-block';
         });
     }
     updateRowTimers();

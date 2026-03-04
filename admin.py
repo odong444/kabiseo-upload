@@ -2190,6 +2190,26 @@ def api_managers_delete(mid):
     return jsonify({"ok": True})
 
 
+@admin_bp.route("/api/progress/extend-time", methods=["POST"])
+@admin_required
+def api_progress_extend_time():
+    """관리자 타임아웃 시간 연장 (created_at 리셋 + 인메모리 터치)"""
+    data = request.get_json(silent=True) or {}
+    progress_id = data.get("id")
+    if not progress_id or not models.db_manager:
+        return jsonify({"ok": False, "message": "id 필수"})
+    try:
+        models.db_manager._execute(
+            "UPDATE progress SET created_at = NOW(), updated_at = NOW() WHERE id = %s",
+            (int(progress_id),)
+        )
+        from app import _touch_reviewer_by_row
+        _touch_reviewer_by_row(int(progress_id))
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)})
+
+
 @admin_bp.route("/api/progress/delete", methods=["POST"])
 @admin_required
 def api_progress_delete():
