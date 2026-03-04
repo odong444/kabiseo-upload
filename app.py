@@ -370,53 +370,6 @@ def api_upload():
 
 # ──────── API: 진행현황 / 입금현황 (AJAX) ────────
 
-@app.route("/api/fix/campaigns-public")
-def api_fix_campaigns_public():
-    """일회성: 모든 캠페인 is_public=True 수정"""
-    if not models.db_manager:
-        return jsonify({"ok": False, "error": "db_manager is None"})
-    try:
-        models.db_manager._execute("UPDATE campaigns SET is_public = TRUE WHERE is_public = FALSE")
-        return jsonify({"ok": True, "message": "모든 캠페인 공개로 전환 완료"})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
-
-
-
-@app.route("/api/debug/campaigns")
-def api_debug_campaigns():
-    """임시 캠페인 디버그 (공개)"""
-    result = {"campaigns": [], "active": [], "cards": [], "count_all": {}, "error": None}
-    try:
-        if models.campaign_manager:
-            all_c = models.campaign_manager.get_all_campaigns()
-            result["campaigns"] = [
-                {k: v for k, v in c.items() if k in ("캠페인ID", "캠페인명", "상품명", "상태", "총수량", "완료수량", "일수량", "공개여부", "구매가능시간")}
-                for c in all_c
-            ]
-            active = models.campaign_manager.get_active_campaigns()
-            result["active"] = [
-                {k: v for k, v in c.items() if k in ("캠페인ID", "캠페인명", "상품명", "상태", "총수량", "_남은수량", "_buy_time_active")}
-                for c in active
-            ]
-            cards = models.campaign_manager.build_campaign_cards("테스트", "010-0000-0000")
-            result["cards"] = cards
-        else:
-            result["error"] = "campaign_manager is None"
-        if models.db_manager:
-            try:
-                result["count_all"] = models.db_manager.count_all_campaigns()
-            except Exception as e:
-                result["count_all_error"] = str(e)
-        else:
-            result["error"] = (result.get("error") or "") + " | db_manager is None"
-    except Exception as e:
-        result["error"] = str(e)
-        import traceback
-        result["traceback"] = traceback.format_exc()
-    return jsonify(result)
-
-
 @app.route("/api/status")
 def api_status():
     """리뷰어 진행현황 JSON"""

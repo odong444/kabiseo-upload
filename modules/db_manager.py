@@ -1460,22 +1460,6 @@ class DBManager:
             )
         return row["campaign_name"] if row else None
 
-    def cancel_stale_rows(self, hours: int = 1) -> int:
-        """N시간 이상 신청/가이드전달 상태 → 타임아웃취소"""
-        cutoff = now_kst() - timedelta(hours=hours)
-        with self._conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """UPDATE progress SET status = %s, updated_at = NOW()
-                       WHERE status IN (%s, %s) AND created_at < %s""",
-                    (STATUS_TIMEOUT, STATUS_APPLIED, STATUS_GUIDE_SENT, cutoff)
-                )
-                count = cur.rowcount
-            conn.commit()
-        if count:
-            logger.info("DB 기반 타임아웃 취소: %d건 (%d시간 초과)", count, hours)
-        return count
-
     def cancel_by_timeout(self, name: str, phone: str, campaign_id: str, store_ids: list[str]):
         """타임아웃 취소: 해당 유저의 해당 캠페인 신청/가이드전달 → 타임아웃취소"""
         reviewer = self.get_reviewer(name, phone)
@@ -1907,27 +1891,6 @@ class DBManager:
                 (group, campaign_id, _EXCLUSIVE_IGNORE_STATUSES),
             )
         return {r["store_id"] for r in rows}
-
-    # ─────────── ensure 메서드 (시트 호환 no-op) ───────────
-
-    def ensure_reviewer_db(self):
-        """DB에선 스키마 생성에서 이미 처리됨"""
-        pass
-
-    def ensure_main_column(self, col_name: str):
-        pass
-
-    def ensure_campaign_columns(self, col_names: list):
-        pass
-
-    def ensure_campaign_column(self, col_name: str):
-        pass
-
-    # ─────────── add_reviewer_row 호환 ───────────
-
-    def add_reviewer_row(self, data: dict):
-        """시트의 add_reviewer_row 호환 → add_progress로 위임"""
-        self.add_progress(data)
 
     # ─────────── 사이트 설정 ───────────
 
@@ -2749,10 +2712,3 @@ class DBManager:
             ON CONFLICT (campaign_id, reviewer_name, reviewer_phone) DO NOTHING
         """, (campaign_id, name, phone))
 
-    def get_recruit_send_count(self, campaign_id: str) -> int:
-        """캠페인별 모집 발송 건수"""
-        row = self._fetchone(
-            "SELECT COUNT(*) as cnt FROM recruit_sends WHERE campaign_id = %s",
-            (campaign_id,)
-        )
-        return row["cnt"] if row else 0
