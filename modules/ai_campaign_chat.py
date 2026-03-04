@@ -367,10 +367,18 @@ class AICampaignChat:
         if portal == "agency" and owner_id:
             if str(campaign.get("대행사ID", "")) != str(owner_id):
                 return {"ok": False, "error": "접근 권한이 없습니다"}
+            # 대행사: 승인 전 상태만 수정 가능
+            status = campaign.get("상태", "")
+            if status not in ("대행사승인", "반려", "임시저장"):
+                return {"ok": False, "error": f"현재 상태({status})에서는 수정할 수 없습니다. 관리자에게 요청해주세요."}
             changes.pop("리뷰비", None)
         elif portal == "client" and owner_id:
             if str(campaign.get("클라이언트ID", "")) != str(owner_id):
                 return {"ok": False, "error": "접근 권한이 없습니다"}
+            # 클라이언트: 승인 전 상태만 수정 가능
+            status = campaign.get("상태", "")
+            if status not in ("승인대기", "반려", "임시저장"):
+                return {"ok": False, "error": f"현재 상태({status})에서는 수정할 수 없습니다. 관리자에게 요청해주세요."}
             changes.pop("리뷰비", None)
 
         db.update_campaign(campaign_id, changes)
