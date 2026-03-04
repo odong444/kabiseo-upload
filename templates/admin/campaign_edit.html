@@ -123,16 +123,17 @@
 
         <form method="POST" action="{{ url_for('admin.campaign_edit_post', campaign_id=row) }}" enctype="multipart/form-data" class="admin-form">
             <div class="form-grid">
-                <!-- 상태 / 캠페인명 -->
-                <div class="form-group">
+                <!-- 상태 -->
+                <div class="form-group form-group-full">
                     <label>상태</label>
-                    <select name="상태">
+                    <select name="상태" style="max-width:200px;">
                         {% for s in ['승인대기', '반려', '모집중', '진행중', '마감', '종료'] %}
                         <option value="{{ s }}" {{ 'selected' if campaign.get('상태', '') == s }}>{{ s }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="form-group">
+                <!-- 캠페인명 -->
+                <div class="form-group form-group-full">
                     <label>캠페인명</label>
                     <input type="text" name="캠페인명" value="{{ campaign.get('캠페인명', '') }}" placeholder="비우면 상품명으로 표시">
                 </div>

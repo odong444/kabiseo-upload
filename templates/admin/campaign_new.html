@@ -183,11 +183,12 @@
             <div class="form-section">
                 <h3>캠페인 정보</h3>
                 <div class="form-grid">
-                    <!-- 캠페인명 / 대행사 -->
-                    <div class="form-group">
+                    <!-- 캠페인명 -->
+                    <div class="form-group form-group-full">
                         <label>캠페인명</label>
                         <input type="text" name="캠페인명" value="{{ copy.get('캠페인명', '') }}" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
                     </div>
+                    <!-- 대행사 / 업체명 -->
                     <div class="form-group">
                         <label>대행사</label>
                         <select name="대행사ID" id="agencySelect">
