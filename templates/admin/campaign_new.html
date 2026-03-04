@@ -144,6 +144,7 @@
                 <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
                 <a href="{{ url_for('admin.notices') }}">공지</a>
                 <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.agencies') }}">대행사</a>
                 <a href="{{ url_for('admin.clients') }}">업체{% if pending_campaign_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_campaign_count }}</span>{% endif %}</a>
                 <a href="{{ url_for('admin.settings') }}">설정</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
@@ -189,6 +190,24 @@
                     <div class="form-group">
                         <label>상품명 *</label>
                         <input type="text" name="상품명" required value="{{ copy.get('상품명', '') }}" placeholder="예: 들기름 300ml">
+                    </div>
+                    <div class="form-group">
+                        <label>대행사</label>
+                        <select name="대행사ID" id="agencySelect">
+                            <option value="">없음</option>
+                            {% for a in agencies %}
+                            <option value="{{ a.id }}" {{ 'selected' if copy.get('대행사ID')|string == a.id|string }}>{{ a.company_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>업체 (클라이언트)</label>
+                        <select name="업체ID_select" id="clientSelect">
+                            <option value="">직접입력</option>
+                            {% for c in clients %}
+                            <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" {{ 'selected' if copy.get('업체ID')|string == c.id|string }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>업체명 *</label>
@@ -924,6 +943,24 @@
             }
         }
         promoTextarea.addEventListener('input', updateKakaoPreview);
+    })();
+
+    // 업체(클라이언트) 선택 시 업체명 자동 채우기 + 대행사 연동
+    (function() {
+        var clientSelect = document.getElementById('clientSelect');
+        var agencySelect = document.getElementById('agencySelect');
+        if (!clientSelect) return;
+        clientSelect.addEventListener('change', function() {
+            var sel = this.options[this.selectedIndex];
+            if (sel.value) {
+                var nameInput = document.querySelector('input[name="업체명"]');
+                if (nameInput) nameInput.value = sel.dataset.name || '';
+                // 대행사 자동 선택
+                if (agencySelect && sel.dataset.agency) {
+                    agencySelect.value = sel.dataset.agency;
+                }
+            }
+        });
     })();
     </script>
 </body>

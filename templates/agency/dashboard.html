@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ company_name }} - 카비서 대행사 포털</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f5f0ff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .header {
+            background: #6d28d9; color: #fff; padding: 0 24px; height: 56px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header h1 { font-size: 18px; font-weight: 700; }
+        .header .company { font-size: 14px; opacity: 0.85; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right a { color: #fff; text-decoration: none; font-size: 14px; opacity: 0.85; }
+        .header-right a:hover { opacity: 1; }
+        .main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-card {
+            background: #fff; border-radius: 12px; padding: 20px; text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .stat-number { font-size: 28px; font-weight: 800; color: #6d28d9; }
+        .stat-label { font-size: 13px; color: #6b7280; margin-top: 4px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .section-header h2 { font-size: 18px; font-weight: 700; color: #1e293b; }
+        .btn-new {
+            padding: 10px 20px; background: #7c3aed; color: #fff; border: none;
+            border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-new:hover { background: #6d28d9; }
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        th, td { padding: 12px 14px; text-align: left; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+        th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 13px; }
+        tr:hover { background: #f8fafc; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+        .badge-pending { background: #fef3c7; color: #92400e; }
+        .badge-agency { background: #ede9fe; color: #6d28d9; }
+        .badge-active { background: #dbeafe; color: #1e40af; }
+        .badge-progress { background: #d1fae5; color: #065f46; }
+        .badge-rejected { background: #fee2e2; color: #991b1b; }
+        .badge-done { background: #f3f4f6; color: #6b7280; }
+        .progress-cell { display: flex; flex-direction: column; gap: 4px; min-width: 100px; }
+        .progress-row { display: flex; align-items: center; gap: 6px; }
+        .progress-label { font-size: 11px; color: #6b7280; width: 28px; flex-shrink: 0; }
+        .progress-bar { width: 70px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; display: inline-block; }
+        .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+        .progress-fill.purchase { background: #8b5cf6; }
+        .progress-fill.review { background: #22c55e; }
+        .progress-num { font-size: 11px; color: #6b7280; white-space: nowrap; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-weight: 600; }
+        .btn-approve { background: #d1fae5; color: #065f46; border-color: #86efac; }
+        .btn-reject { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        .flash-messages { margin-bottom: 16px; }
+        .flash { background: #ede9fe; color: #6d28d9; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+        .empty { text-align: center; padding: 48px 20px; color: #9ca3af; }
+        .reject-modal {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center;
+        }
+        .reject-modal.active { display: flex; }
+        .reject-modal-content {
+            background: #fff; border-radius: 12px; padding: 24px; max-width: 440px; width: 90%;
+        }
+        .reject-modal-content h3 { margin-bottom: 12px; font-size: 16px; }
+        .reject-modal-content textarea {
+            width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px;
+            font-size: 14px; resize: vertical; min-height: 80px;
+        }
+        .reject-actions { margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>카비서 대행사</h1>
+            <span class="company">{{ company_name }}</span>
+        </div>
+        <div class="header-right">
+            <a href="{{ url_for('agency.dashboard') }}">대시보드</a>
+            <a href="{{ url_for('agency.campaign_new') }}">캠페인 생성</a>
+            <a href="{{ url_for('agency.logout') }}">로그아웃</a>
+        </div>
+    </div>
+
+    <div class="main">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.pending or 0 }}</div>
+                <div class="stat-label">승인대기</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.agency_approved or 0 }}</div>
+                <div class="stat-label">대행사승인</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.active or 0 }}</div>
+                <div class="stat-label">진행중</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.done or 0 }}</div>
+                <div class="stat-label">완료</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.total or 0 }}</div>
+                <div class="stat-label">전체</div>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <h2>캠페인 목록</h2>
+            <a href="{{ url_for('agency.campaign_new') }}" class="btn-new">+ 캠페인 생성</a>
+        </div>
+
+        {% if campaigns %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>캠페인명</th>
+                        <th>업체명</th>
+                        <th>플랫폼</th>
+                        <th>총수량</th>
+                        <th>상태</th>
+                        <th>진행률</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in campaigns %}
+                    {% set status = c.get('상태', '') %}
+                    <tr onclick="location.href='{{ url_for('agency.campaign_detail', campaign_id=c.get('캠페인ID', '')) }}'" style="cursor:pointer;">
+                        <td style="font-weight:600;">{{ c.get('캠페인명', '') or c.get('상품명', '') }}</td>
+                        <td>{{ c.get('업체명', '') }}</td>
+                        <td>{{ c.get('플랫폼', '') }}</td>
+                        <td>{{ c.get('총수량', '-') }}</td>
+                        <td>
+                            {% if status == '승인대기' %}
+                            <span class="badge badge-pending">{{ status }}</span>
+                            {% elif status == '대행사승인' %}
+                            <span class="badge badge-agency">{{ status }}</span>
+                            {% elif status == '모집중' %}
+                            <span class="badge badge-active">{{ status }}</span>
+                            {% elif status == '진행중' %}
+                            <span class="badge badge-progress">{{ status }}</span>
+                            {% elif status == '반려' %}
+                            <span class="badge badge-rejected">{{ status }}</span>
+                            {% else %}
+                            <span class="badge badge-done">{{ status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="progress-cell">
+                                <div class="progress-row">
+                                    <span class="progress-label">구매</span>
+                                    <div class="progress-bar"><div class="progress-fill purchase" style="width:{{ c.purchase_pct }}%"></div></div>
+                                    <span class="progress-num">{{ c.purchased }}/{{ c.get('총수량', 0) }}</span>
+                                </div>
+                                <div class="progress-row">
+                                    <span class="progress-label">리뷰</span>
+                                    <div class="progress-bar"><div class="progress-fill review" style="width:{{ c.review_pct }}%"></div></div>
+                                    <span class="progress-num">{{ c.reviewed }}/{{ c.get('총수량', 0) }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td onclick="event.stopPropagation();">
+                            {% if status == '승인대기' %}
+                            <div style="display:flex;gap:4px;">
+                                <button class="btn-sm btn-approve" onclick="approveCAMP('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}')">승인</button>
+                                <button class="btn-sm btn-reject" onclick="openReject('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}')">반려</button>
+                            </div>
+                            {% elif status == '반려' %}
+                            <span style="font-size:12px;color:#991b1b;">{{ c.get('반려사유', '') or '' }}</span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty">
+            <div style="font-size:48px;margin-bottom:12px;">&#128203;</div>
+            <div>캠페인이 없습니다</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 반려 모달 -->
+    <div class="reject-modal" id="rejectModal">
+        <div class="reject-modal-content">
+            <h3>캠페인 반려</h3>
+            <p style="font-size:14px;color:#6b7280;margin-bottom:12px;" id="rejectCampName"></p>
+            <textarea id="rejectReason" placeholder="반려 사유를 입력하세요"></textarea>
+            <div class="reject-actions">
+                <button class="btn-sm" onclick="closeReject()">취소</button>
+                <button class="btn-sm btn-reject" onclick="submitReject()">반려</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    var _rejectId = '';
+
+    function approveCAMP(id, name) {
+        if (!confirm('캠페인 "' + name + '"을(를) 승인하시겠습니까?')) return;
+        fetch('/agency/api/campaign/' + id + '/approve', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) location.reload();
+            else alert('승인 실패: ' + (d.error || ''));
+        });
+    }
+
+    function openReject(id, name) {
+        _rejectId = id;
+        document.getElementById('rejectCampName').textContent = name;
+        document.getElementById('rejectReason').value = '';
+        document.getElementById('rejectModal').classList.add('active');
+    }
+
+    function closeReject() {
+        document.getElementById('rejectModal').classList.remove('active');
+    }
+
+    function submitReject() {
+        var reason = document.getElementById('rejectReason').value.trim();
+        fetch('/agency/api/campaign/' + _rejectId + '/reject', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({reason: reason})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) location.reload();
+            else alert('반려 실패: ' + (d.error || ''));
+        });
+    }
+    </script>
+</body>
+</html>

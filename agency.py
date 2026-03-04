@@ -1,7 +1,7 @@
 """
-client.py - 업체 관리자 포털 라우트
+agency.py - 대행사 포털 라우트
 
-업체가 캠페인을 요청하고, 진행 현황을 확인하는 포털.
+대행사가 소속 클라이언트의 캠페인을 관리하고, 승인/반려하는 포털.
 """
 
 import os
@@ -16,73 +16,74 @@ from modules.utils import today_str, safe_int, extract_product_codes
 
 logger = logging.getLogger(__name__)
 
-client_bp = Blueprint("client", __name__, url_prefix="/client")
+agency_bp = Blueprint("agency", __name__, url_prefix="/agency")
 
 
 # ─── 인증 ───
 
-def client_required(f):
-    """업체 로그인 데코레이터"""
+def agency_required(f):
+    """대행사 로그인 데코레이터"""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("client_id"):
-            return redirect(url_for("client.login"))
+        if not session.get("agency_id"):
+            return redirect(url_for("agency.login"))
         return f(*args, **kwargs)
     return decorated
 
 
-@client_bp.route("/login", methods=["GET", "POST"])
+@agency_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
-        if session.get("client_id"):
-            return redirect(url_for("client.dashboard"))
-        return render_template("client/login.html")
+        if session.get("agency_id"):
+            return redirect(url_for("agency.dashboard"))
+        return render_template("agency/login.html")
 
     login_id = request.form.get("login_id", "").strip()
     password = request.form.get("password", "").strip()
 
     if not login_id or not password:
         flash("아이디와 비밀번호를 입력해주세요.")
-        return redirect(url_for("client.login"))
+        return redirect(url_for("agency.login"))
 
-    client = models.db_manager.get_client_by_login(login_id)
-    if not client:
+    agency = models.db_manager.get_agency_by_login(login_id)
+    if not agency:
         flash("아이디 또는 비밀번호가 올바르지 않습니다.")
-        return redirect(url_for("client.login"))
+        return redirect(url_for("agency.login"))
 
-    if not client.get("is_active", True):
+    if not agency.get("is_active", True):
         flash("비활성화된 계정입니다. 담당자에게 문의해주세요.")
-        return redirect(url_for("client.login"))
+        return redirect(url_for("agency.login"))
 
     from werkzeug.security import check_password_hash
-    if not check_password_hash(client["password_hash"], password):
+    if not check_password_hash(agency["password_hash"], password):
         flash("아이디 또는 비밀번호가 올바르지 않습니다.")
-        return redirect(url_for("client.login"))
+        return redirect(url_for("agency.login"))
 
-    session["client_id"] = client["id"]
-    session["client_company"] = client["company_name"]
-    session["client_login_id"] = client["login_id"]
-    return redirect(url_for("client.dashboard"))
+    session["agency_id"] = agency["id"]
+    session["agency_company"] = agency["company_name"]
+    session["agency_login_id"] = agency["login_id"]
+    return redirect(url_for("agency.dashboard"))
 
 
-@client_bp.route("/logout")
+@agency_bp.route("/logout")
 def logout():
-    session.pop("client_id", None)
-    session.pop("client_company", None)
-    session.pop("client_login_id", None)
-    return redirect(url_for("client.login"))
+    session.pop("agency_id", None)
+    session.pop("agency_company", None)
+    session.pop("agency_login_id", None)
+    return redirect(url_for("agency.login"))
 
 
 # ─── 대시보드 ───
 
-@client_bp.route("/dashboard")
-@client_required
+@agency_bp.route("/dashboard")
+@agency_required
 def dashboard():
-    client_id = session["client_id"]
-    campaigns = models.db_manager.get_client_campaigns(client_id)
-    stats = models.db_manager.get_client_campaign_stats(client_id)
+    agency_id = session["agency_id"]
+    campaigns = models.db_manager.get_agency_campaigns(agency_id)
+    stats = models.db_manager.get_agency_campaign_stats(agency_id)
+    clients = models.db_manager.get_agency_clients(agency_id)
 
-    # 각 캠페인의 구매/리뷰 진행률 일괄 계산
+    # 각 캠페인의 구매/리뷰 진행률
     campaign_ids = [c.get("캠페인ID", "") for c in campaigns if c.get("캠페인ID")]
     progress_counts = {}
     if campaign_ids:
@@ -110,27 +111,31 @@ def dashboard():
         c["purchased"] = counts["purchased"]
         c["reviewed"] = counts["reviewed"]
 
-    return render_template("client/dashboard.html",
-                           campaigns=campaigns, stats=stats,
-                           company_name=session.get("client_company", ""))
+    return render_template("agency/dashboard.html",
+                           campaigns=campaigns, stats=stats, clients=clients,
+                           company_name=session.get("agency_company", ""))
 
 
-# ─── 캠페인 요청 ───
+# ─── 캠페인 생성 ───
 
-@client_bp.route("/campaign/new", methods=["GET"])
-@client_required
+@agency_bp.route("/campaign/new", methods=["GET"])
+@agency_required
 def campaign_new():
-    return render_template("client/campaign_request.html",
-                           company_name=session.get("client_company", ""))
+    agency_id = session["agency_id"]
+    clients = models.db_manager.get_agency_clients(agency_id)
+    return render_template("agency/campaign_request.html",
+                           clients=clients,
+                           company_name=session.get("agency_company", ""))
 
 
-@client_bp.route("/campaign/new", methods=["POST"])
-@client_required
+@agency_bp.route("/campaign/new", methods=["POST"])
+@agency_required
 def campaign_new_post():
     if not models.db_manager:
         flash("시스템 초기화 중입니다.")
-        return redirect(url_for("client.dashboard"))
+        return redirect(url_for("agency.dashboard"))
 
+    agency_id = session["agency_id"]
     campaign_id = str(uuid.uuid4())[:8]
 
     fields = [
@@ -143,34 +148,38 @@ def campaign_new_post():
     data = {
         "캠페인ID": campaign_id,
         "등록일": today_str(),
-        "상태": "승인대기",
+        "상태": "대행사승인",  # 대행사가 생성하면 대행사승인 상태 (관리자 최종 승인 대기)
         "완료수량": "0",
-        "업체ID": session["client_id"],
+        "대행사ID": agency_id,
     }
 
-    # Look up client's agency to set agency_id
-    _client_info = models.db_manager.get_client_by_id(session["client_id"])
-    if _client_info and _client_info.get("agency_id"):
-        data["대행사ID"] = _client_info["agency_id"]
+    # 클라이언트 선택 (선택사항)
+    client_id = safe_int(request.form.get("client_id", ""))
+    if client_id:
+        # 소속 클라이언트인지 확인
+        client = models.db_manager.get_client_by_id(client_id)
+        if client and safe_int(client.get("agency_id")) == agency_id:
+            data["업체ID"] = client_id
+            if not request.form.get("업체명", "").strip():
+                data["업체명"] = client.get("company_name", "")
 
     for field in fields:
-        data[field] = request.form.get(field, "").strip()
+        val = request.form.get(field, "").strip()
+        if val:
+            data[field] = val
 
-    # 업체명 기본값: 세션의 company_name
     if not data.get("업체명"):
-        data["업체명"] = session.get("client_company", "")
+        data["업체명"] = session.get("agency_company", "")
 
-    # 상품링크에서 상품코드 자동 추출
+    # 상품코드 자동 추출
     product_link = data.get("상품링크", "")
     if product_link:
         codes = extract_product_codes(product_link)
         if codes:
             data["상품코드"] = codes
 
-    # 시작일
+    # 일정 생성
     start_date = request.form.get("시작일", "").strip() or today_str()
-
-    # 일정: 수동 입력값 우선, 없으면 자동 생성
     manual_schedule = request.form.get("일정", "").strip()
     if manual_schedule:
         data["일정"] = [safe_int(x) for x in re.split(r"[,\s]+", manual_schedule) if x.strip()]
@@ -191,7 +200,7 @@ def campaign_new_post():
                 data["일정"] = schedule
                 data["시작일"] = start_date
 
-    # 상품이미지 파일 업로드
+    # 상품이미지
     image_file = request.files.get("상품이미지")
     if image_file and image_file.filename:
         try:
@@ -207,32 +216,40 @@ def campaign_new_post():
     try:
         models.db_manager.create_campaign(data)
         display_name = data.get("캠페인명", "").strip() or data["상품명"]
-        flash(f"캠페인 '{display_name}' 요청이 접수되었습니다. 담당자 승인 후 진행됩니다.")
+        flash(f"캠페인 '{display_name}' 요청이 접수되었습니다. 관리자 승인 후 진행됩니다.")
     except Exception as e:
-        logger.error(f"캠페인 요청 에러: {e}")
+        logger.error(f"캠페인 생성 에러: {e}")
         flash(f"요청 중 오류가 발생했습니다: {e}")
 
-    return redirect(url_for("client.dashboard"))
+    return redirect(url_for("agency.dashboard"))
 
 
 # ─── 캠페인 상세 ───
 
-@client_bp.route("/campaign/<campaign_id>")
-@client_required
+@agency_bp.route("/campaign/<campaign_id>")
+@agency_required
 def campaign_detail(campaign_id):
+    agency_id = session["agency_id"]
     campaign = models.db_manager.get_campaign_by_id(campaign_id)
     if not campaign:
         flash("캠페인을 찾을 수 없습니다.")
-        return redirect(url_for("client.dashboard"))
+        return redirect(url_for("agency.dashboard"))
 
-    # 본인 캠페인인지 확인
-    if safe_int(campaign.get("업체ID", 0)) != session["client_id"]:
+    # 권한 확인: 대행사가 직접 생성했거나 소속 클라이언트의 캠페인
+    camp_agency = safe_int(campaign.get("대행사ID", 0))
+    camp_client = safe_int(campaign.get("업체ID", 0))
+    is_mine = (camp_agency == agency_id)
+    if not is_mine and camp_client:
+        client = models.db_manager.get_client_by_id(camp_client)
+        if client and safe_int(client.get("agency_id")) == agency_id:
+            is_mine = True
+    if not is_mine:
         flash("접근 권한이 없습니다.")
-        return redirect(url_for("client.dashboard"))
+        return redirect(url_for("agency.dashboard"))
 
-    # 진행 현황 통계
-    progress_stats = {}
+    # 진행 현황
     cid = campaign.get("캠페인ID", campaign_id)
+    progress_stats = {}
     rows = models.db_manager._fetchall(
         """SELECT status, COUNT(*) as cnt FROM progress
            WHERE campaign_id = %s GROUP BY status""",
@@ -245,7 +262,6 @@ def campaign_detail(campaign_id):
     total_qty = safe_int(campaign.get("총수량", 0))
     progress_pct = round(total_progress / total_qty * 100) if total_qty > 0 else 0
 
-    # 진행건 목록 (리뷰비/입금금액 제외)
     progress_list = models.db_manager._fetchall(
         """SELECT p.id,
                   TO_CHAR(p.created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD') as date_str,
@@ -263,56 +279,63 @@ def campaign_detail(campaign_id):
         (cid,)
     )
 
-    return render_template("client/campaign_detail.html",
+    return render_template("agency/campaign_detail.html",
                            campaign=campaign,
                            progress_stats=progress_stats,
                            total_progress=total_progress,
                            progress_pct=progress_pct,
                            progress_list=progress_list,
-                           company_name=session.get("client_company", ""))
+                           company_name=session.get("agency_company", ""))
 
 
-# ─── 카톡 발송 API ───
+# ─── 승인/반려 API ───
 
-@client_bp.route("/api/send-message", methods=["POST"])
-@client_required
-def api_send_message():
-    """업체가 리뷰어에게 카톡 메시지 발송"""
-    data = request.get_json() or {}
-    progress_id = safe_int(data.get("progress_id"))
-    message = (data.get("message") or "").strip()
+@agency_bp.route("/api/campaign/<campaign_id>/approve", methods=["POST"])
+@agency_required
+def api_campaign_approve(campaign_id):
+    agency_id = session["agency_id"]
+    campaign = models.db_manager.get_campaign_by_id(campaign_id)
+    if not campaign:
+        return jsonify({"ok": False, "error": "캠페인을 찾을 수 없습니다."})
 
-    if not progress_id or not message:
-        return jsonify(ok=False, error="진행건 ID와 메시지를 입력해주세요."), 400
-
-    # 진행건 조회 → 캠페인 소유 확인
-    row = models.db_manager._fetchone(
-        """SELECT p.campaign_id, c.client_id
-           FROM progress p
-           JOIN campaigns c ON c.id = p.campaign_id
-           WHERE p.id = %s""",
-        (progress_id,)
-    )
-    if not row:
-        return jsonify(ok=False, error="진행건을 찾을 수 없습니다."), 404
-
-    if safe_int(row.get("client_id")) != session["client_id"]:
-        return jsonify(ok=False, error="접근 권한이 없습니다."), 403
-
-    # 카카오톡 발송
-    if not models.kakao_notifier:
-        return jsonify(ok=False, error="알림 시스템이 초기화되지 않았습니다."), 500
-
-    # 리뷰어 정보 먼저 확인
-    info = models.kakao_notifier._get_progress_info(progress_id)
-    if not info.get("name") or not info.get("phone"):
-        logger.warning("카톡 발송 실패 - 리뷰어 정보 없음: progress_id=%s, info=%s", progress_id, info)
-        return jsonify(ok=False, error="리뷰어 연락처 정보가 없습니다."), 400
-
-    result = models.kakao_notifier.send_reminder(progress_id, custom_message=message)
-    if result:
-        return jsonify(ok=True)
+    # 권한 확인
+    camp_client = safe_int(campaign.get("업체ID", 0))
+    if camp_client:
+        client = models.db_manager.get_client_by_id(camp_client)
+        if not client or safe_int(client.get("agency_id")) != agency_id:
+            return jsonify({"ok": False, "error": "접근 권한이 없습니다."})
     else:
-        logger.warning("카톡 발송 실패 - 전송 에러: progress_id=%s, reviewer=%s %s",
-                       progress_id, info.get("name"), info.get("phone"))
-        return jsonify(ok=False, error="카톡 발송에 실패했습니다. 서버 연결을 확인해주세요."), 500
+        return jsonify({"ok": False, "error": "클라이언트 캠페인이 아닙니다."})
+
+    if campaign.get("상태") != "승인대기":
+        return jsonify({"ok": False, "error": "승인대기 상태가 아닙니다."})
+
+    models.db_manager.update_campaign(campaign_id, {"상태": "대행사승인", "대행사ID": agency_id})
+    logger.info("대행사 캠페인 승인: %s (agency_id=%s)", campaign_id, agency_id)
+    return jsonify({"ok": True})
+
+
+@agency_bp.route("/api/campaign/<campaign_id>/reject", methods=["POST"])
+@agency_required
+def api_campaign_reject(campaign_id):
+    agency_id = session["agency_id"]
+    campaign = models.db_manager.get_campaign_by_id(campaign_id)
+    if not campaign:
+        return jsonify({"ok": False, "error": "캠페인을 찾을 수 없습니다."})
+
+    camp_client = safe_int(campaign.get("업체ID", 0))
+    if camp_client:
+        client = models.db_manager.get_client_by_id(camp_client)
+        if not client or safe_int(client.get("agency_id")) != agency_id:
+            return jsonify({"ok": False, "error": "접근 권한이 없습니다."})
+    else:
+        return jsonify({"ok": False, "error": "클라이언트 캠페인이 아닙니다."})
+
+    if campaign.get("상태") != "승인대기":
+        return jsonify({"ok": False, "error": "승인대기 상태가 아닙니다."})
+
+    data = request.get_json(silent=True) or {}
+    reason = data.get("reason", "").strip()
+    models.db_manager.update_campaign(campaign_id, {"상태": "반려", "반려사유": reason})
+    logger.info("대행사 캠페인 반려: %s, 사유: %s", campaign_id, reason)
+    return jsonify({"ok": True})

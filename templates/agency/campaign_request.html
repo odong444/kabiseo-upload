@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ company_name }} - 캠페인 생성</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f5f0ff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .header {
+            background: #6d28d9; color: #fff; padding: 0 24px; height: 56px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header h1 { font-size: 18px; font-weight: 700; }
+        .header .company { font-size: 14px; opacity: 0.85; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .header-right a { color: #fff; text-decoration: none; font-size: 14px; opacity: 0.85; }
+        .header-right a:hover { opacity: 1; }
+
+        .main { max-width: 800px; margin: 0 auto; padding: 24px; }
+        .page-title { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 24px; }
+
+        .form-section { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .form-section h3 {
+            font-size: 16px; font-weight: 700; color: #6d28d9; margin-bottom: 16px;
+            padding-bottom: 8px; border-bottom: 2px solid #8b5cf6;
+        }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group-full { grid-column: 1 / -1; }
+        .form-group label { font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px;
+            font-size: 14px; outline: none; transition: border-color 0.2s; width: 100%;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.1);
+        }
+        .form-group small { color: #9ca3af; font-size: 12px; margin-top: 4px; }
+        .hidden { display: none !important; }
+
+        .radio-group { display: flex; gap: 16px; align-items: center; padding: 10px 0; }
+        .radio-group label { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; margin-bottom: 0; }
+        .radio-group input[type="radio"] { width: auto; margin: 0; }
+        .dup-days-input { display: inline-block; width: 80px; margin: 0 6px; }
+
+        .calc-hint {
+            font-size: 12px; color: #6b7280; margin-top: 6px;
+            background: #f5f0ff; padding: 8px 12px; border-radius: 6px;
+        }
+        .file-upload-area {
+            border: 2px dashed #d1d5db; border-radius: 8px; padding: 20px;
+            text-align: center; cursor: pointer; transition: border-color 0.2s;
+        }
+        .file-upload-area:hover { border-color: #8b5cf6; }
+        .file-upload-area.has-file { border-color: #22c55e; background: #f0fdf4; }
+        .file-upload-area input[type="file"] { display: none; }
+        .file-upload-label { color: #9ca3af; font-size: 14px; }
+        .file-upload-area.has-file .file-upload-label { color: #22c55e; font-weight: 600; }
+
+        .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px; }
+        .btn-submit {
+            padding: 12px 32px; background: #7c3aed; color: #fff; border: none;
+            border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+        }
+        .btn-submit:hover { background: #6d28d9; }
+        .btn-cancel {
+            padding: 12px 24px; background: #f3f4f6; color: #6b7280; border: none;
+            border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none;
+        }
+        .btn-cancel:hover { background: #e5e7eb; }
+
+        .flash-messages { margin-bottom: 16px; }
+        .flash { background: #fef2f2; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-left">
+            <h1>카비서 대행사</h1>
+            <span class="company">{{ company_name }}</span>
+        </div>
+        <div class="header-right">
+            <a href="{{ url_for('agency.dashboard') }}">대시보드</a>
+            <a href="{{ url_for('agency.campaign_new') }}">캠페인 생성</a>
+            <a href="{{ url_for('agency.logout') }}">로그아웃</a>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="page-title">캠페인 생성</div>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash-messages">
+            {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form id="campaignForm" method="POST" action="{{ url_for('agency.campaign_new_post') }}" enctype="multipart/form-data">
+
+            <!-- 클라이언트 선택 -->
+            <div class="form-section">
+                <h3>클라이언트 선택</h3>
+                <div class="form-grid">
+                    <div class="form-group form-group-full">
+                        <label>클라이언트</label>
+                        <select name="client_id" id="clientSelect">
+                            <option value="">직접 생성 (클라이언트 미지정)</option>
+                            {% for cl in clients %}
+                            <option value="{{ cl.id }}">{{ cl.company_name }} ({{ cl.login_id }})</option>
+                            {% endfor %}
+                        </select>
+                        <small>클라이언트를 선택하면 해당 업체 이름으로 캠페인이 생성됩니다</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 캠페인 정보 -->
+            <div class="form-section">
+                <h3>캠페인 정보</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>캠페인명</label>
+                        <input type="text" name="캠페인명" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
+                    </div>
+                    <div class="form-group">
+                        <label>상품명 *</label>
+                        <input type="text" name="상품명" required placeholder="예: 들기름 300ml">
+                    </div>
+                    <div class="form-group">
+                        <label>플랫폼 *</label>
+                        <select name="플랫폼" id="platformSelect" required>
+                            <option value="스마트스토어">스마트스토어</option>
+                            <option value="쿠팡">쿠팡</option>
+                            <option value="오늘의집">오늘의집</option>
+                            <option value="11번가">11번가</option>
+                            <option value="지마켓">지마켓</option>
+                            <option value="올리브영">올리브영</option>
+                            <option value="기타">기타 (직접입력)</option>
+                        </select>
+                    </div>
+                    <div class="form-group hidden" id="platformCustomWrap">
+                        <label>플랫폼 직접입력</label>
+                        <input type="text" id="platformCustom" placeholder="플랫폼명 입력">
+                    </div>
+                    <div class="form-group">
+                        <label>캠페인유형 *</label>
+                        <select name="캠페인유형" required>
+                            <option value="실배송">실배송</option>
+                            <option value="빈박스">빈박스</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>결제금액</label>
+                        <input type="text" name="상품금액" placeholder="예: 29,000 (택배비 포함)">
+                        <small>택배비 포함해서 써주세요</small>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>상품링크</label>
+                        <input type="text" name="상품링크" placeholder="예: https://smartstore.naver.com/...">
+                        <small>상품 페이지 링크를 입력해주세요</small>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>상품이미지</label>
+                        <div class="file-upload-area" id="imageUploadArea">
+                            <input type="file" name="상품이미지" id="imageFile" accept="image/*">
+                            <div class="file-upload-label" id="imageLabel">클릭하여 이미지를 선택하세요 (JPG, PNG)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 운영 설정 -->
+            <div class="form-section">
+                <h3>운영 설정</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>총 모집인원 *</label>
+                        <input type="number" name="총수량" id="totalCount" required min="1" placeholder="예: 20">
+                    </div>
+                    <div class="form-group">
+                        <label>하루진행량</label>
+                        <input type="text" name="일수량" id="dailyCount" placeholder="숫자(예: 5) 또는 범위(예: 3-5)">
+                    </div>
+                    <div class="form-group">
+                        <label>진행일수</label>
+                        <input type="number" name="진행일수" id="dayCount" min="1" placeholder="예: 4">
+                    </div>
+                    <div class="form-group">
+                        <label>시작일</label>
+                        <input type="date" name="시작일" id="startDate">
+                        <small>비우면 승인일로 설정됩니다</small>
+                    </div>
+                    <div class="form-group">
+                        <label>1인 일일 제한</label>
+                        <input type="number" name="1인일일제한" min="0" placeholder="0 = 무제한">
+                        <small>한 명이 하루에 참여 가능한 최대 건수</small>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <div class="calc-hint hidden" id="calcHint"></div>
+                    </div>
+                    <div class="form-group form-group-full hidden" id="scheduleWrap">
+                        <label>일별 진행일정</label>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;" id="schedulePreview"></div>
+                        <input type="text" name="일정" id="scheduleInput" placeholder="예: 3, 5, 4, 3, 4, 2 (쉼표 구분)">
+                        <small>자동 생성된 일정을 직접 수정할 수 있습니다</small>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>모집 및 구매진행시간</label>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <select id="buyTimeStart" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;">
+                                <option value="">시작</option>
+                                {% for h in range(24) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d:00'|format(h) }}</option>{% endfor %}
+                            </select>
+                            <span>~</span>
+                            <label style="display:flex;align-items:center;gap:4px;margin:0;font-weight:400;">
+                                <input type="checkbox" id="buyTimeNextDay" style="width:auto;"> 익일
+                            </label>
+                            <select id="buyTimeEnd" style="padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;">
+                                <option value="">종료</option>
+                                {% for h in range(25) %}<option value="{{ '%02d'|format(h) }}">{{ '%02d:00'|format(h) }}</option>{% endfor %}
+                            </select>
+                            <button type="button" onclick="clearBuyTime()" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:6px;background:#f8fafc;cursor:pointer;font-size:12px;">24시간(초기화)</button>
+                        </div>
+                        <input type="hidden" name="구매가능시간" id="buyTimeValue">
+                        <small>비우면 24시간. 배송마감 후 시작하는게 원활하고 좋습니다</small>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>중복진행 가능여부</label>
+                        <div class="radio-group">
+                            <label><input type="radio" name="중복진행" value="Y" checked> 가능</label>
+                            <label><input type="radio" name="중복진행" value="N"> 불가능</label>
+                            <label>
+                                <input type="radio" name="중복진행" value="텀" id="dupTermRadio"> 일정기간 텀
+                                <input type="number" class="dup-days-input hidden" id="dupDaysInput" min="1" placeholder="일">
+                                <span class="hidden" id="dupDaysLabel">일 후 가능</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>옵션명</label>
+                        <input type="text" name="옵션" placeholder="예: 300ml / 블랙 / L사이즈 (여러 개면 쉼표로 구분)">
+                        <small>리뷰어가 구매 시 선택할 옵션을 입력하세요</small>
+                    </div>
+                    <div class="form-group">
+                        <label>키워드</label>
+                        <input type="text" name="키워드" placeholder="예: 들기름 국산">
+                        <small>리뷰어가 검색할 키워드</small>
+                    </div>
+                    <div class="form-group">
+                        <label>유입방식</label>
+                        <select name="유입방식">
+                            <option value="키워드검색">키워드검색</option>
+                            <option value="직접유입">직접유입 (링크)</option>
+                            <option value="기타">기타</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>리뷰기한 (일)</label>
+                        <input type="number" name="리뷰기한일수" min="1" placeholder="예: 7">
+                        <small>구매 후 리뷰 작성까지 기한</small>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>캠페인 가이드</label>
+                        <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 숨겨진 필드 -->
+            <input type="hidden" name="중복허용" id="dupAllowValue" value="Y">
+
+            <div class="form-actions">
+                <a href="{{ url_for('agency.dashboard') }}" class="btn-cancel">취소</a>
+                <button type="submit" class="btn-submit">캠페인 생성</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+    // 구매시간 드롭다운
+    function updateBuyTime() {
+        var s = document.getElementById('buyTimeStart').value;
+        var e = document.getElementById('buyTimeEnd').value;
+        var nd = document.getElementById('buyTimeNextDay').checked;
+        var val = '';
+        if (s && e) {
+            val = s + ':00~' + (nd ? '익일' : '') + e + ':00';
+        }
+        document.getElementById('buyTimeValue').value = val;
+    }
+    function clearBuyTime() {
+        document.getElementById('buyTimeStart').value = '';
+        document.getElementById('buyTimeEnd').value = '';
+        document.getElementById('buyTimeNextDay').checked = false;
+        document.getElementById('buyTimeValue').value = '';
+    }
+    document.getElementById('buyTimeStart').addEventListener('change', updateBuyTime);
+    document.getElementById('buyTimeEnd').addEventListener('change', updateBuyTime);
+    document.getElementById('buyTimeNextDay').addEventListener('change', updateBuyTime);
+
+    (function() {
+        // 플랫폼 "기타" 토글
+        var platformSelect = document.getElementById('platformSelect');
+        var platformCustomWrap = document.getElementById('platformCustomWrap');
+        var platformCustom = document.getElementById('platformCustom');
+
+        platformSelect.addEventListener('change', function() {
+            if (this.value === '기타') {
+                platformCustomWrap.classList.remove('hidden');
+                platformCustom.focus();
+            } else {
+                platformCustomWrap.classList.add('hidden');
+                platformCustom.value = '';
+            }
+        });
+
+        // 폼 제출 시 플랫폼 기타 값 적용
+        document.getElementById('campaignForm').addEventListener('submit', function() {
+            if (platformSelect.value === '기타' && platformCustom.value.trim()) {
+                platformSelect.name = '';
+                var hidden = document.createElement('input');
+                hidden.type = 'hidden'; hidden.name = '플랫폼'; hidden.value = platformCustom.value.trim();
+                this.appendChild(hidden);
+            }
+        });
+
+        // 중복진행 텀 토글
+        var dupRadios = document.querySelectorAll('input[name="중복진행"]');
+        var dupDaysInput = document.getElementById('dupDaysInput');
+        var dupDaysLabel = document.getElementById('dupDaysLabel');
+        var dupAllowValue = document.getElementById('dupAllowValue');
+
+        dupRadios.forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                if (this.value === '텀') {
+                    dupDaysInput.classList.remove('hidden');
+                    dupDaysLabel.classList.remove('hidden');
+                    dupDaysInput.focus();
+                } else {
+                    dupDaysInput.classList.add('hidden');
+                    dupDaysLabel.classList.add('hidden');
+                    dupDaysInput.value = '';
+                }
+                updateDupValue();
+            });
+        });
+
+        dupDaysInput.addEventListener('input', updateDupValue);
+
+        function updateDupValue() {
+            var selected = document.querySelector('input[name="중복진행"]:checked').value;
+            if (selected === '텀') {
+                var days = dupDaysInput.value || '30';
+                dupAllowValue.value = '텀:' + days;
+            } else {
+                dupAllowValue.value = selected;
+            }
+        }
+
+        // 하루진행량 + 진행일수 = 배분 계산
+        var totalCountEl = document.getElementById('totalCount');
+        var dailyCountEl = document.getElementById('dailyCount');
+        var dayCountEl = document.getElementById('dayCount');
+        var calcHint = document.getElementById('calcHint');
+        var scheduleWrap = document.getElementById('scheduleWrap');
+        var scheduleInput = document.getElementById('scheduleInput');
+        var schedulePreview = document.getElementById('schedulePreview');
+
+        [totalCountEl, dailyCountEl, dayCountEl].forEach(function(el) {
+            el.addEventListener('input', updateCalcHint);
+        });
+
+        function generateSchedule(total, lo, hi, days) {
+            var distribution = [], remaining = total;
+            for (var i = 0; i < days; i++) {
+                if (i === days - 1) {
+                    distribution.push(Math.max(0, remaining));
+                } else {
+                    var left = days - i - 1;
+                    var minT = Math.max(lo, remaining - hi * left);
+                    var maxT = Math.min(hi, remaining - lo * left);
+                    if (minT > maxT) minT = maxT = Math.max(1, Math.round(remaining / (left + 1)));
+                    var val = Math.min(Math.floor(Math.random() * (maxT - minT + 1)) + minT, remaining);
+                    distribution.push(val);
+                    remaining -= val;
+                }
+            }
+            return distribution;
+        }
+
+        function updateSchedulePreview() {
+            var vals = scheduleInput.value.split(/[,\s]+/).filter(function(v) { return v.trim(); }).map(Number);
+            if (vals.length === 0) { schedulePreview.innerHTML = ''; return; }
+            var sum = vals.reduce(function(a, b) { return a + b; }, 0);
+            var html = '';
+            vals.forEach(function(v, i) {
+                html += '<div style="background:#ede9fe;border-radius:6px;padding:6px 12px;font-size:13px;text-align:center;min-width:50px;">' +
+                    '<div style="font-size:11px;color:#6b7280;">' + (i + 1) + '일차</div>' +
+                    '<div style="font-weight:700;color:#6d28d9;">' + v + '명</div></div>';
+            });
+            html += '<div style="background:#fef3c7;border-radius:6px;padding:6px 12px;font-size:13px;text-align:center;">' +
+                '<div style="font-size:11px;color:#6b7280;">합계</div>' +
+                '<div style="font-weight:700;">' + sum + '명</div></div>';
+            schedulePreview.innerHTML = html;
+        }
+
+        scheduleInput.addEventListener('input', updateSchedulePreview);
+
+        function updateCalcHint() {
+            var total = parseInt(totalCountEl.value) || 0;
+            var dailyStr = dailyCountEl.value.trim();
+            var days = parseInt(dayCountEl.value) || 0;
+
+            if (!total || !dailyStr || !days) {
+                calcHint.classList.add('hidden');
+                scheduleWrap.classList.add('hidden');
+                return;
+            }
+
+            var rangeMatch = dailyStr.match(/^(\d+)\s*[-~]\s*(\d+)$/);
+            var lo, hi;
+            if (rangeMatch) {
+                lo = parseInt(rangeMatch[1]);
+                hi = parseInt(rangeMatch[2]);
+            } else {
+                lo = hi = parseInt(dailyStr) || 0;
+            }
+
+            if (!lo) { calcHint.classList.add('hidden'); return; }
+
+            var minDays = Math.ceil(total / hi);
+            var maxDays = Math.ceil(total / lo);
+
+            calcHint.classList.remove('hidden');
+            if (lo === hi) {
+                calcHint.textContent = total + '명 / 하루 ' + lo + '명 = 최소 ' + minDays + '일 소요 (설정: ' + days + '일)';
+            } else {
+                calcHint.textContent = total + '명 / 하루 ' + lo + '~' + hi + '명 = ' + minDays + '~' + maxDays + '일 소요 (설정: ' + days + '일)';
+            }
+
+            // 자동 일정 생성
+            var schedule = generateSchedule(total, lo, hi, days);
+            scheduleInput.value = schedule.join(', ');
+            scheduleWrap.classList.remove('hidden');
+            updateSchedulePreview();
+        }
+
+        // 이미지 업로드
+        var imageArea = document.getElementById('imageUploadArea');
+        var imageFile = document.getElementById('imageFile');
+        var imageLabel = document.getElementById('imageLabel');
+
+        imageArea.addEventListener('click', function() { imageFile.click(); });
+        imageFile.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                imageLabel.textContent = this.files[0].name;
+                imageArea.classList.add('has-file');
+            } else {
+                imageLabel.textContent = '클릭하여 이미지를 선택하세요 (JPG, PNG)';
+                imageArea.classList.remove('has-file');
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

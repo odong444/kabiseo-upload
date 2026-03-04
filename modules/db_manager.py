@@ -327,6 +327,20 @@ CREATE TABLE IF NOT EXISTS notice_votes (
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(notice_id, phone)
 );
+
+CREATE TABLE IF NOT EXISTS agencies (
+    id              SERIAL PRIMARY KEY,
+    login_id        TEXT NOT NULL UNIQUE,
+    password_hash   TEXT NOT NULL,
+    company_name    TEXT NOT NULL DEFAULT '',
+    contact_name    TEXT DEFAULT '',
+    contact_phone   TEXT DEFAULT '',
+    contact_email   TEXT DEFAULT '',
+    is_active       BOOLEAN DEFAULT TRUE,
+    memo            TEXT DEFAULT '',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_agencies_login ON agencies(login_id);
 """
 
 
@@ -482,6 +496,12 @@ class DBManager:
                     """)
                     if cur.rowcount > 0:
                         logger.info("payment_total 일괄 수정: %d건", cur.rowcount)
+                except Exception:
+                    pass
+                # 마이그레이션: 대행사(agency) 지원
+                try:
+                    cur.execute("ALTER TABLE clients ADD COLUMN IF NOT EXISTS agency_id INTEGER DEFAULT NULL")
+                    cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS agency_id INTEGER DEFAULT NULL")
                 except Exception:
                     pass
                 # 기존 구매캡쳐 반려 비고 잔류 정리: 재제출 완료된 건의 비고 클리어
@@ -754,6 +774,7 @@ class DBManager:
         "동시진행기한": "exclusive_days",
         "업체ID": "client_id",
         "반려사유": "reject_reason",
+        "대행사ID": "agency_id",
     }
 
     _CAMPAIGN_COLUMNS = {
@@ -783,6 +804,7 @@ class DBManager:
         "exclusive_days",
         "client_id",
         "reject_reason",
+        "agency_id",
     }
 
     _BOOL_COLUMNS = {
@@ -799,6 +821,7 @@ class DBManager:
         "review_deadline_days", "review_fee",
         "promo_cooldown", "exclusive_days",
         "client_id",
+        "agency_id",
     }
 
     def _convert_campaign_value(self, col: str, value):
@@ -2497,14 +2520,14 @@ class DBManager:
 
     def create_client(self, login_id: str, password_hash: str, company_name: str,
                       contact_name: str = "", contact_phone: str = "",
-                      contact_email: str = "", memo: str = "") -> int:
+                      contact_email: str = "", memo: str = "", agency_id: int = None) -> int:
         with self._conn() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute(
                     """INSERT INTO clients (login_id, password_hash, company_name,
-                                           contact_name, contact_phone, contact_email, memo)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
-                    (login_id, password_hash, company_name, contact_name, contact_phone, contact_email, memo)
+                                           contact_name, contact_phone, contact_email, memo, agency_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (login_id, password_hash, company_name, contact_name, contact_phone, contact_email, memo, agency_id)
                 )
                 row = cur.fetchone()
             conn.commit()
@@ -2519,13 +2542,16 @@ class DBManager:
     def get_clients(self) -> list[dict]:
         return self._fetchall(
             """SELECT c.*,
-                      (SELECT COUNT(*) FROM campaigns WHERE client_id = c.id) as campaign_count
-               FROM clients c ORDER BY c.created_at DESC"""
+                      (SELECT COUNT(*) FROM campaigns WHERE client_id = c.id) as campaign_count,
+                      a.company_name as agency_name
+               FROM clients c
+               LEFT JOIN agencies a ON a.id = c.agency_id
+               ORDER BY c.created_at DESC"""
         )
 
     def update_client(self, client_id: int, **kwargs):
         allowed = {"company_name", "contact_name", "contact_phone", "contact_email",
-                    "is_active", "memo", "password_hash"}
+                    "is_active", "memo", "password_hash", "agency_id"}
         sets = []
         params = []
         for k, v in kwargs.items():
@@ -2539,6 +2565,89 @@ class DBManager:
 
     def delete_client(self, client_id: int):
         self._execute("DELETE FROM clients WHERE id = %s", (client_id,))
+
+    # ─────────── 대행사 관리 ───────────
+
+    def create_agency(self, login_id: str, password_hash: str, company_name: str,
+                      contact_name: str = "", contact_phone: str = "",
+                      contact_email: str = "", memo: str = "") -> int:
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """INSERT INTO agencies (login_id, password_hash, company_name,
+                                           contact_name, contact_phone, contact_email, memo)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (login_id, password_hash, company_name, contact_name, contact_phone, contact_email, memo)
+                )
+                row = cur.fetchone()
+            conn.commit()
+        return row["id"] if row else 0
+
+    def get_agency_by_login(self, login_id: str) -> dict:
+        return self._fetchone("SELECT * FROM agencies WHERE login_id = %s", (login_id,)) or {}
+
+    def get_agency_by_id(self, agency_id: int) -> dict:
+        return self._fetchone("SELECT * FROM agencies WHERE id = %s", (agency_id,)) or {}
+
+    def get_agencies(self) -> list:
+        return self._fetchall(
+            """SELECT a.*,
+                      (SELECT COUNT(*) FROM clients WHERE agency_id = a.id) as client_count,
+                      (SELECT COUNT(*) FROM campaigns WHERE agency_id = a.id) as campaign_count
+               FROM agencies a ORDER BY a.created_at DESC"""
+        )
+
+    def update_agency(self, agency_id: int, **kwargs):
+        allowed = {"company_name", "contact_name", "contact_phone", "contact_email",
+                    "is_active", "memo", "password_hash"}
+        sets = []
+        params = []
+        for k, v in kwargs.items():
+            if k in allowed:
+                sets.append(f"{k} = %s")
+                params.append(v)
+        if not sets:
+            return
+        params.append(agency_id)
+        self._execute(f"UPDATE agencies SET {', '.join(sets)} WHERE id = %s", params)
+
+    def delete_agency(self, agency_id: int):
+        self._execute("DELETE FROM agencies WHERE id = %s", (agency_id,))
+
+    def get_agency_clients(self, agency_id: int) -> list:
+        return self._fetchall(
+            """SELECT c.*,
+                      (SELECT COUNT(*) FROM campaigns WHERE client_id = c.id) as campaign_count
+               FROM clients c WHERE c.agency_id = %s ORDER BY c.created_at DESC""",
+            (agency_id,)
+        )
+
+    def get_agency_campaigns(self, agency_id: int) -> list:
+        """대행사 관련 캠페인: 직접 생성 + 소속 클라이언트 캠페인"""
+        rows = self._fetchall(
+            """SELECT * FROM campaigns
+               WHERE agency_id = %s
+                  OR client_id IN (SELECT id FROM clients WHERE agency_id = %s)
+               ORDER BY created_at DESC""",
+            (agency_id, agency_id)
+        )
+        return [self._campaign_to_sheet_dict(r) for r in rows]
+
+    def get_agency_campaign_stats(self, agency_id: int) -> dict:
+        row = self._fetchone(
+            """SELECT
+                COUNT(*) FILTER (WHERE status = '승인대기') as pending,
+                COUNT(*) FILTER (WHERE status = '반려') as rejected,
+                COUNT(*) FILTER (WHERE status = '대행사승인') as agency_approved,
+                COUNT(*) FILTER (WHERE status IN ('모집중', '진행중')) as active,
+                COUNT(*) FILTER (WHERE status IN ('마감', '종료')) as done,
+                COUNT(*) as total
+               FROM campaigns
+               WHERE agency_id = %s
+                  OR client_id IN (SELECT id FROM clients WHERE agency_id = %s)""",
+            (agency_id, agency_id)
+        )
+        return dict(row) if row else {"pending": 0, "rejected": 0, "agency_approved": 0, "active": 0, "done": 0, "total": 0}
 
     def get_client_campaigns(self, client_id: int) -> list[dict]:
         """업체의 캠페인 목록 (시트 형식)"""
@@ -2563,8 +2672,8 @@ class DBManager:
         return dict(row) if row else {"pending": 0, "rejected": 0, "active": 0, "done": 0, "total": 0}
 
     def get_pending_campaign_count(self) -> int:
-        """승인대기 캠페인 수 (관리자 배지용)"""
-        row = self._fetchone("SELECT COUNT(*) as cnt FROM campaigns WHERE status = '승인대기'")
+        """승인대기+대행사승인 캠페인 수 (관리자 배지용)"""
+        row = self._fetchone("SELECT COUNT(*) as cnt FROM campaigns WHERE status IN ('승인대기', '대행사승인')")
         return row["cnt"] if row else 0
 
     # ─────────── 기존리뷰어 모집 ───────────

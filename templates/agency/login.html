@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 대행사 포털</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { margin: 0; background: #f5f0ff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .login-page { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .login-box {
+            background: #fff; border-radius: 16px; padding: 40px;
+            width: 100%; max-width: 400px; box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        .login-box h1 { font-size: 24px; color: #6d28d9; margin: 0 0 8px; }
+        .login-box .sub { font-size: 14px; color: #6b7280; margin-bottom: 28px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group input {
+            width: 100%; padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 10px;
+            font-size: 15px; box-sizing: border-box; outline: none; transition: border-color 0.2s;
+        }
+        .form-group input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139,92,246,0.1); }
+        .btn-login {
+            width: 100%; padding: 12px; border: none; border-radius: 10px;
+            background: #7c3aed; color: #fff; font-size: 16px; font-weight: 600;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .btn-login:hover { background: #6d28d9; }
+        .flash-messages { margin-bottom: 16px; }
+        .flash { background: #fef2f2; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-box">
+            <h1>카비서 대행사 포털</h1>
+            <div class="sub">소속 클라이언트 캠페인을 관리하세요</div>
+
+            {% with messages = get_flashed_messages() %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for msg in messages %}
+                <div class="flash">{{ msg }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('agency.login') }}">
+                <div class="form-group">
+                    <input type="text" name="login_id" placeholder="아이디" required autofocus>
+                </div>
+                <div class="form-group">
+                    <input type="password" name="password" placeholder="비밀번호" required>
+                </div>
+                <button type="submit" class="btn-login">로그인</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

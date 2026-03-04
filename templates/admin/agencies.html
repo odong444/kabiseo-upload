@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>카비서 관리자 - 업체 관리</title>
+    <title>카비서 관리자 - 대행사 관리</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
     .add-form {
@@ -52,8 +52,8 @@
                 <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
                 <a href="{{ url_for('admin.notices') }}">공지</a>
                 <a href="{{ url_for('admin.guide') }}">가이드</a>
-                <a href="{{ url_for('admin.agencies') }}">대행사</a>
-                <a href="{{ url_for('admin.clients') }}" class="active">업체</a>
+                <a href="{{ url_for('admin.agencies') }}" class="active">대행사</a>
+                <a href="{{ url_for('admin.clients') }}">업체</a>
                 <a href="{{ url_for('admin.settings') }}">설정</a>
                 <a href="{{ url_for('admin.logout') }}">로그아웃</a>
             </nav>
@@ -61,69 +61,63 @@
     </header>
 
     <main class="admin-main">
-        <h1>업체 관리</h1>
+        <h1>대행사 관리</h1>
 
-        <!-- 업체 추가 폼 -->
         <div class="add-form">
-            <h3>업체 추가</h3>
+            <h3>대행사 추가</h3>
             <div class="add-grid">
                 <input type="text" id="addLoginId" placeholder="로그인 아이디 *">
                 <input type="password" id="addPassword" placeholder="비밀번호 *">
-                <input type="text" id="addCompanyName" placeholder="업체명 *">
+                <input type="text" id="addCompanyName" placeholder="대행사명 *">
                 <input type="text" id="addContactName" placeholder="담당자명">
                 <input type="text" id="addContactPhone" placeholder="연락처">
                 <input type="text" id="addContactEmail" placeholder="이메일">
-                <select id="addAgencyId" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;">
-                    <option value="">대행사 없음</option>
-                    {% for a in agencies %}
-                    <option value="{{ a.id }}">{{ a.company_name }}</option>
-                    {% endfor %}
-                </select>
             </div>
             <div class="add-actions">
-                <button type="button" class="admin-btn admin-btn-primary" onclick="createClient()">업체 추가</button>
+                <button type="button" class="admin-btn admin-btn-primary" onclick="createAgency()">대행사 추가</button>
             </div>
         </div>
 
-        <!-- 업체 목록 -->
-        {% if clients %}
+        {% if agencies %}
         <div class="admin-table-wrap">
             <table class="admin-table">
                 <thead>
                     <tr>
                         <th>ID</th>
                         <th>로그인ID</th>
-                        <th>업체명</th>
-                        <th>대행사</th>
+                        <th>대행사명</th>
                         <th>담당자</th>
                         <th>연락처</th>
+                        <th>업체수</th>
+                        <th>캠페인수</th>
                         <th>상태</th>
                         <th>생성일</th>
                         <th>관리</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for c in clients %}
+                    {% for a in agencies %}
                     <tr>
-                        <td>{{ c.id }}</td>
-                        <td>{{ c.login_id }}</td>
-                        <td style="font-weight:600;">{{ c.company_name }}</td>
-                        <td>{{ c.agency_name or '-' }}</td>
-                        <td>{{ c.contact_name or '-' }}</td>
-                        <td>{{ c.contact_phone or '-' }}</td>
+                        <td>{{ a.id }}</td>
+                        <td>{{ a.login_id }}</td>
+                        <td style="font-weight:600;">{{ a.company_name }}</td>
+                        <td>{{ a.contact_name or '-' }}</td>
+                        <td>{{ a.contact_phone or '-' }}</td>
+                        <td>{{ a.client_count or 0 }}</td>
+                        <td>{{ a.campaign_count or 0 }}</td>
                         <td>
-                            <button type="button" class="toggle-active {{ 'active' if c.is_active else 'inactive' }}"
-                                    onclick="toggleActive({{ c.id }}, {{ 'true' if c.is_active else 'false' }})">
-                                {{ '활성' if c.is_active else '비활성' }}
+                            <button type="button" class="toggle-active {{ 'active' if a.is_active else 'inactive' }}"
+                                    onclick="toggleActive({{ a.id }}, {{ 'true' if a.is_active else 'false' }})">
+                                {{ '활성' if a.is_active else '비활성' }}
                             </button>
                         </td>
-                        <td style="font-size:13px;color:#6b7280;">{{ c.created_at|kst('%Y-%m-%d') }}</td>
+                        <td style="font-size:13px;color:#6b7280;">{{ a.created_at|kst('%Y-%m-%d') }}</td>
                         <td>
                             <div style="display:flex;gap:4px;">
                                 <button type="button" class="admin-btn admin-btn-sm"
-                                        onclick="openEditModal({id:{{ c.id }}, login_id:'{{ c.login_id|e }}', company_name:'{{ c.company_name|e }}', contact_name:'{{ (c.contact_name or '')|e }}', contact_phone:'{{ (c.contact_phone or '')|e }}', contact_email:'{{ (c.contact_email or '')|e }}', memo:'{{ (c.memo or '')|e }}', agency_id:{{ c.agency_id or 0 }}})">수정</button>
+                                        onclick="openEditModal({id:{{ a.id }}, login_id:'{{ a.login_id|e }}', company_name:'{{ a.company_name|e }}', contact_name:'{{ (a.contact_name or '')|e }}', contact_phone:'{{ (a.contact_phone or '')|e }}', contact_email:'{{ (a.contact_email or '')|e }}', memo:'{{ (a.memo or '')|e }}'})">수정</button>
                                 <button type="button" class="admin-btn admin-btn-sm" style="background:#fef2f2;color:#dc2626;border-color:#fca5a5;"
-                                        onclick="deleteClient({{ c.id }}, '{{ c.company_name | e }}')">삭제</button>
+                                        onclick="deleteAgency({{ a.id }}, '{{ a.company_name | e }}')">삭제</button>
                             </div>
                         </td>
                     </tr>
@@ -133,17 +127,16 @@
         </div>
         {% else %}
         <div style="text-align:center;padding:48px;color:#9ca3af;">
-            <div style="font-size:48px;margin-bottom:12px;">🏢</div>
-            <div>등록된 업체가 없습니다</div>
+            <div style="font-size:48px;margin-bottom:12px;">🏗</div>
+            <div>등록된 대행사가 없습니다</div>
         </div>
         {% endif %}
     </main>
 
-    <!-- 수정 모달 -->
     <div class="edit-modal" id="editModal">
         <div class="edit-modal-content">
-            <h3>업체 수정</h3>
-            <input type="hidden" id="editClientId">
+            <h3>대행사 수정</h3>
+            <input type="hidden" id="editAgencyId">
             <div class="edit-grid">
                 <div>
                     <label>로그인 아이디</label>
@@ -154,7 +147,7 @@
                     <input type="password" id="editPassword" placeholder="비우면 유지">
                 </div>
                 <div>
-                    <label>업체명</label>
+                    <label>대행사명</label>
                     <input type="text" id="editCompanyName">
                 </div>
                 <div>
@@ -169,15 +162,6 @@
                     <label>이메일</label>
                     <input type="text" id="editContactEmail">
                 </div>
-                <div>
-                    <label>대행사</label>
-                    <select id="editAgencyId" style="width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;">
-                        <option value="">없음</option>
-                        {% for a in agencies %}
-                        <option value="{{ a.id }}">{{ a.company_name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
                 <div class="full">
                     <label>메모</label>
                     <textarea id="editMemo" rows="2"></textarea>
@@ -185,21 +169,21 @@
             </div>
             <div class="edit-actions">
                 <button type="button" class="admin-btn" onclick="closeEditModal()">취소</button>
-                <button type="button" class="admin-btn admin-btn-primary" onclick="saveClient()">저장</button>
+                <button type="button" class="admin-btn admin-btn-primary" onclick="saveAgency()">저장</button>
             </div>
         </div>
     </div>
 
     <script>
-    function createClient() {
+    function createAgency() {
         var loginId = document.getElementById('addLoginId').value.trim();
         var password = document.getElementById('addPassword').value.trim();
         var companyName = document.getElementById('addCompanyName').value.trim();
         if (!loginId || !password || !companyName) {
-            alert('아이디, 비밀번호, 업체명은 필수입니다.');
+            alert('아이디, 비밀번호, 대행사명은 필수입니다.');
             return;
         }
-        fetch('/admin/api/client', {
+        fetch('/admin/api/agency', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
@@ -209,7 +193,6 @@
                 contact_name: document.getElementById('addContactName').value.trim(),
                 contact_phone: document.getElementById('addContactPhone').value.trim(),
                 contact_email: document.getElementById('addContactEmail').value.trim(),
-                agency_id: document.getElementById('addAgencyId').value || null,
             })
         })
         .then(function(r) { return r.json(); })
@@ -220,8 +203,8 @@
         .catch(function() { alert('서버 연결 오류'); });
     }
 
-    function toggleActive(clientId, currentActive) {
-        fetch('/admin/api/client/' + clientId, {
+    function toggleActive(agencyId, currentActive) {
+        fetch('/admin/api/agency/' + agencyId, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({is_active: !currentActive})
@@ -233,16 +216,15 @@
         });
     }
 
-    function openEditModal(client) {
-        document.getElementById('editClientId').value = client.id;
-        document.getElementById('editLoginId').value = client.login_id;
+    function openEditModal(agency) {
+        document.getElementById('editAgencyId').value = agency.id;
+        document.getElementById('editLoginId').value = agency.login_id;
         document.getElementById('editPassword').value = '';
-        document.getElementById('editCompanyName').value = client.company_name || '';
-        document.getElementById('editContactName').value = client.contact_name || '';
-        document.getElementById('editContactPhone').value = client.contact_phone || '';
-        document.getElementById('editContactEmail').value = client.contact_email || '';
-        document.getElementById('editMemo').value = client.memo || '';
-        document.getElementById('editAgencyId').value = client.agency_id || '';
+        document.getElementById('editCompanyName').value = agency.company_name || '';
+        document.getElementById('editContactName').value = agency.contact_name || '';
+        document.getElementById('editContactPhone').value = agency.contact_phone || '';
+        document.getElementById('editContactEmail').value = agency.contact_email || '';
+        document.getElementById('editMemo').value = agency.memo || '';
         document.getElementById('editModal').classList.add('active');
     }
 
@@ -250,20 +232,19 @@
         document.getElementById('editModal').classList.remove('active');
     }
 
-    function saveClient() {
-        var clientId = document.getElementById('editClientId').value;
+    function saveAgency() {
+        var agencyId = document.getElementById('editAgencyId').value;
         var data = {
             company_name: document.getElementById('editCompanyName').value.trim(),
             contact_name: document.getElementById('editContactName').value.trim(),
             contact_phone: document.getElementById('editContactPhone').value.trim(),
             contact_email: document.getElementById('editContactEmail').value.trim(),
             memo: document.getElementById('editMemo').value.trim(),
-            agency_id: document.getElementById('editAgencyId').value || null,
         };
         var newPass = document.getElementById('editPassword').value.trim();
         if (newPass) { data.password = newPass; }
 
-        fetch('/admin/api/client/' + clientId, {
+        fetch('/admin/api/agency/' + agencyId, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -276,9 +257,9 @@
         .catch(function() { alert('서버 연결 오류'); });
     }
 
-    function deleteClient(clientId, name) {
-        if (!confirm('업체 "' + name + '"을(를) 삭제하시겠습니까?')) return;
-        fetch('/admin/api/client/' + clientId, { method: 'DELETE' })
+    function deleteAgency(agencyId, name) {
+        if (!confirm('대행사 "' + name + '"을(를) 삭제하시겠습니까?')) return;
+        fetch('/admin/api/agency/' + agencyId, { method: 'DELETE' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.ok) { location.reload(); }

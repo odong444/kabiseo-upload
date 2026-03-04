@@ -224,8 +224,8 @@ def campaigns():
         if today_target > 0 and today_done >= today_target and c.get("상태") in ("모집중", "진행중", ""):
             c["_daily_closed"] = True
 
-    pending_campaigns = [c for c in campaign_list if c.get("상태") in ("승인대기", "반려")]
-    active_campaigns = [c for c in campaign_list if c.get("상태") not in ("승인대기", "반려")]
+    pending_campaigns = [c for c in campaign_list if c.get("상태") in ("승인대기", "대행사승인", "반려")]
+    active_campaigns = [c for c in campaign_list if c.get("상태") not in ("승인대기", "대행사승인", "반려")]
 
     return render_template("admin/campaigns.html",
                            campaigns=campaign_list,
@@ -758,7 +758,13 @@ def campaign_new():
         src = models.db_manager.get_campaign_by_id(copy_id)
         if src:
             copy_data = src
-    return render_template("admin/campaign_new.html", promo_category_list=categories, copy=copy_data)
+    agencies = models.db_manager.get_agencies() if models.db_manager else []
+    clients_list = models.db_manager.get_clients() if models.db_manager else []
+    return render_template("admin/campaign_new.html",
+                          promo_category_list=categories,
+                          copy=copy_data,
+                          agencies=agencies,
+                          clients=clients_list)
 
 
 @admin_bp.route("/campaigns/new", methods=["POST"])
@@ -787,6 +793,15 @@ def campaign_new_post():
     data = {"캠페인ID": campaign_id, "등록일": today_str(), "상태": "모집중", "완료수량": "0"}
     for field in fields:
         data[field] = request.form.get(field, "").strip()
+
+    # 대행사/업체 연결
+    agency_id_str = request.form.get("대행사ID", "").strip()
+    if agency_id_str:
+        data["대행사ID"] = agency_id_str
+
+    client_id_str = request.form.get("업체ID_select", "").strip()
+    if client_id_str:
+        data["업체ID"] = client_id_str
 
     # 상품링크에서 상품코드 자동 추출
     from modules.utils import extract_product_codes
@@ -2491,10 +2506,11 @@ def api_campaign_approve(campaign_id):
     campaign = models.db_manager.get_campaign_by_id(campaign_id)
     if not campaign:
         return jsonify({"ok": False, "error": "캠페인을 찾을 수 없습니다."})
-    if campaign.get("상태") != "승인대기":
-        return jsonify({"ok": False, "error": "승인대기 상태가 아닙니다."})
+    status = campaign.get("상태")
+    if status not in ("승인대기", "대행사승인"):
+        return jsonify({"ok": False, "error": "승인대기 또는 대행사승인 상태가 아닙니다."})
     models.db_manager.update_campaign(campaign_id, {"상태": "모집중"})
-    logger.info("캠페인 승인: %s", campaign_id)
+    logger.info("캠페인 승인: %s (이전상태: %s)", campaign_id, status)
     return jsonify({"ok": True})
 
 
@@ -2506,13 +2522,85 @@ def api_campaign_reject(campaign_id):
     campaign = models.db_manager.get_campaign_by_id(campaign_id)
     if not campaign:
         return jsonify({"ok": False, "error": "캠페인을 찾을 수 없습니다."})
-    if campaign.get("상태") != "승인대기":
-        return jsonify({"ok": False, "error": "승인대기 상태가 아닙니다."})
+    status = campaign.get("상태")
+    if status not in ("승인대기", "대행사승인"):
+        return jsonify({"ok": False, "error": "승인대기 또는 대행사승인 상태가 아닙니다."})
     data = request.get_json(silent=True) or {}
     reason = data.get("reason", "").strip()
     models.db_manager.update_campaign(campaign_id, {"상태": "반려", "반려사유": reason})
     logger.info("캠페인 반려: %s, 사유: %s", campaign_id, reason)
     return jsonify({"ok": True})
+
+
+# ──────── 대행사 관리 ────────
+
+@admin_bp.route("/agencies")
+@admin_required
+def agencies():
+    agency_list = []
+    if models.db_manager:
+        agency_list = models.db_manager.get_agencies()
+    return render_template("admin/agencies.html", agencies=agency_list)
+
+
+@admin_bp.route("/api/agency", methods=["POST"])
+@admin_required
+def api_agency_create():
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    login_id = data.get("login_id", "").strip()
+    password = data.get("password", "").strip()
+    company_name = data.get("company_name", "").strip()
+    if not login_id or not password or not company_name:
+        return jsonify({"ok": False, "error": "아이디, 비밀번호, 대행사명은 필수입니다."})
+    from werkzeug.security import generate_password_hash
+    try:
+        aid = models.db_manager.create_agency(
+            login_id=login_id,
+            password_hash=generate_password_hash(password),
+            company_name=company_name,
+            contact_name=data.get("contact_name", "").strip(),
+            contact_phone=data.get("contact_phone", "").strip(),
+            contact_email=data.get("contact_email", "").strip(),
+            memo=data.get("memo", "").strip(),
+        )
+        return jsonify({"ok": True, "id": aid})
+    except Exception as e:
+        logger.error("대행사 생성 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@admin_bp.route("/api/agency/<int:agency_id>", methods=["PUT"])
+@admin_required
+def api_agency_update(agency_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    if "password" in data:
+        pw = data.pop("password")
+        if pw.strip():
+            from werkzeug.security import generate_password_hash
+            data["password_hash"] = generate_password_hash(pw)
+    try:
+        models.db_manager.update_agency(agency_id, **data)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("대행사 수정 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@admin_bp.route("/api/agency/<int:agency_id>", methods=["DELETE"])
+@admin_required
+def api_agency_delete(agency_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    try:
+        models.db_manager.delete_agency(agency_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("대행사 삭제 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
 
 
 # ──────── 업체 관리 ────────
@@ -2521,9 +2609,11 @@ def api_campaign_reject(campaign_id):
 @admin_required
 def clients():
     client_list = []
+    agency_list = []
     if models.db_manager:
         client_list = models.db_manager.get_clients()
-    return render_template("admin/clients.html", clients=client_list)
+        agency_list = models.db_manager.get_agencies()
+    return render_template("admin/clients.html", clients=client_list, agencies=agency_list)
 
 
 @admin_bp.route("/api/client", methods=["POST"])
@@ -2538,6 +2628,7 @@ def api_client_create():
     if not login_id or not password or not company_name:
         return jsonify({"ok": False, "error": "아이디, 비밀번호, 업체명은 필수입니다."})
     from werkzeug.security import generate_password_hash
+    from modules.utils import safe_int
     try:
         cid = models.db_manager.create_client(
             login_id=login_id,
@@ -2547,6 +2638,7 @@ def api_client_create():
             contact_phone=data.get("contact_phone", "").strip(),
             contact_email=data.get("contact_email", "").strip(),
             memo=data.get("memo", "").strip(),
+            agency_id=safe_int(data.get("agency_id")) or None,
         )
         return jsonify({"ok": True, "id": cid})
     except Exception as e:
