@@ -653,37 +653,45 @@ def api_task_purchase(progress_id):
         return jsonify({"ok": False, "error": "건을 찾을 수 없습니다"}), 404
 
     try:
-        # 1. 폼 데이터 즉시 DB 저장
-        form_fields = {}
-        for key in ("recipient_name", "phone", "bank", "account", "depositor",
-                     "address", "order_number", "payment_amount", "nickname"):
-            val = request.form.get(key, "").strip()
-            if val:
-                form_fields[key] = val
-
-        field_map = {
-            "recipient_name": "수취인명", "phone": "연락처",
-            "bank": "은행", "account": "계좌", "depositor": "예금주",
-            "address": "주소", "order_number": "주문번호",
-            "payment_amount": "결제금액", "nickname": "닉네임",
-        }
-        for api_key, sheet_key in field_map.items():
-            val = form_fields.get(api_key, "")
-            if val:
-                models.db_manager.update_progress_field(progress_id, sheet_key, val)
-
-        # 입금금액(payment_total) 계산: 결제금액 + 리뷰비
+        # 1. 폼 데이터 + 상태 + 입금금액을 단일 UPDATE로 저장
         from modules.utils import safe_int
         campaign_id = row.get("campaign_id", "")
         campaign = models.db_manager.get_campaign_by_id(campaign_id) if campaign_id else {}
         review_fee = safe_int((campaign or {}).get("리뷰비", 0))
-        purchase_amount = safe_int(form_fields.get("payment_amount", 0) or (campaign or {}).get("결제금액", 0))
+        purchase_amount = safe_int(request.form.get("payment_amount", "").strip() or (campaign or {}).get("결제금액", 0))
         payment_total = review_fee + purchase_amount if (review_fee or purchase_amount) else 0
-        if payment_total:
-            models.db_manager._execute(
-                "UPDATE progress SET review_fee = %s, payment_total = %s, updated_at = NOW() WHERE id = %s",
-                (review_fee, payment_total, progress_id)
+
+        models.db_manager._execute(
+            """UPDATE progress SET
+               recipient_name = COALESCE(NULLIF(%s,''), recipient_name),
+               phone = COALESCE(NULLIF(%s,''), phone),
+               bank = COALESCE(NULLIF(%s,''), bank),
+               account = COALESCE(NULLIF(%s,''), account),
+               depositor = COALESCE(NULLIF(%s,''), depositor),
+               address = COALESCE(NULLIF(%s,''), address),
+               order_number = COALESCE(NULLIF(%s,''), order_number),
+               payment_amount = COALESCE(NULLIF(%s,''), payment_amount),
+               nickname = COALESCE(NULLIF(%s,''), nickname),
+               review_fee = %s, payment_total = %s,
+               status = '리뷰대기',
+               purchase_date = COALESCE(purchase_date, (NOW() AT TIME ZONE 'Asia/Seoul')::date),
+               remark = CASE WHEN remark LIKE '구매캡쳐 반려%%' THEN '' ELSE remark END,
+               updated_at = NOW()
+               WHERE id = %s""",
+            (
+                request.form.get("recipient_name", "").strip(),
+                request.form.get("phone", "").strip(),
+                request.form.get("bank", "").strip(),
+                request.form.get("account", "").strip(),
+                request.form.get("depositor", "").strip(),
+                request.form.get("address", "").strip(),
+                request.form.get("order_number", "").strip(),
+                request.form.get("payment_amount", "").strip(),
+                request.form.get("nickname", "").strip(),
+                review_fee, payment_total,
+                progress_id,
             )
+        )
 
         # 2. Drive 업로드 큐에 각 파일 추가
         from app import _make_upload_filename
@@ -702,16 +710,6 @@ def api_task_purchase(progress_id):
                 file.content_type or "image/jpeg", file_bytes
             )
         models.db_manager.set_upload_pending(progress_id, "purchase")
-
-        # 상태 즉시 변경 + 구매일 설정 + 반려 비고 클리어 (Drive 업로드 완료 대기 없이)
-        models.db_manager._execute(
-            """UPDATE progress SET status = '리뷰대기',
-               purchase_date = COALESCE(purchase_date, (NOW() AT TIME ZONE 'Asia/Seoul')::date),
-               remark = CASE WHEN remark LIKE '구매캡쳐 반려%%' THEN '' ELSE remark END,
-               updated_at = NOW()
-               WHERE id = %s""",
-            (progress_id,)
-        )
 
         return jsonify({"ok": True, "message": "구매 캡쳐 제출 완료!"})
     except Exception as e:
