@@ -1,0 +1,19 @@
+{
+  "pcs": {
+    "pc1": {
+      "name": "카비서PC (전체)",
+      "url": "http://222.122.194.202:5050",
+      "roles": ["friend_add", "reminder", "notification", "test_send", "promotion", "join_open_chat", "scan_open_chatrooms"],
+      "enabled": true
+    },
+    "pc2": {
+      "name": "홍보PC",
+      "url": "http://PC2_IP:5050",
+      "roles": ["promotion", "join_open_chat", "scan_open_chatrooms"],
+      "enabled": true
+    }
+  },
+  "railway_url": "https://web-production-1776e.up.railway.app",
+  "api_key": "_fNmY5SeHyigMgkR5LIngpxBB1gDoZLF",
+  "promotion_cooldown_minutes": 30
+}
