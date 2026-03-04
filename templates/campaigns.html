@@ -92,8 +92,7 @@
                     }
                 </div>
                 <div class="campaign-card-detail-row">
-                    <span class="campaign-card-store">${card.store || ''}</span>
-                    ${card.product_price ? `<span class="campaign-card-price">${Reviewer.formatNumber(card.product_price)}원</span>` : ''}
+                    ${card.product_price ? `<span class="campaign-card-price">결제금액 ${Reviewer.formatNumber(card.product_price)}원</span>` : ''}
                     ${card.review_fee ? `<span class="campaign-card-fee">리뷰비 ${Reviewer.formatNumber(card.review_fee)}원</span>` : ''}
                 </div>
                 ${card.start_date && card.start_date > todayStr ? `<div class="campaign-card-time">시작일 ${card.start_date}</div>` : ''}
