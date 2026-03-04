@@ -22,8 +22,8 @@ from datetime import timezone
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT_SECONDS = 1800  # 30분
-WARNING_SECONDS = 1500  # 25분 (경고)
+TIMEOUT_SECONDS = 120   # ⚠️ 디버그: 2분 (원래 1800)
+WARNING_SECONDS = 90    # ⚠️ 디버그: 1.5분 (원래 1500)
 
 
 class TimeoutManager:
