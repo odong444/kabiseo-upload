@@ -1259,10 +1259,17 @@ class DBManager:
             "등록일": "created_at",
         }
         db_col = field_map.get(field, field)
-        self._execute(
-            f"UPDATE progress SET {db_col} = %s, updated_at = NOW() WHERE id = %s",
-            (value, progress_id)
-        )
+        # 상태를 신청/가이드전달로 복원하면 created_at도 리셋 (타임아웃 재시작)
+        if db_col == "status" and value in (STATUS_APPLIED, STATUS_GUIDE_SENT):
+            self._execute(
+                f"UPDATE progress SET {db_col} = %s, created_at = NOW(), updated_at = NOW() WHERE id = %s",
+                (value, progress_id)
+            )
+        else:
+            self._execute(
+                f"UPDATE progress SET {db_col} = %s, updated_at = NOW() WHERE id = %s",
+                (value, progress_id)
+            )
 
     def delete_progress(self, progress_id: int) -> bool:
         """progress 행 삭제"""
