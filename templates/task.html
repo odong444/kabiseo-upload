@@ -425,11 +425,30 @@
         document.getElementById('purchaseNoticeOverlay').style.display = 'none';
     };
 
+    function isWithinBuyTime(buyTimeStr) {
+        if (!buyTimeStr || !buyTimeStr.trim()) return true;
+        var text = buyTimeStr.trim().replace(/\s/g, '');
+        var nextDay = text.indexOf('익일') >= 0;
+        text = text.replace('익일', '');
+        var m = text.match(/(\d{1,2}):(\d{2})[~\-](\d{1,2}):(\d{2})/);
+        if (!m) return true;
+        var sh = parseInt(m[1]), sm = parseInt(m[2]), eh = parseInt(m[3]), em = parseInt(m[4]);
+        if (!nextDay && sh > eh) nextDay = true;
+        var now = new Date();
+        var kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
+        var nowMin = kst.getHours() * 60 + kst.getMinutes();
+        var startMin = sh * 60 + sm, endMin = eh * 60 + em;
+        if (nextDay) return nowMin >= startMin || nowMin <= endMin;
+        return nowMin >= startMin && nowMin <= endMin;
+    }
+
     function renderTask() {
         const container = document.getElementById('taskContainer');
         const c = taskData.campaign || {};
         const prev = taskData.prev_info || {};
         const siblings = taskData.siblings || [{ id: taskData.id, store_id: taskData.store_id, status: taskData.status }];
+        const buyTimeStr = c.buy_time || '';
+        const buyTimeActive = isWithinBuyTime(buyTimeStr);
 
         // === 가이드 섹션 (공통 1회) ===
         let guideHtml = '';
@@ -532,6 +551,17 @@
                     ${s.remark && s.remark.startsWith('반려') ? `<span style="color:#e74c3c;font-size:12px;">${s.remark}</span>` : ''}
                 </div>
 
+                ${!buyTimeActive && buyTimeStr ? `
+                <div class="task-capture-section" style="text-align:center;">
+                    <h3>구매 캡쳐 업로드</h3>
+                    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:16px;margin:8px 0;">
+                        <div style="font-size:24px;margin-bottom:8px;">⏰</div>
+                        <p style="font-weight:600;color:#856404;margin:0 0 6px;">현재 구매시간이 아닙니다</p>
+                        <p style="font-size:15px;font-weight:700;color:#856404;margin:0 0 8px;">구매시간: ${buyTimeStr}</p>
+                        <p style="font-size:13px;color:#856404;margin:0;">구매시간이 시작되면 카카오톡으로 알림을 보내드립니다.<br>구매시간에 다시 방문해주세요!</p>
+                    </div>
+                </div>
+                ` : `
                 <div class="task-capture-section">
                     <h3>구매 캡쳐 업로드</h3>
                     <p class="task-capture-hint">주문 상세 화면을 캡쳐해주세요.</p>
@@ -544,8 +574,9 @@
                     </div>
                     <div id="aiResult_${sid}" style="display:none"></div>
                 </div>
+                `}
 
-                <div id="formSection_${sid}" class="task-form-section" style="display:none">
+                <div id="formSection_${sid}" class="task-form-section" style="${!buyTimeActive && buyTimeStr ? 'display:none' : 'display:none'}">
                     <h3>구매 정보</h3>
                     <div class="form-group">
                         <label>주문번호</label>
@@ -830,6 +861,11 @@
     }
 
     window.submitPurchase = async function(sid) {
+        var bt = (taskData.campaign || {}).buy_time || '';
+        if (bt && !isWithinBuyTime(bt)) {
+            Reviewer.toast('구매시간이 아닙니다. 구매시간: ' + bt, 'error');
+            return;
+        }
         if (!selectedFiles[sid] || !selectedFiles[sid].length) {
             Reviewer.toast('캡쳐를 먼저 선택해주세요.', 'error');
             return;

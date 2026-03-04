@@ -463,6 +463,7 @@ def api_task(progress_id):
             "ship_memo_content": campaign.get("배송메모내용", ""),
             "ship_memo_link": campaign.get("배송메모안내링크", ""),
             "review_fee": campaign.get("리뷰비", ""),
+            "buy_time": campaign.get("구매가능시간", ""),
         } if campaign else {},
         "siblings": siblings,
     }
