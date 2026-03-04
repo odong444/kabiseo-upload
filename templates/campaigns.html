@@ -64,6 +64,8 @@
             return;
         }
 
+        const _now = new Date(); _now.setHours(_now.getHours() + 9);
+        const todayStr = _now.toISOString().slice(0, 10);
         let html = '';
         for (const card of data) {
             const closed = card.closed;
@@ -92,6 +94,7 @@
                     ${card.product_price ? `<span class="campaign-card-price">${Reviewer.formatNumber(card.product_price)}원</span>` : ''}
                     ${card.review_fee ? `<span class="campaign-card-fee">리뷰비 ${Reviewer.formatNumber(card.review_fee)}원</span>` : ''}
                 </div>
+                ${card.start_date && card.start_date > todayStr ? `<div class="campaign-card-time">시작일 ${card.start_date}</div>` : ''}
                 ${card.buy_time ? `<div class="campaign-card-time ${card.buy_time_closed ? 'closed' : ''}">구매시간 ${card.buy_time}</div>` : ''}
                 ${renderSchedule(card.schedule, card.start_date)}
                 ${hasHistory ? renderHistory(card.my_history, cid) : ''}
