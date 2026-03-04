@@ -22,8 +22,8 @@ from datetime import timezone
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT_SECONDS = 120   # ⚠️ 디버그: 2분 (원래 1800)
-WARNING_SECONDS = 90    # ⚠️ 디버그: 1.5분 (원래 1500)
+TIMEOUT_SECONDS = 1800   # 30분
+WARNING_SECONDS = 1500   # 25분
 
 
 class TimeoutManager:
@@ -139,7 +139,6 @@ class TimeoutManager:
 
             # 30분 초과 → 취소
             if elapsed >= self.timeout:
-                logger.info("[MEM] 타임아웃 취소: rid=%s step=%s elapsed=%.0fs", rid, state.step, elapsed)
                 self._do_timeout_cancel(state)
                 continue
 
@@ -333,16 +332,6 @@ class TimeoutManager:
             effective_start = self._calc_effective_start(r["created_at"], buy_time_str, now)
             elapsed = (now - effective_start).total_seconds()
 
-            # 상세 로깅 (모든 건)
-            created_kst = self._to_kst(r["created_at"], now.tzinfo)
-            logger.info(
-                "[DB] id=%s bt=%s created=%s eff=%s elapsed=%.0fs(%.1fm)",
-                r["id"], buy_time_str or "none",
-                created_kst.strftime("%H:%M"),
-                effective_start.strftime("%H:%M"),
-                elapsed, elapsed / 60
-            )
-
             # 구매시간 전이면 아직 타임아웃 시작 안 됨
             if elapsed < 0:
                 continue
@@ -356,10 +345,10 @@ class TimeoutManager:
                         to_buy_time_notify.setdefault(key, []).append(r)
 
             if elapsed >= self.timeout:
-                logger.info("[DB] CANCEL: id=%s bt=%s eff=%s elapsed=%.0fs", r["id"], buy_time_str, effective_start, elapsed)
+                logger.info("[DB] CANCEL: id=%s bt=%s eff=%s elapsed=%.0fs",
+                            r["id"], buy_time_str or "none", effective_start.strftime("%H:%M"), elapsed)
                 to_cancel.setdefault(key, []).append(r)
             elif elapsed >= self.warning:
-                logger.info("[DB] WARN: id=%s bt=%s eff=%s elapsed=%.0fs", r["id"], buy_time_str, effective_start, elapsed)
                 to_warn.setdefault(key, []).append(r)
 
         # ── 구매시간 시작 알림 (카톡) ──

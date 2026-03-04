@@ -1462,9 +1462,6 @@ class DBManager:
 
     def cancel_stale_rows(self, hours: int = 1) -> int:
         """N시간 이상 신청/가이드전달 상태 → 타임아웃취소"""
-        import traceback
-        logger.info("[CANCEL_STALE] called! hours=%d\ncall_stack: %s",
-                     hours, ''.join(traceback.format_stack()[-5:]))
         cutoff = now_kst() - timedelta(hours=hours)
         with self._conn() as conn:
             with conn.cursor() as cur:
@@ -1481,10 +1478,6 @@ class DBManager:
 
     def cancel_by_timeout(self, name: str, phone: str, campaign_id: str, store_ids: list[str]):
         """타임아웃 취소: 해당 유저의 해당 캠페인 신청/가이드전달 → 타임아웃취소"""
-        import traceback
-        logger.info("[CANCEL_BY_TIMEOUT] name=%s campaign=%s stores=%s\ncall_stack: %s",
-                     name, campaign_id, store_ids,
-                     ''.join(traceback.format_stack()[-5:]))
         reviewer = self.get_reviewer(name, phone)
         if not reviewer:
             return 0
@@ -1500,7 +1493,7 @@ class DBManager:
                 count = cur.rowcount
             conn.commit()
         if count:
-            logger.info("[CANCEL_BY_TIMEOUT] DONE: %d rows cancelled", count)
+            logger.info("타임아웃 취소 %d건: %s (캠페인=%s)", count, name, campaign_id)
         return count
 
     def check_repurchase(self, name: str, phone: str, campaign_id: str) -> list[dict]:
