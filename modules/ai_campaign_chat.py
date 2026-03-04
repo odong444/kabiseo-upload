@@ -60,30 +60,30 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "상품명": {"type": "string", "description": "상품명 (필수)"},
-                "플랫폼": {"type": "string", "description": "쿠팡/네이버/11번가 등 (필수)"},
-                "총수량": {"type": "integer", "description": "총 모집 수량 (필수)"},
-                "결제금액": {"type": "integer", "description": "결제금액(원) (필수)"},
-                "캠페인명": {"type": "string"},
-                "업체명": {"type": "string"},
-                "캠페인유형": {"type": "string", "enum": ["실배송", "빈박스"]},
-                "옵션": {"type": "string"},
-                "상품링크": {"type": "string"},
-                "상품이미지": {"type": "string"},
-                "리뷰비": {"type": "integer"},
-                "일수량": {"type": "integer"},
-                "진행일수": {"type": "integer"},
-                "1인일일제한": {"type": "integer"},
-                "구매가능시간": {"type": "string"},
-                "중복허용": {"type": "string"},
-                "키워드": {"type": "string"},
-                "유입방식": {"type": "string"},
-                "리뷰기한일수": {"type": "integer"},
-                "공개여부": {"type": "string"},
-                "캠페인가이드": {"type": "string"},
-                "추가안내사항": {"type": "string"}
+                "product_name": {"type": "string", "description": "상품명 (필수)"},
+                "platform": {"type": "string", "description": "쿠팡/네이버/11번가 등 (필수)"},
+                "total_qty": {"type": "integer", "description": "총 모집 수량 (필수)"},
+                "payment_amount": {"type": "integer", "description": "결제금액(원) (필수)"},
+                "campaign_name": {"type": "string", "description": "캠페인명"},
+                "company": {"type": "string", "description": "업체명"},
+                "campaign_type": {"type": "string", "enum": ["실배송", "빈박스"], "description": "캠페인유형"},
+                "options": {"type": "string", "description": "옵션"},
+                "product_link": {"type": "string", "description": "상품링크"},
+                "product_image": {"type": "string", "description": "상품이미지 URL"},
+                "review_fee": {"type": "integer", "description": "리뷰비"},
+                "daily_qty": {"type": "integer", "description": "일수량"},
+                "duration_days": {"type": "integer", "description": "진행일수"},
+                "max_per_person_daily": {"type": "integer", "description": "1인일일제한"},
+                "buy_time": {"type": "string", "description": "구매가능시간 (HH:MM~HH:MM)"},
+                "allow_duplicate": {"type": "string", "description": "중복허용 (Y/N/텀:30)"},
+                "keyword": {"type": "string", "description": "키워드"},
+                "entry_method": {"type": "string", "description": "유입방식"},
+                "review_deadline_days": {"type": "integer", "description": "리뷰기한일수"},
+                "is_public": {"type": "string", "description": "공개여부 (Y/N)"},
+                "campaign_guide": {"type": "string", "description": "캠페인가이드"},
+                "extra_info": {"type": "string", "description": "추가안내사항"}
             },
-            "required": ["상품명", "플랫폼", "총수량", "결제금액"]
+            "required": ["product_name", "platform", "total_qty", "payment_amount"]
         }
     },
     {
@@ -95,8 +95,7 @@ TOOLS = [
                 "campaign_id": {"type": "string", "description": "캠페인 ID"},
                 "changes": {
                     "type": "object",
-                    "description": "변경할 필드와 값 (한국어 필드명 사용)",
-                    "additionalProperties": True
+                    "description": "변경할 필드와 값. 키는 한국어 시트 컬럼명 (상품명, 플랫폼, 총수량, 결제금액, 일수량, 진행일수 등)"
                 }
             },
             "required": ["campaign_id", "changes"]
@@ -285,17 +284,17 @@ class AICampaignChat:
         # Build campaign data with sheet column names
         campaign_data = {}
 
-        # Map input fields to sheet column names
+        # Map English tool keys to Korean sheet column names
         field_map = {
-            "상품명": "상품명", "플랫폼": "플랫폼", "총수량": "총수량",
-            "결제금액": "결제금액", "캠페인명": "캠페인명", "업체명": "업체명",
-            "캠페인유형": "캠페인유형", "옵션": "옵션", "상품링크": "상품링크",
-            "상품이미지": "상품이미지", "리뷰비": "리뷰비", "일수량": "일수량",
-            "진행일수": "진행일수", "1인일일제한": "1인일일제한",
-            "구매가능시간": "구매가능시간", "중복허용": "중복허용",
-            "키워드": "키워드", "유입방식": "유입방식",
-            "리뷰기한일수": "리뷰기한일수", "공개여부": "공개여부",
-            "캠페인가이드": "캠페인가이드", "추가안내사항": "추가안내사항"
+            "product_name": "상품명", "platform": "플랫폼", "total_qty": "총수량",
+            "payment_amount": "결제금액", "campaign_name": "캠페인명", "company": "업체명",
+            "campaign_type": "캠페인유형", "options": "옵션", "product_link": "상품링크",
+            "product_image": "상품이미지", "review_fee": "리뷰비", "daily_qty": "일수량",
+            "duration_days": "진행일수", "max_per_person_daily": "1인일일제한",
+            "buy_time": "구매가능시간", "allow_duplicate": "중복허용",
+            "keyword": "키워드", "entry_method": "유입방식",
+            "review_deadline_days": "리뷰기한일수", "is_public": "공개여부",
+            "campaign_guide": "캠페인가이드", "extra_info": "추가안내사항"
         }
 
         for k, v in data.items():

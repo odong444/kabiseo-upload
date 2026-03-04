@@ -86,7 +86,9 @@
                     </div>
                     ${closed
                         ? ''
-                        : `<a href="/c/${cid}" class="campaign-apply-btn">신청</a>`
+                        : (card.buy_time && card.buy_time_closed)
+                            ? `<span class="campaign-apply-btn" style="background:#f59e0b;cursor:default;font-size:12px;">구매시간 전</span>`
+                            : `<a href="/c/${cid}" class="campaign-apply-btn">신청</a>`
                     }
                 </div>
                 <div class="campaign-card-detail-row">

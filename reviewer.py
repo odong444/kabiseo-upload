@@ -262,6 +262,12 @@ def api_apply():
     if not campaign:
         return jsonify({"ok": False, "error": "캠페인을 찾을 수 없습니다"}), 404
 
+    # 구매시간 체크
+    from modules.utils import is_within_buy_time
+    buy_time_str = campaign.get("구매가능시간", "")
+    if buy_time_str and not is_within_buy_time(buy_time_str):
+        return jsonify({"ok": False, "error": f"현재 구매시간이 아닙니다. 구매시간: {buy_time_str}"}), 400
+
     # 정원 확인
     capacity = models.campaign_manager.check_capacity(campaign_id)
     if capacity < len(store_ids):
