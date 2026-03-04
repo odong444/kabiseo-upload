@@ -227,10 +227,17 @@ def campaigns():
     pending_campaigns = [c for c in campaign_list if c.get("상태") in ("승인대기", "대행사승인", "반려")]
     active_campaigns = [c for c in campaign_list if c.get("상태") not in ("승인대기", "대행사승인", "반려")]
 
+    # 대행사 이름 매핑 (캠페인 목록에서 표시용)
+    agency_map = {}
+    if models.db_manager:
+        for a in models.db_manager.get_agencies():
+            agency_map[a["id"]] = a["company_name"]
+
     return render_template("admin/campaigns.html",
                            campaigns=campaign_list,
                            pending_campaigns=pending_campaigns,
                            active_campaigns=active_campaigns,
+                           agency_map=agency_map,
                            page=page, total_pages=total_pages,
                            total=total, status_filter=status_filter)
 
@@ -251,7 +258,23 @@ def campaign_edit(campaign_id):
     # 기존 사진 세트 수 전달
     photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
     campaign["_photo_set_count"] = len(photo_sets) if photo_sets else 0
-    return render_template("admin/campaign_edit.html", campaign=campaign, row=campaign_id, promo_category_list=categories)
+
+    # 대행사/클라이언트 정보
+    agencies = models.db_manager.get_agencies() if models.db_manager else []
+    clients_list = models.db_manager.get_clients() if models.db_manager else []
+    agency_info = None
+    client_info = None
+    aid = safe_int(campaign.get("대행사ID", 0))
+    cid = safe_int(campaign.get("업체ID", 0))
+    if aid:
+        agency_info = models.db_manager.get_agency_by_id(aid)
+    if cid:
+        client_info = models.db_manager.get_client_by_id(cid)
+
+    return render_template("admin/campaign_edit.html", campaign=campaign, row=campaign_id,
+                          promo_category_list=categories,
+                          agencies=agencies, clients=clients_list,
+                          agency_info=agency_info, client_info=client_info)
 
 
 @admin_bp.route("/campaigns/<campaign_id>/edit", methods=["POST"])
@@ -276,6 +299,13 @@ def campaign_edit_post(campaign_id):
     for field_name in editable_fields:
         value = request.form.get(field_name, "").strip()
         update_data[field_name] = value
+
+    # 대행사/클라이언트 연결
+    agency_id_str = request.form.get("대행사ID", "").strip()
+    update_data["대행사ID"] = agency_id_str if agency_id_str else "0"
+    client_id_str = request.form.get("업체ID_select", "").strip()
+    if client_id_str:
+        update_data["업체ID"] = client_id_str
 
     # 상품이미지 파일 업로드
     image_file = request.files.get("상품이미지")

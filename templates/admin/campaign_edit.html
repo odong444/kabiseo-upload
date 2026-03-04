@@ -148,6 +148,26 @@
                 </div>
 
                 <div class="form-group">
+                    <label>대행사</label>
+                    <select name="대행사ID" id="agencySelect">
+                        <option value="">없음</option>
+                        {% for a in (agencies or []) %}
+                        <option value="{{ a.id }}" {{ 'selected' if agency_info and agency_info.id == a.id }}>{{ a.company_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>업체 (클라이언트)</label>
+                    <select name="업체ID_select" id="clientSelect">
+                        <option value="">직접입력</option>
+                        {% for c in (clients or []) %}
+                        <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" {{ 'selected' if client_info and client_info.id == c.id }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label>플랫폼</label>
                     <input type="text" name="플랫폼" value="{{ campaign.get('플랫폼', '') }}">
                 </div>
@@ -673,6 +693,16 @@
             }
         });
     }
+
+    // 클라이언트 선택 시 업체명+대행사 자동 연결
+    document.getElementById('clientSelect').addEventListener('change', function() {
+        var sel = this.options[this.selectedIndex];
+        if (sel.value) {
+            document.querySelector('input[name="업체명"]').value = sel.dataset.name || '';
+            var agencyId = sel.dataset.agency || '';
+            if (agencyId) document.getElementById('agencySelect').value = agencyId;
+        }
+    });
     </script>
 </body>
 </html>

@@ -286,10 +286,10 @@
                         <tr>
                             <th>캠페인명</th>
                             <th>업체명</th>
+                            <th>대행사</th>
                             <th>플랫폼</th>
                             <th class="num-cell">총수량</th>
                             <th>결제금액</th>
-                            <th>키워드</th>
                             <th>요청일</th>
                             <th>상태</th>
                             <th>관리</th>
@@ -300,6 +300,7 @@
                         <tr>
                             <td style="font-weight:600;">{{ c.get('캠페인명', '') or c.get('상품명', '') }}</td>
                             <td>{{ c.get('업체명', '') }}</td>
+                            <td style="font-size:13px;color:#6d28d9;">{{ agency_map.get(c.get('대행사ID', 0)|int, '') or '-' }}</td>
                             <td>{{ c.get('플랫폼', '') }}</td>
                             <td class="num-cell">{{ c.get('총수량', '-') }}</td>
                             <td>{{ c.get('상품금액', '') or c.get('결제금액', '') or '-' }}</td>
