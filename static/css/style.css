@@ -1904,7 +1904,7 @@ body {
 .id-row .id-name {
     font-weight: 600; font-size: 14px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    min-width: 0; flex: 1;
+    min-width: 0;
 }
 .id-row .status-badge { flex-shrink: 0; margin-left: auto; }
 .id-row .id-action { flex-shrink: 0; }
