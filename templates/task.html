@@ -663,16 +663,33 @@
 
         // 카운트다운 타이머 시작
         if (taskData.created_at && taskData.timeout_seconds) {
-            startDeadlineTimer(taskData.created_at, taskData.timeout_seconds);
+            startDeadlineTimer(taskData.created_at, taskData.timeout_seconds, buyTimeStr);
         }
     }
 
-    function startDeadlineTimer(createdAt, timeoutSec) {
+    function startDeadlineTimer(createdAt, timeoutSec, buyTimeStr) {
         const timerEl = document.getElementById('deadlineTimer');
         if (!timerEl) return;
 
         const createdMs = new Date(createdAt).getTime();
-        let deadlineMs = createdMs + timeoutSec * 1000;
+        // buy_time이 있으면 effective_start = max(created_at, 오늘 buy_time 시작)
+        let effectiveMs = createdMs;
+        if (buyTimeStr && buyTimeStr.trim()) {
+            var text = buyTimeStr.trim().replace(/\s/g, '');
+            text = text.replace('익일', '');
+            var m = text.match(/(\d{1,2}):(\d{2})/);
+            if (m) {
+                var now = new Date();
+                var kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
+                var buyStartMs = new Date(kst.getFullYear(), kst.getMonth(), kst.getDate(), parseInt(m[1]), parseInt(m[2])).getTime();
+                // KST → UTC 보정
+                buyStartMs = buyStartMs - (9 * 60 - now.getTimezoneOffset()) * 60000;
+                if (createdMs < buyStartMs) {
+                    effectiveMs = buyStartMs;
+                }
+            }
+        }
+        let deadlineMs = effectiveMs + timeoutSec * 1000;
         let extending = false;
 
         function getDeadlineStr() {
@@ -699,8 +716,30 @@
             extending = false;
         }
 
+        var _waitingBuyTime = effectiveMs > createdMs;
+
         function update() {
             const now = Date.now();
+
+            // 구매시간 전 대기 중
+            if (_waitingBuyTime && now < effectiveMs) {
+                const waitMs = effectiveMs - now;
+                const wMins = Math.floor(waitMs / 60000);
+                const wSecs = Math.floor((waitMs % 60000) / 1000);
+                const wStr = wMins.toString().padStart(2, '0') + ':' + wSecs.toString().padStart(2, '0');
+                timerEl.innerHTML = `<span class="timer-icon">&#x23F1;</span> 구매시간까지 <strong>${wStr}</strong> 남음 <span class="timer-deadline">(${buyTimeStr})</span>`;
+                timerEl.className = 'task-deadline-timer timer-normal';
+                setTimeout(update, 1000);
+                return;
+            }
+
+            // 구매시간 시작되면 캡쳐 영역 새로고침 (비활성→활성)
+            if (_waitingBuyTime && now >= effectiveMs) {
+                _waitingBuyTime = false;
+                location.reload();
+                return;
+            }
+
             const remainMs = deadlineMs - now;
 
             if (remainMs <= 0) {
