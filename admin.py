@@ -795,6 +795,76 @@ def api_exclusive_group_remove():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ──────── 캠페인 일괄수정 / CSV 내보내기 ────────
+
+_BULK_ALLOWED_FIELDS = {
+    "상태", "캠페인유형", "플랫폼", "결제금액", "리뷰비",
+    "총수량", "일수량", "1인일일제한", "구매가능시간",
+    "공개여부", "중복허용", "키워드", "유입방식",
+}
+
+
+@admin_bp.route("/api/campaigns/bulk-update", methods=["POST"])
+@admin_required
+def api_campaigns_bulk_update():
+    """선택한 캠페인들을 일괄 수정"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    data = request.get_json(silent=True) or {}
+    campaign_ids = data.get("campaign_ids", [])
+    fields = data.get("fields", {})
+    if not campaign_ids:
+        return jsonify({"ok": False, "error": "캠페인을 선택하세요"}), 400
+    # 화이트리스트 필터
+    safe_fields = {k: v for k, v in fields.items() if k in _BULK_ALLOWED_FIELDS}
+    if not safe_fields:
+        return jsonify({"ok": False, "error": "변경할 필드가 없습니다"}), 400
+    done = 0
+    for cid in campaign_ids:
+        try:
+            models.db_manager.update_campaign(str(cid), safe_fields)
+            done += 1
+        except Exception:
+            pass
+    return jsonify({"ok": True, "done": done, "total": len(campaign_ids)})
+
+
+@admin_bp.route("/api/campaigns/export-csv")
+@admin_required
+def api_campaigns_export_csv():
+    """선택한 캠페인들을 CSV로 내보내기"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    ids_str = request.args.get("ids", "")
+    campaign_ids = [s.strip() for s in ids_str.split(",") if s.strip()]
+    if not campaign_ids:
+        return jsonify({"ok": False, "error": "캠페인을 선택하세요"}), 400
+
+    columns = [
+        "캠페인ID", "캠페인명", "상품명", "업체명", "플랫폼", "캠페인유형",
+        "상태", "총수량", "일수량", "결제금액", "리뷰비",
+        "구매가능시간", "키워드", "유입방식", "공개여부", "중복허용", "등록일",
+    ]
+
+    output = io.StringIO()
+    output.write('\ufeff')  # UTF-8 BOM for Excel
+    writer = csv.writer(output)
+    writer.writerow(columns)
+    for cid in campaign_ids:
+        c = models.db_manager.get_campaign_by_id(cid)
+        if not c:
+            continue
+        writer.writerow([c.get(col, "") for col in columns])
+
+    from modules.utils import today_str
+    filename = f"campaigns_{today_str()}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 # ──────── 캠페인 신규 등록 ────────
 
 @admin_bp.route("/campaigns/new", methods=["GET"])

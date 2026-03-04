@@ -263,6 +263,8 @@
             <a href="{{ url_for('admin.campaign_new') }}" class="admin-btn admin-btn-primary">신규 등록</a>
             <button type="button" id="btnGroupLink" class="admin-btn" style="display:none;background:#8b5cf6;color:#fff;border-color:#8b5cf6;font-size:13px;" onclick="linkExclusiveGroup()">동시진행 그룹 묶기</button>
             <button type="button" id="btnGroupUnlink" class="admin-btn" style="display:none;background:#f59e0b;color:#fff;border-color:#f59e0b;font-size:13px;" onclick="unlinkExclusiveGroup()">그룹 해제</button>
+            <button type="button" id="btnBulkEdit" class="admin-btn" style="display:none;background:#2563eb;color:#fff;border-color:#2563eb;font-size:13px;" onclick="openBulkEditModal()">일괄수정</button>
+            <button type="button" id="btnCsvDownload" class="admin-btn" style="display:none;background:#059669;color:#fff;border-color:#059669;font-size:13px;" onclick="downloadCsv()">CSV 다운로드</button>
             <div style="display:flex;align-items:center;gap:8px;margin-left:auto;padding:8px 16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;">
                 <span style="font-size:13px;font-weight:600;color:#64748b;">카톡 홍보</span>
                 <label class="toggle-switch" style="position:relative;display:inline-block;width:44px;height:24px;">
@@ -660,6 +662,113 @@
                 </div>
             </div>
         </div>
+    <!-- 일괄수정 모달 -->
+    <div id="bulkEditModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto;">
+        <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;padding:24px;position:relative;">
+            <button onclick="closeBulkEditModal()" style="position:absolute;top:12px;right:16px;border:none;background:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
+            <h2 style="margin:0 0 16px;" id="bulkEditTitle">일괄수정</h2>
+            <p style="font-size:13px;color:#64748b;margin:0 0 16px;">변경할 필드를 체크하세요. 체크한 항목만 선택한 캠페인에 일괄 적용됩니다.</p>
+            <div id="bulkEditFields" style="display:flex;flex-direction:column;gap:10px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="상태">
+                    <span style="min-width:90px;font-weight:600;">상태</span>
+                    <select id="bf_상태" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="모집중">모집중</option>
+                        <option value="진행중">진행중</option>
+                        <option value="마감">마감</option>
+                        <option value="종료">종료</option>
+                        <option value="중지">중지</option>
+                    </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="캠페인유형">
+                    <span style="min-width:90px;font-weight:600;">캠페인유형</span>
+                    <select id="bf_캠페인유형" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="실배송">실배송</option>
+                        <option value="빈박스">빈박스</option>
+                    </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="플랫폼">
+                    <span style="min-width:90px;font-weight:600;">플랫폼</span>
+                    <select id="bf_플랫폼" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="쿠팡">쿠팡</option>
+                        <option value="네이버">네이버</option>
+                        <option value="11번가">11번가</option>
+                        <option value="G마켓">G마켓</option>
+                        <option value="옥션">옥션</option>
+                        <option value="톡스토어">톡스토어</option>
+                        <option value="기타">기타</option>
+                    </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="결제금액">
+                    <span style="min-width:90px;font-weight:600;">결제금액</span>
+                    <input type="number" id="bf_결제금액" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;" placeholder="0">
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="리뷰비">
+                    <span style="min-width:90px;font-weight:600;">리뷰비</span>
+                    <input type="number" id="bf_리뷰비" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;" placeholder="0">
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="총수량">
+                    <span style="min-width:90px;font-weight:600;">총수량</span>
+                    <input type="number" id="bf_총수량" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;" placeholder="0">
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="일수량">
+                    <span style="min-width:90px;font-weight:600;">일수량</span>
+                    <input type="number" id="bf_일수량" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;" placeholder="0">
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="1인일일제한">
+                    <span style="min-width:90px;font-weight:600;">1인일일제한</span>
+                    <input type="number" id="bf_1인일일제한" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;" placeholder="0">
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="구매가능시간">
+                    <span style="min-width:90px;font-weight:600;">구매가능시간</span>
+                    <input type="text" id="bf_구매가능시간" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;" placeholder="HH:MM~HH:MM">
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="공개여부">
+                    <span style="min-width:90px;font-weight:600;">공개여부</span>
+                    <select id="bf_공개여부" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="Y">공개</option>
+                        <option value="N">비공개</option>
+                    </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="중복허용">
+                    <span style="min-width:90px;font-weight:600;">중복허용</span>
+                    <select id="bf_중복허용" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="Y">허용</option>
+                        <option value="N">불가</option>
+                    </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="키워드">
+                    <span style="min-width:90px;font-weight:600;">키워드</span>
+                    <input type="text" id="bf_키워드" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;" placeholder="키워드 입력">
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+                    <input type="checkbox" class="bulk-field-toggle" data-field="유입방식">
+                    <span style="min-width:90px;font-weight:600;">유입방식</span>
+                    <select id="bf_유입방식" disabled style="flex:1;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="검색유입">검색유입</option>
+                        <option value="링크유입">링크유입</option>
+                        <option value="자유">자유</option>
+                    </select>
+                </label>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+                <button type="button" class="admin-btn" onclick="closeBulkEditModal()">취소</button>
+                <button type="button" class="admin-btn admin-btn-primary" onclick="submitBulkEdit()">적용</button>
+            </div>
+        </div>
+    </div>
+
     </main>
 
     <script>
@@ -1230,6 +1339,8 @@
         var ids = getCheckedIds();
         var btnLink = document.getElementById('btnGroupLink');
         var btnUnlink = document.getElementById('btnGroupUnlink');
+        var btnBulk = document.getElementById('btnBulkEdit');
+        var btnCsv = document.getElementById('btnCsvDownload');
         if (ids.length >= 2) {
             btnLink.style.display = '';
             btnLink.textContent = '동시진행 그룹 묶기 (' + ids.length + ')';
@@ -1243,6 +1354,16 @@
             if (row && row.getAttribute('data-group')) hasGroup = true;
         });
         btnUnlink.style.display = (ids.length >= 1 && hasGroup) ? '' : 'none';
+        // 일괄수정 / CSV 다운로드
+        if (ids.length >= 1) {
+            btnBulk.style.display = '';
+            btnBulk.textContent = '일괄수정 (' + ids.length + ')';
+            btnCsv.style.display = '';
+            btnCsv.textContent = 'CSV 다운로드 (' + ids.length + ')';
+        } else {
+            btnBulk.style.display = 'none';
+            btnCsv.style.display = 'none';
+        }
     }
 
     function linkExclusiveGroup() {
@@ -1344,6 +1465,78 @@
             btnEl.style.background = '#ef4444';
             btnEl.disabled = false;
         });
+    }
+
+    // ──── 일괄수정 / CSV 다운로드 ────
+
+    // 체크박스 토글 → 필드 활성화
+    document.querySelectorAll('.bulk-field-toggle').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            var field = cb.getAttribute('data-field');
+            var input = document.getElementById('bf_' + field);
+            if (input) input.disabled = !cb.checked;
+        });
+    });
+
+    // 모달 배경 클릭으로 닫기
+    document.getElementById('bulkEditModal').addEventListener('click', function(e) {
+        if (e.target === this) closeBulkEditModal();
+    });
+
+    function openBulkEditModal() {
+        var ids = getCheckedIds();
+        if (!ids.length) return;
+        document.getElementById('bulkEditTitle').textContent = '일괄수정 (' + ids.length + '건)';
+        // 초기화
+        document.querySelectorAll('.bulk-field-toggle').forEach(function(cb) { cb.checked = false; });
+        document.querySelectorAll('#bulkEditFields select, #bulkEditFields input[type="number"], #bulkEditFields input[type="text"]').forEach(function(el) {
+            el.disabled = true;
+            if (el.tagName === 'SELECT') el.selectedIndex = 0;
+            else el.value = '';
+        });
+        document.getElementById('bulkEditModal').style.display = 'block';
+    }
+
+    function closeBulkEditModal() {
+        document.getElementById('bulkEditModal').style.display = 'none';
+    }
+
+    function submitBulkEdit() {
+        var ids = getCheckedIds();
+        if (!ids.length) return;
+        var fields = {};
+        document.querySelectorAll('.bulk-field-toggle:checked').forEach(function(cb) {
+            var field = cb.getAttribute('data-field');
+            var input = document.getElementById('bf_' + field);
+            if (input) fields[field] = input.value;
+        });
+        if (Object.keys(fields).length === 0) {
+            alert('변경할 필드를 하나 이상 체크하세요.');
+            return;
+        }
+        var summary = Object.keys(fields).map(function(k) { return k + '=' + fields[k]; }).join(', ');
+        if (!confirm(ids.length + '개 캠페인에 다음 변경을 적용합니다:\n\n' + summary + '\n\n진행하시겠습니까?')) return;
+        fetch('/admin/api/campaigns/bulk-update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({campaign_ids: ids, fields: fields})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                alert(data.done + '개 캠페인 수정 완료');
+                location.reload();
+            } else {
+                alert('실패: ' + (data.error || ''));
+            }
+        })
+        .catch(function() { alert('서버 연결 오류'); });
+    }
+
+    function downloadCsv() {
+        var ids = getCheckedIds();
+        if (!ids.length) return;
+        window.location = '/admin/api/campaigns/export-csv?ids=' + ids.join(',');
     }
 
     // ── 캠페인 승인/반려 ──
