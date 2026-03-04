@@ -862,6 +862,18 @@ def api_kakao_friend_status():
     if not reviewer:
         return jsonify({"kakao_friend": True})
 
+    # 가입 후 10분 이내면 친구추가 처리 중 → 경고 안 띄움
+    from datetime import datetime, timedelta, timezone
+    created = reviewer.get("created_at")
+    if created and not reviewer.get("kakao_friend"):
+        now_kst = datetime.now(timezone(timedelta(hours=9)))
+        if hasattr(created, 'astimezone'):
+            age = now_kst - created.astimezone(timezone(timedelta(hours=9)))
+        else:
+            age = timedelta(minutes=999)
+        if age < timedelta(minutes=10):
+            return jsonify({"kakao_friend": True})  # 처리 중이므로 경고 스킵
+
     return jsonify({"kakao_friend": bool(reviewer.get("kakao_friend", False))})
 
 
