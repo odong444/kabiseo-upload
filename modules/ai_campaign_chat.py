@@ -212,26 +212,32 @@ class AICampaignChat:
         if depth > 5:
             return {"reply": "처리 중 오류가 발생했습니다. 다시 시도해주세요.", "messages": messages}
 
-        # Collect assistant content blocks
+        # Collect assistant content blocks — serialize to plain dicts
         assistant_content = response.content
-        messages.append({"role": "assistant", "content": assistant_content})
+        serialized = []
+        for block in assistant_content:
+            if block.type == "text":
+                serialized.append({"type": "text", "text": block.text})
+            elif block.type == "tool_use":
+                serialized.append({"type": "tool_use", "id": block.id, "name": block.name, "input": block.input})
+        messages.append({"role": "assistant", "content": serialized})
 
         # Check if there are tool uses
-        tool_uses = [b for b in assistant_content if b.type == "tool_use"]
+        tool_uses = [b for b in serialized if b["type"] == "tool_use"]
 
         if not tool_uses:
             # No tool use — extract text reply
-            text_parts = [b.text for b in assistant_content if hasattr(b, "text")]
+            text_parts = [b["text"] for b in serialized if b.get("type") == "text"]
             reply = "\n".join(text_parts) if text_parts else ""
             return {"reply": reply, "messages": messages}
 
         # Execute each tool and collect results
         tool_results = []
         for tool_use in tool_uses:
-            result = self._execute_tool(tool_use.name, tool_use.input, portal, owner_id)
+            result = self._execute_tool(tool_use["name"], tool_use["input"], portal, owner_id)
             tool_results.append({
                 "type": "tool_result",
-                "tool_use_id": tool_use.id,
+                "tool_use_id": tool_use["id"],
                 "content": json.dumps(result, ensure_ascii=False)
             })
 
