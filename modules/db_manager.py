@@ -1333,6 +1333,8 @@ class DBManager:
         if status:
             conditions.append("p.status = %s")
             params.append(status)
+        else:
+            conditions.append("p.status != '타임아웃취소'")
         if q:
             conditions.append(
                 "(r.name ILIKE %s OR r.phone ILIKE %s"
