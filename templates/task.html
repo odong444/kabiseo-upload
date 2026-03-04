@@ -434,9 +434,9 @@
         if (!m) return true;
         var sh = parseInt(m[1]), sm = parseInt(m[2]), eh = parseInt(m[3]), em = parseInt(m[4]);
         if (!nextDay && sh > eh) nextDay = true;
-        var now = new Date();
-        var kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
-        var nowMin = kst.getHours() * 60 + kst.getMinutes();
+        // KST 하드코딩 (UTC+9)
+        var kst = new Date(Date.now() + 9 * 3600000);
+        var nowMin = kst.getUTCHours() * 60 + kst.getUTCMinutes();
         var startMin = sh * 60 + sm, endMin = eh * 60 + em;
         if (nextDay) return nowMin >= startMin || nowMin <= endMin;
         return nowMin >= startMin && nowMin <= endMin;
@@ -672,20 +672,19 @@
         if (!timerEl) return;
 
         const createdMs = new Date(createdAt).getTime();
-        // buy_time이 있으면 effective_start = max(created_at, 오늘 buy_time 시작)
+        // buy_time이 있으면 effective_start = max(created_at, 오늘 buy_time 시작 KST)
         let effectiveMs = createdMs;
         if (buyTimeStr && buyTimeStr.trim()) {
             var text = buyTimeStr.trim().replace(/\s/g, '');
             text = text.replace('익일', '');
             var m = text.match(/(\d{1,2}):(\d{2})/);
             if (m) {
-                var now = new Date();
-                var kst = new Date(now.getTime() + (9 * 60 - now.getTimezoneOffset()) * 60000);
-                var buyStartMs = new Date(kst.getFullYear(), kst.getMonth(), kst.getDate(), parseInt(m[1]), parseInt(m[2])).getTime();
-                // KST → UTC 보정
-                buyStartMs = buyStartMs - (9 * 60 - now.getTimezoneOffset()) * 60000;
-                if (createdMs < buyStartMs) {
-                    effectiveMs = buyStartMs;
+                // KST 기준 오늘 날짜 구하기 (UTC+9 하드코딩)
+                var kstNow = new Date(Date.now() + 9 * 3600000);
+                // 오늘 KST buy_time 시작 → UTC epoch
+                var buyStartUtc = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate(), parseInt(m[1]), parseInt(m[2])) - 9 * 3600000;
+                if (createdMs < buyStartUtc) {
+                    effectiveMs = buyStartUtc;
                 }
             }
         }
@@ -693,8 +692,9 @@
         let extending = false;
 
         function getDeadlineStr() {
-            const d = new Date(deadlineMs);
-            return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+            // KST 하드코딩 (UTC+9)
+            const d = new Date(deadlineMs + 9 * 3600000);
+            return d.getUTCHours().toString().padStart(2, '0') + ':' + d.getUTCMinutes().toString().padStart(2, '0');
         }
 
         async function extendTime() {
