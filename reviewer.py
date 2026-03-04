@@ -156,14 +156,17 @@ def api_campaigns():
 
         cards.append(card)
 
-    # 모집중 → 금일마감 → 전체마감 순
+    # 오늘 진행 → 미래 진행 → 금일마감 → 전체마감 순
+    today_str = _now_kst().strftime("%Y-%m-%d")
     def sort_key(x):
+        sd = x.get("start_date", "")
+        future = 1 if sd and sd > today_str else 0
         if not x["closed"]:
-            return (0, x["name"])
+            return (0, future, x["name"])
         elif x["closed_reason"] == "금일마감":
-            return (1, x["name"])
+            return (1, future, x["name"])
         else:
-            return (2, x["name"])
+            return (2, future, x["name"])
     cards.sort(key=sort_key)
     return jsonify(cards)
 
