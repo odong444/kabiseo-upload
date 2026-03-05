@@ -176,8 +176,11 @@ class TimeoutManager:
                 product = campaign.get("캠페인명", "") or campaign.get("상품명", "")
                 recipient = state.temp_data.get("recipient_name", "")
                 sids = ", ".join(state.temp_data.get("store_ids", []))
-                self._kakao_notifier.notify_timeout_warning(
-                    state.name, state.phone, product, recipient, sids)
+                if not product and not sids:
+                    logger.warning("카톡 경고 스킵 (빈 캠페인 데이터): %s", rid)
+                else:
+                    self._kakao_notifier.notify_timeout_warning(
+                        state.name, state.phone, product, recipient, sids)
             except Exception as e:
                 logger.warning(f"카톡 타임아웃 경고 실패: {e}")
 
@@ -215,8 +218,11 @@ class TimeoutManager:
                 product = campaign.get("캠페인명", "") or campaign.get("상품명", "")
                 recipient = state.temp_data.get("recipient_name", "")
                 sids = ", ".join(store_ids) if isinstance(store_ids, list) else str(store_ids)
-                self._kakao_notifier.notify_timeout_cancelled(
-                    state.name, state.phone, product, recipient, sids)
+                if not product and not sids:
+                    logger.warning("카톡 취소 알림 스킵 (빈 캠페인 데이터): %s", rid)
+                else:
+                    self._kakao_notifier.notify_timeout_cancelled(
+                        state.name, state.phone, product, recipient, sids)
             except Exception as e:
                 logger.warning(f"카톡 타임아웃 취소 알림 실패: {e}")
 
@@ -319,6 +325,7 @@ class TimeoutManager:
             """SELECT p.id, p.campaign_id, p.store_id, p.created_at,
                       r.name, r.phone,
                       COALESCE(NULLIF(c.campaign_name, ''), c.product_name, '') AS product_name,
+                      COALESCE(p.recipient_name, '') AS recipient_name,
                       c.buy_time
                FROM progress p
                JOIN reviewers r ON p.reviewer_id = r.id
@@ -366,10 +373,13 @@ class TimeoutManager:
             if self._kakao_notifier:
                 try:
                     product = group[0].get("product_name", "")
-                    sids = ", ".join(r["store_id"] for r in group)
-                    self._kakao_notifier.notify_buy_time_start(
-                        name, phone, product, sids)
-                    logger.info("구매시간 시작 알림: %s %s (%s)", name, phone, sids)
+                    sids = ", ".join(r["store_id"] for r in group if r.get("store_id"))
+                    if not product and not sids:
+                        logger.warning("구매시간 알림 스킵 (빈 캠페인): %s %s", name, phone)
+                    else:
+                        self._kakao_notifier.notify_buy_time_start(
+                            name, phone, product, sids)
+                        logger.info("구매시간 시작 알림: %s %s (%s)", name, phone, sids)
                 except Exception as e:
                     logger.warning("구매시간 시작 카톡 실패: %s", e)
             for r in group:
@@ -384,9 +394,13 @@ class TimeoutManager:
             if self._kakao_notifier:
                 try:
                     product = group[0].get("product_name", "")
-                    sids = ", ".join(r["store_id"] for r in group)
+                    recipient = group[0].get("recipient_name", "")
+                    sids = ", ".join(r["store_id"] for r in group if r.get("store_id"))
+                    if not product and not sids:
+                        logger.warning("DB 경고 스킵 (빈 캠페인): id=%s %s", pid, name)
+                        continue
                     self._kakao_notifier.notify_timeout_warning(
-                        name, phone, product, "", sids)
+                        name, phone, product, recipient, sids)
                     logger.info("DB 경고 발송: %s %s (%s)", name, phone, sids)
                 except Exception as e:
                     logger.warning("DB 경고 카톡 실패: %s", e)
@@ -402,10 +416,14 @@ class TimeoutManager:
             if self._kakao_notifier:
                 try:
                     product = group[0].get("product_name", "")
-                    sids = ", ".join(r["store_id"] for r in group)
-                    self._kakao_notifier.notify_timeout_cancelled(
-                        name, phone, product, "", sids)
-                    logger.info("DB 취소 알림: %s %s (%s)", name, phone, sids)
+                    recipient = group[0].get("recipient_name", "")
+                    sids = ", ".join(r["store_id"] for r in group if r.get("store_id"))
+                    if not product and not sids:
+                        logger.warning("DB 취소 알림 스킵 (빈 캠페인): %s %s", name, phone)
+                    else:
+                        self._kakao_notifier.notify_timeout_cancelled(
+                            name, phone, product, recipient, sids)
+                        logger.info("DB 취소 알림: %s %s (%s)", name, phone, sids)
                 except Exception as e:
                     logger.warning("DB 취소 카톡 실패: %s", e)
 
