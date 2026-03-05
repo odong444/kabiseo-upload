@@ -483,6 +483,9 @@
                                 <button type="button" class="admin-btn admin-btn-sm"
                                         onclick="event.stopPropagation(); openPhotoModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');"
                                         style="background:#fef3c7;color:#92400e;">사진</button>
+                                <button type="button" class="admin-btn admin-btn-sm"
+                                        onclick="event.stopPropagation(); openReviewTextModal('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}');"
+                                        style="background:#dbeafe;color:#1e40af;">리뷰내용</button>
                                 {% if is_hidden %}
                                 <button type="button" class="admin-btn admin-btn-sm admin-btn-hidden"
                                         onclick="event.stopPropagation(); toggleVisibility('{{ c.get('캠페인ID', '') }}', this);">노출중지</button>
@@ -697,6 +700,43 @@
                 </div>
             </div>
         </div>
+        <!-- 리뷰내용 모달 -->
+        <div id="reviewTextModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto;">
+            <div style="max-width:640px;margin:40px auto;background:#fff;border-radius:12px;padding:24px;position:relative;">
+                <button onclick="closeReviewTextModal()" style="position:absolute;top:12px;right:16px;border:none;background:none;font-size:20px;cursor:pointer;color:#999;">&times;</button>
+                <h2 style="margin:0 0 4px;" id="rtModalTitle">리뷰내용 관리</h2>
+                <p style="color:#64748b;font-size:13px;margin:0 0 16px;" id="rtModalSub"></p>
+
+                <!-- 현황 -->
+                <div id="rtInfo" style="margin-bottom:16px;">
+                    <p style="color:#94a3b8;font-size:13px;">로딩 중...</p>
+                </div>
+
+                <!-- 엑셀 업로드 -->
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:16px;">
+                    <h3 style="font-size:14px;margin:0 0 8px;color:#334155;">엑셀 업로드</h3>
+                    <p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">A열에 리뷰내용을 한 행에 하나씩 입력한 .xlsx 파일</p>
+                    <input type="file" id="rtFile" accept=".xlsx,.xls" style="margin-bottom:8px;font-size:13px;">
+                    <button onclick="uploadReviewTexts()" class="admin-btn admin-btn-primary" style="font-size:13px;padding:6px 16px;" id="btnUploadRT">업로드</button>
+                    <span id="rtUploadStatus" style="font-size:13px;margin-left:8px;"></span>
+                </div>
+
+                <!-- 배분 -->
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin-bottom:16px;">
+                    <h3 style="font-size:14px;margin:0 0 8px;color:#166534;">배분</h3>
+                    <p style="font-size:12px;color:#64748b;margin:0 0 8px;">미할당 리뷰어에게 리뷰내용을 순차 배분합니다. 사진세트가 있으면 같은 번호로 매칭됩니다.</p>
+                    <button onclick="distributeReviewTexts()" class="admin-btn" style="font-size:13px;padding:6px 16px;background:#16a34a;color:#fff;border-color:#16a34a;" id="btnDistributeRT">배분하기</button>
+                    <span id="rtDistributeStatus" style="font-size:13px;margin-left:8px;"></span>
+                </div>
+
+                <!-- 리뷰내용 목록 -->
+                <div id="rtListSection" style="display:none;">
+                    <h3 style="font-size:14px;margin:0 0 12px;color:#334155;">리뷰내용 현황</h3>
+                    <div id="rtList"></div>
+                </div>
+            </div>
+        </div>
+
     <!-- 일괄수정 모달 -->
     <div id="bulkEditModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto;">
         <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:12px;padding:24px;position:relative;">
@@ -1522,6 +1562,103 @@
             btnEl.textContent = '실패';
             btnEl.style.background = '#ef4444';
             btnEl.disabled = false;
+        });
+    }
+
+    // ──── 리뷰내용 모달 ────
+    var _rtModalCampaignId = '';
+
+    function openReviewTextModal(campaignId, name) {
+        _rtModalCampaignId = campaignId;
+        document.getElementById('rtModalTitle').textContent = '리뷰내용 관리';
+        document.getElementById('rtModalSub').textContent = name + ' (' + campaignId + ')';
+        document.getElementById('rtInfo').innerHTML = '<p style="color:#94a3b8;font-size:13px;">로딩 중...</p>';
+        document.getElementById('rtUploadStatus').textContent = '';
+        document.getElementById('rtDistributeStatus').textContent = '';
+        document.getElementById('rtListSection').style.display = 'none';
+        document.getElementById('reviewTextModal').style.display = 'block';
+        loadReviewTexts();
+    }
+    function closeReviewTextModal() {
+        document.getElementById('reviewTextModal').style.display = 'none';
+    }
+    document.getElementById('reviewTextModal').addEventListener('click', function(e) {
+        if (e.target === this) closeReviewTextModal();
+    });
+
+    function loadReviewTexts() {
+        fetch('/admin/api/campaign/' + _rtModalCampaignId + '/review-texts')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var container = document.getElementById('rtInfo');
+            if (!d.ok) { container.innerHTML = '<p style="color:#ef4444;">에러: ' + d.error + '</p>'; return; }
+            if (d.total_texts === 0) {
+                container.innerHTML = '<p style="color:#94a3b8;font-size:13px;">등록된 리뷰내용이 없습니다. 엑셀을 업로드하세요.</p>';
+                document.getElementById('rtListSection').style.display = 'none';
+                return;
+            }
+            container.innerHTML = '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;">'
+                + '<span>총 <b>' + d.total_texts + '</b>건</span>'
+                + '<span>배분 <b style="color:#16a34a;">' + d.assigned_count + '</b>건</span>'
+                + '<span>미배분 리뷰어 <b style="color:#f59e0b;">' + d.unassigned_reviewers + '</b>명</span>'
+                + '</div>';
+
+            // 리뷰내용 목록
+            var listSection = document.getElementById('rtListSection');
+            var listDiv = document.getElementById('rtList');
+            var html = '<table style="width:100%;font-size:13px;border-collapse:collapse;">';
+            html += '<thead><tr style="border-bottom:1px solid #e2e8f0;"><th style="text-align:left;padding:4px 8px;">번호</th><th style="text-align:left;padding:4px 8px;">리뷰내용 (미리보기)</th><th style="text-align:left;padding:4px 8px;">할당</th></tr></thead><tbody>';
+            var keys = Object.keys(d.texts).sort(function(a,b){return parseInt(a)-parseInt(b);});
+            keys.forEach(function(tn) {
+                var t = d.texts[tn];
+                html += '<tr style="border-bottom:1px solid #f1f5f9;">'
+                    + '<td style="padding:6px 8px;font-weight:600;">' + tn + '</td>'
+                    + '<td style="padding:6px 8px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (t.text || '').replace(/</g,'&lt;') + '</td>'
+                    + '<td style="padding:6px 8px;">' + (t.assigned_to ? '<span style="color:#16a34a;">' + t.assigned_to + '</span>' : '<span style="color:#94a3b8;">미할당</span>') + '</td>'
+                    + '</tr>';
+            });
+            html += '</tbody></table>';
+            listDiv.innerHTML = html;
+            listSection.style.display = 'block';
+        });
+    }
+
+    function uploadReviewTexts() {
+        var file = document.getElementById('rtFile').files[0];
+        if (!file) { alert('파일을 선택하세요.'); return; }
+        var fd = new FormData();
+        fd.append('file', file);
+        var status = document.getElementById('rtUploadStatus');
+        status.textContent = '업로드 중...';
+        document.getElementById('btnUploadRT').disabled = true;
+        fetch('/admin/api/campaign/' + _rtModalCampaignId + '/upload-review-texts', {method:'POST', body:fd})
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            document.getElementById('btnUploadRT').disabled = false;
+            if (d.ok) {
+                status.innerHTML = '<span style="color:#16a34a;">' + d.uploaded + '건 업로드 완료</span>';
+                loadReviewTexts();
+            } else {
+                status.innerHTML = '<span style="color:#ef4444;">실패: ' + d.error + '</span>';
+            }
+        });
+    }
+
+    function distributeReviewTexts() {
+        if (!confirm('미할당 리뷰어에게 리뷰내용을 배분하시겠습니까?')) return;
+        var status = document.getElementById('rtDistributeStatus');
+        status.textContent = '배분 중...';
+        document.getElementById('btnDistributeRT').disabled = true;
+        fetch('/admin/api/campaign/' + _rtModalCampaignId + '/distribute-review-texts', {method:'POST'})
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            document.getElementById('btnDistributeRT').disabled = false;
+            if (d.ok) {
+                status.innerHTML = '<span style="color:#16a34a;">' + d.assigned + '명 배분 완료</span>';
+                loadReviewTexts();
+            } else {
+                status.innerHTML = '<span style="color:#ef4444;">실패: ' + (d.error || d.message) + '</span>';
+            }
         });
     }
 

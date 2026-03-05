@@ -269,6 +269,8 @@ def campaign_edit(campaign_id):
     # 기존 사진 세트 수 전달
     photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
     campaign["_photo_set_count"] = len(photo_sets) if photo_sets else 0
+    review_texts = models.db_manager.get_campaign_review_texts(campaign_id)
+    campaign["_review_text_count"] = len(review_texts) if review_texts else 0
 
     # 대행사/클라이언트 정보
     agencies = models.db_manager.get_agencies() if models.db_manager else []
@@ -369,6 +371,29 @@ def campaign_edit_post(campaign_id):
                     logger.error(f"사진세트 업로드 에러: {pe}")
             if uploaded_cnt:
                 flash(f"사진 세트 {uploaded_cnt}장 업로드 완료")
+
+        # 리뷰내용 엑셀 업로드
+        review_text_file = request.files.get("리뷰내용엑셀")
+        if review_text_file and review_text_file.filename:
+            try:
+                from openpyxl import load_workbook
+                from io import BytesIO
+                wb = load_workbook(BytesIO(review_text_file.read()), read_only=True)
+                ws = wb.active
+                models.db_manager.delete_campaign_review_texts(campaign_id)
+                text_count = 0
+                for idx, row in enumerate(ws.iter_rows(min_row=1, max_col=1, values_only=True), start=1):
+                    text = str(row[0]).strip() if row[0] else ""
+                    if text:
+                        models.db_manager.add_campaign_review_text(campaign_id, idx, text)
+                        text_count += 1
+                wb.close()
+                if text_count:
+                    flash(f"리뷰내용 {text_count}건 업로드 완료")
+                    _auto_distribute_review_texts(campaign_id)
+            except Exception as rte:
+                logger.error(f"리뷰내용 엑셀 업로드 에러: {rte}")
+                flash(f"리뷰내용 업로드 실패: {rte}")
 
     except Exception as e:
         logger.error(f"캠페인 수정 에러: {e}", exc_info=True)
@@ -749,6 +774,142 @@ def api_campaign_distribute_photos(campaign_id):
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+# ──────── 캠페인 리뷰내용 자동분배 ────────
+
+def _auto_distribute_review_texts(campaign_id: str):
+    """리뷰내용 업로드 후 기존 미할당 리뷰어에게 자동 배분"""
+    try:
+        review_texts = models.db_manager.get_campaign_review_texts(campaign_id)
+        if not review_texts:
+            return
+        unassigned = models.db_manager.get_unassigned_review_text_progress(campaign_id)
+        for prog in unassigned:
+            # 사진세트 번호가 있으면 같은 번호의 리뷰내용 매칭 시도
+            psn = prog.get("photo_set_number")
+            if psn and psn in review_texts:
+                next_num = psn
+                # 이미 다른 사람에게 할당됐는지 체크
+                chk = models.db_manager._fetchone(
+                    """SELECT 1 FROM progress WHERE campaign_id = %s
+                       AND review_text_number = %s AND status NOT IN ('타임아웃취소','취소') LIMIT 1""",
+                    (campaign_id, psn),
+                )
+                if chk:
+                    next_num = models.db_manager.get_next_review_text_number(campaign_id)
+            else:
+                next_num = models.db_manager.get_next_review_text_number(campaign_id)
+            if next_num is None:
+                break
+            models.db_manager.assign_review_text([prog["progress_id"]], next_num)
+    except Exception as e:
+        logger.warning(f"리뷰내용 자동배분 실패: {e}")
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/review-texts", methods=["GET"])
+@admin_required
+def api_campaign_review_texts(campaign_id):
+    """캠페인 리뷰내용 + 할당 현황"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    try:
+        review_texts = models.db_manager.get_campaign_review_texts(campaign_id)
+        assignments = models.db_manager.get_review_text_assignments(campaign_id)
+        unassigned = models.db_manager.get_unassigned_review_text_progress(campaign_id)
+
+        texts_info = {}
+        for tn, text in review_texts.items():
+            assigned_to = assignments.get(tn)
+            texts_info[str(tn)] = {
+                "text": text[:100] + ("..." if len(text) > 100 else ""),
+                "full_text": text,
+                "assigned_to": f"{assigned_to['name']} ({assigned_to['phone'][-4:]})" if assigned_to else None,
+            }
+
+        return jsonify({
+            "ok": True,
+            "texts": texts_info,
+            "total_texts": len(review_texts),
+            "assigned_count": sum(1 for v in assignments.values() if v is not None),
+            "unassigned_reviewers": len(unassigned),
+        })
+    except Exception as e:
+        logger.error(f"리뷰내용 조회 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/upload-review-texts", methods=["POST"])
+@admin_required
+def api_upload_review_texts(campaign_id):
+    """리뷰내용 엑셀 업로드 (기존 덮어쓰기 + 미할당자 즉시 분배)"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    try:
+        f = request.files.get("file")
+        if not f or not f.filename:
+            return jsonify({"ok": False, "error": "파일을 선택하세요"}), 400
+
+        from openpyxl import load_workbook
+        from io import BytesIO
+        wb = load_workbook(BytesIO(f.read()), read_only=True)
+        ws = wb.active
+        models.db_manager.delete_campaign_review_texts(campaign_id)
+        text_count = 0
+        for idx, row in enumerate(ws.iter_rows(min_row=1, max_col=1, values_only=True), start=1):
+            text = str(row[0]).strip() if row[0] else ""
+            if text:
+                models.db_manager.add_campaign_review_text(campaign_id, idx, text)
+                text_count += 1
+        wb.close()
+
+        # 업로드 후 기존 미할당자에게 즉시 분배
+        _auto_distribute_review_texts(campaign_id)
+
+        return jsonify({"ok": True, "uploaded": text_count})
+    except Exception as e:
+        logger.error(f"리뷰내용 업로드 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/distribute-review-texts", methods=["POST"])
+@admin_required
+def api_distribute_review_texts(campaign_id):
+    """미할당 리뷰어에게 리뷰내용 수동 배분"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+    try:
+        review_texts = models.db_manager.get_campaign_review_texts(campaign_id)
+        if not review_texts:
+            return jsonify({"ok": False, "error": "등록된 리뷰내용이 없습니다"}), 400
+
+        unassigned = models.db_manager.get_unassigned_review_text_progress(campaign_id)
+        if not unassigned:
+            return jsonify({"ok": True, "assigned": 0, "message": "배분할 리뷰어가 없습니다"})
+
+        assigned_count = 0
+        for prog in unassigned:
+            psn = prog.get("photo_set_number")
+            if psn and psn in review_texts:
+                next_num = psn
+                chk = models.db_manager._fetchone(
+                    """SELECT 1 FROM progress WHERE campaign_id = %s
+                       AND review_text_number = %s AND status NOT IN ('타임아웃취소','취소') LIMIT 1""",
+                    (campaign_id, psn),
+                )
+                if chk:
+                    next_num = models.db_manager.get_next_review_text_number(campaign_id)
+            else:
+                next_num = models.db_manager.get_next_review_text_number(campaign_id)
+            if next_num is None:
+                break
+            models.db_manager.assign_review_text([prog["progress_id"]], next_num)
+            assigned_count += 1
+
+        return jsonify({"ok": True, "assigned": assigned_count})
+    except Exception as e:
+        logger.error(f"리뷰내용 배분 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @admin_bp.route("/api/campaigns/<campaign_id>", methods=["DELETE"])
 @admin_required
 def api_campaign_delete(campaign_id):
@@ -1039,6 +1200,26 @@ def campaign_new_post():
                     logger.error(f"사진세트 업로드 에러: {pe}")
             if uploaded_cnt:
                 flash(f"사진 세트 {uploaded_cnt}장 업로드 완료")
+
+        # 리뷰내용 엑셀 업로드
+        review_text_file = request.files.get("리뷰내용엑셀")
+        if review_text_file and review_text_file.filename:
+            try:
+                from openpyxl import load_workbook
+                from io import BytesIO
+                wb = load_workbook(BytesIO(review_text_file.read()), read_only=True)
+                ws = wb.active
+                text_count = 0
+                for idx, row in enumerate(ws.iter_rows(min_row=1, max_col=1, values_only=True), start=1):
+                    text = str(row[0]).strip() if row[0] else ""
+                    if text:
+                        models.db_manager.add_campaign_review_text(campaign_id, idx, text)
+                        text_count += 1
+                wb.close()
+                if text_count:
+                    flash(f"리뷰내용 {text_count}건 업로드 완료")
+            except Exception as rte:
+                logger.error(f"리뷰내용 엑셀 업로드 에러: {rte}")
 
     except Exception as e:
         logger.error(f"캠페인 등록 에러: {e}")

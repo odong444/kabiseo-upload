@@ -322,15 +322,32 @@ def api_apply():
             # 아이디 목록 업데이트
             models.db_manager.update_reviewer_store_ids(name, phone, sid)
             # 사진 세트 자동 할당 (계정별)
+            assigned_photo_set = None
             try:
                 photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
                 if photo_sets:
                     next_set = models.db_manager.get_next_photo_set_number(campaign_id)
                     if next_set is not None:
                         models.db_manager.assign_photo_set([progress_id], next_set)
+                        assigned_photo_set = next_set
                         logger.info("사진세트 %d 자동할당: %s / %s (progress %d)", next_set, name, sid, progress_id)
             except Exception as pe:
                 logger.warning("사진세트 자동할당 실패: %s", pe)
+            # 리뷰내용 자동 할당
+            try:
+                review_texts = models.db_manager.get_campaign_review_texts(campaign_id)
+                if review_texts:
+                    # 사진세트와 같은 번호 우선 매칭
+                    if assigned_photo_set and assigned_photo_set in review_texts:
+                        models.db_manager.assign_review_text([progress_id], assigned_photo_set)
+                        logger.info("리뷰내용 %d 자동할당(사진매칭): progress %d", assigned_photo_set, progress_id)
+                    else:
+                        next_text = models.db_manager.get_next_review_text_number(campaign_id)
+                        if next_text is not None:
+                            models.db_manager.assign_review_text([progress_id], next_text)
+                            logger.info("리뷰내용 %d 자동할당: progress %d", next_text, progress_id)
+            except Exception as te:
+                logger.warning("리뷰내용 자동할당 실패: %s", te)
             results.append({"store_id": sid, "ok": True, "progress_id": progress_id})
         except Exception as e:
             logger.error("신청 에러: %s", e, exc_info=True)
@@ -494,6 +511,17 @@ def api_task(progress_id):
             result["photo_set"] = []
     else:
         result["photo_set"] = []
+
+    # 리뷰내용 (자동분배)
+    review_text_number = row.get("리뷰내용번호")
+    if review_text_number and campaign_id:
+        try:
+            all_texts = models.db_manager.get_campaign_review_texts(campaign_id)
+            result["review_text"] = all_texts.get(review_text_number, "")
+        except Exception:
+            result["review_text"] = ""
+    else:
+        result["review_text"] = ""
 
     return jsonify(result)
 

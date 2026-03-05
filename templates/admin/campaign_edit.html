@@ -133,7 +133,7 @@
                 <div class="form-group form-group-full">
                     <label>상태</label>
                     <select name="상태" style="max-width:200px;">
-                        {% for s in ['승인대기', '반려', '모집중', '진행중', '마감', '종료'] %}
+                        {% for s in ['모집중', '진행중', '마감', '종료', '승인대기', '대행사승인', '반려'] %}
                         <option value="{{ s }}" {{ 'selected' if campaign.get('상태', '') == s }}>{{ s }}</option>
                         {% endfor %}
                     </select>
@@ -522,6 +522,22 @@
                     </div>
 
                     <div class="form-group form-group-full">
+                        <label>리뷰내용 자동분배 (엑셀)</label>
+                        {% set review_text_count = campaign.get('_review_text_count', 0) %}
+                        {% if review_text_count %}
+                        <p style="font-size:13px;color:#475569;margin-bottom:6px;">현재 등록된 리뷰내용: <b>{{ review_text_count }}건</b> (새 파일 선택 시 기존 내용이 교체됩니다)</p>
+                        {% endif %}
+                        <div class="file-upload-area">
+                            <input type="file" name="리뷰내용엑셀" id="reviewTextFile" accept=".xlsx,.xls">
+                            <div class="file-upload-label" id="reviewTextLabel">{{ '새 엑셀로 교체하려면 클릭' if review_text_count else '클릭하여 리뷰내용 엑셀을 선택하세요 (.xlsx)' }}</div>
+                        </div>
+                        <div style="color:#999;font-size:12px;margin-top:4px;">
+                            엑셀 A열에 리뷰내용을 한 행에 하나씩 입력하세요. 각 행이 하나의 리뷰내용으로 진행자에게 자동 분배됩니다.<br>
+                            사진 세트와 함께 등록하면 같은 번호끼리 세트로 묶여 분배됩니다. (사진세트 1번 = 리뷰내용 1번)
+                        </div>
+                    </div>
+
+                    <div class="form-group form-group-full">
                         <label>AI 구매캡쳐 검수 지침</label>
                         <textarea name="AI구매검수지침" rows="3" placeholder="예: 반드시 판매자배송으로 구매해야 합니다. 로켓배송은 불가합니다.">{{ campaign.get('AI구매검수지침', '') }}</textarea>
                         <small style="color:#888;">구매내역 캡쳐 업로드 시 AI 검수에 사용됩니다. (설정 페이지의 기본지침에 추가로 적용)</small>
@@ -790,6 +806,17 @@
                 preview.innerHTML = '세트 ' + keys.length + '개: ' + keys.map(function(k){return '세트'+k+'('+sets[k]+'장)';}).join(', ');
             } else {
                 preview.innerHTML = '<span style="color:#ef4444">파일명이 규칙에 맞지 않습니다</span>';
+            }
+        });
+    }
+
+    // 리뷰내용 엑셀 파일 선택 시 표시
+    var rtf = document.getElementById('reviewTextFile');
+    if (rtf) {
+        rtf.addEventListener('change', function() {
+            var label = document.getElementById('reviewTextLabel');
+            if (this.files && this.files.length > 0) {
+                label.textContent = this.files[0].name;
             }
         });
     }
