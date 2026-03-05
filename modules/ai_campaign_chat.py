@@ -60,6 +60,18 @@ SYSTEM_PROMPT = """당신은 카비서 캠페인 관리 도우미입니다.
 2. 현황 요청 시 적절한 도구 호출 후 보기 좋게 정리
 3. 한국어 대화, 간결하게
 4. 이미지 URL이 전달되면 상품이미지로 활용
+
+## 진행 데이터 (progress)
+- 캠페인별 리뷰어의 신청/구매/리뷰 진행건
+- 수정 가능 필드: 수취인명, 연락처, 은행, 계좌, 예금주, 결제금액, 주문번호, 상태, 비고, 리뷰비, 입금금액, 아이디, 닉네임, 주소, 구매일, 리뷰기한, 리뷰제출일
+- 상태값: 신청, 가이드전달, 구매캡쳐대기, 리뷰대기, 리뷰제출, 입금대기, 입금완료, 타임아웃취소, 취소
+- 삭제 전 반드시 사용자에게 확인 받을 것
+- 검색: 캠페인ID, 상태, 리뷰어명/연락처/아이디로 필터링
+
+## 엑셀 데이터 정리
+- 사용자가 엑셀에서 복사해서 붙여넣은 텍스트를 캠페인 필드에 맞게 정리
+- 탭/줄바꿈으로 구분된 데이터를 파싱하여 필드별로 매핑
+- 정리된 결과를 보여주고, 등록할지 확인 받기
 """
 
 # Tool definitions for Claude
@@ -157,6 +169,55 @@ TOOLS = [
             "type": "object",
             "properties": {}
         }
+    },
+    {
+        "name": "search_progress",
+        "description": "진행 데이터(progress)를 검색합니다. 캠페인ID, 상태, 리뷰어명/연락처/아이디로 필터링.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "campaign_id": {"type": "string", "description": "캠페인 ID로 필터"},
+                "status": {"type": "string", "description": "상태 필터 (신청/가이드전달/구매캡쳐대기/리뷰대기/리뷰제출/입금대기/입금완료/타임아웃취소/취소)"},
+                "query": {"type": "string", "description": "리뷰어명, 연락처, 아이디 검색어"},
+                "page": {"type": "integer", "description": "페이지 번호 (기본 1)"},
+                "per_page": {"type": "integer", "description": "페이지당 건수 (기본 20)"}
+            }
+        }
+    },
+    {
+        "name": "update_progress",
+        "description": "진행건의 특정 필드를 수정합니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "progress_id": {"type": "integer", "description": "진행건 ID"},
+                "field": {"type": "string", "description": "한국어 필드명 (상태, 비고, 결제금액, 수취인명, 연락처, 은행, 계좌, 예금주, 주문번호, 리뷰비, 입금금액, 아이디, 닉네임, 주소, 구매일, 리뷰기한, 리뷰제출일)"},
+                "value": {"type": "string", "description": "변경할 값"}
+            },
+            "required": ["progress_id", "field", "value"]
+        }
+    },
+    {
+        "name": "delete_progress",
+        "description": "진행건을 삭제합니다. 되돌릴 수 없으므로 반드시 사용자 확인 후 호출하세요.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "progress_id": {"type": "integer", "description": "삭제할 진행건 ID"}
+            },
+            "required": ["progress_id"]
+        }
+    },
+    {
+        "name": "parse_excel_data",
+        "description": "사용자가 붙여넣은 엑셀/텍스트 데이터를 캠페인 필드 형식으로 파싱합니다. 탭/줄바꿈 구분 데이터를 분석하여 정리된 결과를 반환합니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "raw_text": {"type": "string", "description": "탭/줄바꿈으로 구분된 원본 텍스트"}
+            },
+            "required": ["raw_text"]
+        }
     }
 ]
 
@@ -173,14 +234,17 @@ class AICampaignChat:
 
     def _get_tools_for_portal(self, portal: str) -> list:
         """포탈별 사용 가능한 도구 필터링"""
+        _ADMIN_ONLY = {"search_progress", "update_progress", "delete_progress", "parse_excel_data"}
         if portal == "admin":
             return TOOLS  # 전체 접근
         elif portal == "agency":
-            # 대행사: 클라이언트 목록, 캠페인 CRUD, 대시보드
-            return [t for t in TOOLS if t["name"] != "list_agencies"]
+            # 대행사: 클라이언트 목록, 캠페인 CRUD, 대시보드 (진행데이터/엑셀 제외)
+            exclude = {"list_agencies"} | _ADMIN_ONLY
+            return [t for t in TOOLS if t["name"] not in exclude]
         else:  # client
-            # 클라이언트: 본인 캠페인만, 대행사/클라이언트 목록 제외
-            return [t for t in TOOLS if t["name"] not in ("list_agencies", "list_clients")]
+            # 클라이언트: 본인 캠페인만 (진행데이터/엑셀 제외)
+            exclude = {"list_agencies", "list_clients"} | _ADMIN_ONLY
+            return [t for t in TOOLS if t["name"] not in exclude]
 
     def _get_system_prompt(self, portal: str) -> str:
         """포탈별 시스템 프롬프트 조정"""
@@ -285,6 +349,15 @@ class AICampaignChat:
                 return self._do_list_clients(portal, owner_id)
             elif name == "list_agencies":
                 return self._do_list_agencies()
+            elif name == "search_progress":
+                return self._do_search_progress(input_data)
+            elif name == "update_progress":
+                return self._do_update_progress(input_data)
+            elif name == "delete_progress":
+                return self._do_delete_progress(input_data)
+            elif name == "parse_excel_data":
+                return {"ok": True, "raw_text": input_data.get("raw_text", ""),
+                        "hint": "이 텍스트를 분석하여 캠페인 필드에 매핑하세요. 헤더행이 있으면 활용하고, 없으면 값 패턴으로 추론하세요."}
             else:
                 return {"ok": False, "error": f"알 수 없는 도구: {name}"}
         except Exception as e:
@@ -501,6 +574,68 @@ class AICampaignChat:
             agencies = db._fetchall("SELECT id, company_name, login_id FROM agencies ORDER BY company_name")
             result = [{"id": a["id"], "대행사명": a["company_name"], "로그인ID": a["login_id"]} for a in agencies]
             return {"ok": True, "agencies": result, "total": len(result)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def _do_search_progress(self, data: dict) -> dict:
+        """진행건 검색"""
+        db = models.db_manager
+        if not db:
+            return {"ok": False, "error": "DB 연결 없음"}
+        campaign_id = data.get("campaign_id", "")
+        status = data.get("status", "")
+        query = data.get("query", "")
+        page = data.get("page", 1) or 1
+        per_page = min(data.get("per_page", 20) or 20, 50)
+        items, total = db.get_progress_page(page, per_page, campaign_id, status, query)
+        # 간략화: 주요 필드만 반환
+        brief = []
+        for it in items:
+            brief.append({
+                "id": it.get("id"),
+                "캠페인ID": it.get("캠페인ID", ""),
+                "제품명": it.get("제품명", ""),
+                "진행자이름": it.get("진행자이름", ""),
+                "진행자연락처": it.get("진행자연락처", ""),
+                "아이디": it.get("아이디", ""),
+                "상태": it.get("상태", ""),
+                "결제금액": it.get("결제금액", ""),
+                "리뷰비": it.get("리뷰비", ""),
+                "입금금액": it.get("입금금액", ""),
+                "비고": it.get("비고", ""),
+                "날짜": it.get("날짜", ""),
+            })
+        return {"ok": True, "items": brief, "total": total, "page": page, "per_page": per_page}
+
+    def _do_update_progress(self, data: dict) -> dict:
+        """진행건 필드 수정"""
+        db = models.db_manager
+        if not db:
+            return {"ok": False, "error": "DB 연결 없음"}
+        progress_id = data.get("progress_id")
+        field = data.get("field", "")
+        value = data.get("value", "")
+        if not progress_id or not field:
+            return {"ok": False, "error": "progress_id와 field가 필요합니다"}
+        try:
+            db.update_progress_field(int(progress_id), field, value)
+            return {"ok": True, "message": f"진행건 {progress_id}의 {field}을(를) '{value}'로 변경했습니다."}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def _do_delete_progress(self, data: dict) -> dict:
+        """진행건 삭제"""
+        db = models.db_manager
+        if not db:
+            return {"ok": False, "error": "DB 연결 없음"}
+        progress_id = data.get("progress_id")
+        if not progress_id:
+            return {"ok": False, "error": "progress_id가 필요합니다"}
+        try:
+            result = db.delete_progress(int(progress_id))
+            if result:
+                return {"ok": True, "message": f"진행건 {progress_id} 삭제 완료"}
+            return {"ok": False, "error": f"진행건 {progress_id}을(를) 찾을 수 없습니다"}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
