@@ -8,9 +8,18 @@
     <div class="ai-chat-header">
         <span class="ai-chat-title">AI 캠페인 관리</span>
         <div style="display:flex;gap:4px;">
+            <button class="ai-chat-hdr-btn" onclick="toggleSessionList()" title="대화 목록" id="aiHistBtn">📋</button>
             <button class="ai-chat-hdr-btn" onclick="toggleAiSize()" title="크게/작게" id="aiSizeBtn">⤢</button>
             <button class="ai-chat-hdr-btn" onclick="resetAiChat()" title="새 대화">↻</button>
             <button class="ai-chat-hdr-btn" onclick="toggleAiChat()" title="닫기">&times;</button>
+        </div>
+    </div>
+    <!-- 세션 목록 패널 -->
+    <div id="aiSessionList" style="display:none;flex:1;overflow-y:auto;background:#f8fafc;padding:12px;">
+        <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">최근 대화</div>
+        <div id="aiSessionItems"></div>
+        <div style="margin-top:12px;text-align:center;">
+            <button onclick="startNewSession()" style="padding:8px 20px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">+ 새 대화 시작</button>
         </div>
     </div>
     <div class="ai-chat-messages" id="aiChatMessages">
@@ -197,6 +206,40 @@
 .ai-chat-send:hover { background: #2563eb; }
 .ai-chat-send:disabled { background: #93c5fd; cursor: not-allowed; }
 
+.ai-session-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ai-session-item:hover { background: #eff6ff; border-color: #93c5fd; }
+.ai-session-item.active { background: #dbeafe; border-color: #3b82f6; }
+.ai-session-title {
+    flex: 1;
+    font-size: 13px;
+    color: #1f2937;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ai-session-time { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+.ai-session-del {
+    background: none;
+    border: none;
+    color: #d1d5db;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+.ai-session-del:hover { color: #ef4444; }
+
 /* 모바일 */
 @media (max-width: 640px) {
     #aiChatPanel, #aiChatPanel.ai-expanded {
@@ -220,39 +263,199 @@
     var chatInput = document.getElementById('aiChatInput');
     var sendBtn = document.getElementById('aiSendBtn');
     var panel = document.getElementById('aiChatPanel');
+    var sessionListPanel = document.getElementById('aiSessionList');
+    var sessionItems = document.getElementById('aiSessionItems');
 
-    // localStorage로 대화 유지
-    var _storageKey = 'kabiseo_ai_chat';
-    try {
-        var saved = localStorage.getItem(_storageKey);
-        if (saved) {
-            var parsed = JSON.parse(saved);
-            _aiMessages = parsed.messages || [];
-            if (parsed.display && parsed.display.length > 0) {
-                chatBox.innerHTML = '';
-                parsed.display.forEach(function(d) {
-                    _addMsgEl(d.role, d.text, d.html);
-                });
-            }
+    // ──────── 세션 관리 ────────
+    var _sessionsKey = 'kabiseo_ai_sessions';
+    var _currentKey = 'kabiseo_ai_current';
+    var _currentSessionId = null;
+    var MAX_SESSIONS = 20;
+
+    function _getSessions() {
+        try { return JSON.parse(localStorage.getItem(_sessionsKey)) || []; } catch(e) { return []; }
+    }
+    function _saveSessions(list) {
+        try { localStorage.setItem(_sessionsKey, JSON.stringify(list.slice(0, MAX_SESSIONS))); } catch(e) {}
+    }
+    function _genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+    function _getTitle() {
+        for (var i = 0; i < _aiMessages.length; i++) {
+            if (_aiMessages[i].role === 'user') return _aiMessages[i].content.slice(0, 40);
         }
-    } catch(e) {}
+        return '새 대화';
+    }
+    function _fmtTime(ts) {
+        var d = new Date(ts);
+        return (d.getMonth()+1) + '/' + d.getDate() + ' ' +
+               d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+    }
 
-    function _saveChatState() {
+    function _saveCurrentSession() {
+        if (!_currentSessionId) return;
         try {
-            var msgs = [];
+            var display = [];
             chatBox.querySelectorAll('.ai-msg').forEach(function(el) {
-                msgs.push({
+                display.push({
                     role: el.classList.contains('user') ? 'user' : 'ai',
                     text: el.textContent,
                     html: el.innerHTML !== el.textContent ? el.innerHTML : undefined
                 });
             });
-            localStorage.setItem(_storageKey, JSON.stringify({
-                messages: _aiMessages,
-                display: msgs
-            }));
+            var sessions = _getSessions();
+            var found = false;
+            for (var i = 0; i < sessions.length; i++) {
+                if (sessions[i].id === _currentSessionId) {
+                    sessions[i].messages = _aiMessages;
+                    sessions[i].display = display;
+                    sessions[i].title = _getTitle();
+                    sessions[i].updated = Date.now();
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && _aiMessages.length > 0) {
+                sessions.unshift({
+                    id: _currentSessionId,
+                    title: _getTitle(),
+                    messages: _aiMessages,
+                    display: display,
+                    created: Date.now(),
+                    updated: Date.now()
+                });
+            }
+            sessions.sort(function(a,b) { return b.updated - a.updated; });
+            _saveSessions(sessions);
+            localStorage.setItem(_currentKey, _currentSessionId);
         } catch(e) {}
     }
+
+    function _loadSession(sessionId) {
+        var sessions = _getSessions();
+        for (var i = 0; i < sessions.length; i++) {
+            if (sessions[i].id === sessionId) {
+                _currentSessionId = sessionId;
+                _aiMessages = sessions[i].messages || [];
+                chatBox.innerHTML = '';
+                if (sessions[i].display && sessions[i].display.length > 0) {
+                    sessions[i].display.forEach(function(d) {
+                        _addMsgEl(d.role, d.text, d.html);
+                    });
+                } else {
+                    chatBox.innerHTML = '<div class="ai-msg ai">안녕하세요! 캠페인 등록/수정, 진행 데이터 조회/수정, 엑셀 정리를 도와드립니다.</div>';
+                }
+                localStorage.setItem(_currentKey, sessionId);
+                _hideSessionList();
+                return;
+            }
+        }
+    }
+
+    function _startNew() {
+        _saveCurrentSession();
+        _currentSessionId = _genId();
+        _aiMessages = [];
+        chatBox.innerHTML = '<div class="ai-msg ai">안녕하세요! 캠페인 등록/수정, 진행 데이터 조회/수정, 엑셀 정리를 도와드립니다.</div>';
+        localStorage.setItem(_currentKey, _currentSessionId);
+        fetch('/admin/api/ai-chat/reset', {method: 'POST'});
+        _hideSessionList();
+    }
+
+    // 초기화: 마지막 세션 불러오기
+    var lastId = localStorage.getItem(_currentKey);
+    if (lastId) {
+        var sessions = _getSessions();
+        var found = sessions.find(function(s) { return s.id === lastId; });
+        if (found) {
+            _currentSessionId = lastId;
+            _aiMessages = found.messages || [];
+            if (found.display && found.display.length > 0) {
+                chatBox.innerHTML = '';
+                found.display.forEach(function(d) { _addMsgEl(d.role, d.text, d.html); });
+            }
+        } else {
+            _currentSessionId = _genId();
+            localStorage.setItem(_currentKey, _currentSessionId);
+        }
+    } else {
+        _currentSessionId = _genId();
+        localStorage.setItem(_currentKey, _currentSessionId);
+    }
+
+    // 하위호환: 기존 단일 저장 데이터 마이그레이션
+    try {
+        var oldData = localStorage.getItem('kabiseo_ai_chat');
+        if (oldData && _getSessions().length === 0) {
+            var parsed = JSON.parse(oldData);
+            if (parsed.messages && parsed.messages.length > 0) {
+                _aiMessages = parsed.messages;
+                var sessions = [{
+                    id: _currentSessionId,
+                    title: _getTitle(),
+                    messages: parsed.messages,
+                    display: parsed.display || [],
+                    created: Date.now(),
+                    updated: Date.now()
+                }];
+                _saveSessions(sessions);
+            }
+            localStorage.removeItem('kabiseo_ai_chat');
+        }
+    } catch(e) {}
+
+    function _saveChatState() { _saveCurrentSession(); }
+
+    // ──────── 세션 목록 UI ────────
+    function _renderSessionList() {
+        var sessions = _getSessions();
+        sessionItems.innerHTML = '';
+        if (sessions.length === 0) {
+            sessionItems.innerHTML = '<div style="text-align:center;color:#9ca3af;font-size:13px;padding:20px;">저장된 대화가 없습니다.</div>';
+            return;
+        }
+        sessions.forEach(function(s) {
+            var div = document.createElement('div');
+            div.className = 'ai-session-item' + (s.id === _currentSessionId ? ' active' : '');
+            div.innerHTML =
+                '<div class="ai-session-title">' + (s.title || '새 대화').replace(/</g,'&lt;') + '</div>' +
+                '<span class="ai-session-time">' + _fmtTime(s.updated) + '</span>' +
+                '<button class="ai-session-del" title="삭제">&times;</button>';
+            div.querySelector('.ai-session-title').addEventListener('click', function() {
+                _saveCurrentSession();
+                _loadSession(s.id);
+            });
+            div.querySelector('.ai-session-del').addEventListener('click', function(e) {
+                e.stopPropagation();
+                var list = _getSessions().filter(function(x) { return x.id !== s.id; });
+                _saveSessions(list);
+                if (s.id === _currentSessionId) _startNew();
+                _renderSessionList();
+            });
+            sessionItems.appendChild(div);
+        });
+    }
+
+    var _sessionListOpen = false;
+    function _hideSessionList() {
+        _sessionListOpen = false;
+        sessionListPanel.style.display = 'none';
+        chatBox.style.display = '';
+        document.querySelector('.ai-chat-input-area').style.display = '';
+    }
+
+    window.toggleSessionList = function() {
+        _sessionListOpen = !_sessionListOpen;
+        if (_sessionListOpen) {
+            _renderSessionList();
+            sessionListPanel.style.display = 'block';
+            chatBox.style.display = 'none';
+            document.querySelector('.ai-chat-input-area').style.display = 'none';
+        } else {
+            _hideSessionList();
+        }
+    };
+    window.startNewSession = _startNew;
 
     function _linkify(text) {
         // /admin/api/ai-export/... → 다운로드 버튼
@@ -399,10 +602,8 @@
     };
 
     window.resetAiChat = function() {
-        _aiMessages = [];
-        chatBox.innerHTML = '<div class="ai-msg ai">\uc548\ub155\ud558\uc138\uc694! \uce94\ud398\uc778 \ub4f1\ub85d/\uc218\uc815, \uc9c4\ud589 \ub370\uc774\ud130 \uc870\ud68c/\uc218\uc815, \uc5d1\uc140 \uc815\ub9ac\ub97c \ub3c4\uc640\ub4dc\ub9bd\ub2c8\ub2e4.</div>';
-        try { localStorage.removeItem(_storageKey); } catch(e) {}
-        fetch('/admin/api/ai-chat/reset', {method: 'POST'});
+        _saveCurrentSession();
+        _startNew();
     };
 })();
 </script>
