@@ -1102,7 +1102,7 @@ def campaign_draft_delete(campaign_id):
     """임시저장 삭제"""
     if not models.db_manager:
         return jsonify({"ok": False, "error": "시스템 초기화 중"}), 500
-    ok = models.db_manager.delete_campaign(campaign_id)
+    ok = models.db_manager.delete_draft_campaign(campaign_id)
     return jsonify({"ok": ok})
 
 

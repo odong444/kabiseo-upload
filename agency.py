@@ -411,7 +411,7 @@ def campaign_draft_delete(campaign_id):
         return jsonify({"ok": False, "error": "임시저장 캠페인이 아닙니다."}), 404
     if str(campaign.get("대행사ID", "")) != str(agency_id):
         return jsonify({"ok": False, "error": "접근 권한이 없습니다."}), 403
-    ok = models.db_manager.delete_campaign(campaign_id)
+    ok = models.db_manager.delete_draft_campaign(campaign_id)
     return jsonify({"ok": ok})
 
 

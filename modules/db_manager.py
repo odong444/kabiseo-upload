@@ -2741,8 +2741,8 @@ class DBManager:
             )
         return [self._campaign_to_sheet_dict(r) for r in rows]
 
-    def delete_campaign(self, campaign_id: str) -> bool:
-        """캠페인 삭제 (임시저장 상태인 경우만)"""
+    def delete_draft_campaign(self, campaign_id: str) -> bool:
+        """임시저장 캠페인 삭제"""
         row = self._fetchone("SELECT status FROM campaigns WHERE id = %s", (campaign_id,))
         if not row or row["status"] != "임시저장":
             return False
