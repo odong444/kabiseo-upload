@@ -2993,15 +2993,18 @@ def ai_register():
 @admin_required
 def api_ai_chat():
     from modules.ai_campaign_chat import get_chat_engine
-    data = request.get_json()
+    data = request.get_json() or {}
     messages = data.get("messages", [])
     try:
         engine = get_chat_engine()
         result = engine.chat(messages, portal="admin")
-        return jsonify({"ok": True, "reply": result["reply"], "messages": result["messages"]})
+        reply = result.get("reply", "")
+        if not reply:
+            reply = "응답을 생성하지 못했습니다. 다시 시도해주세요."
+        return jsonify({"ok": True, "reply": reply, "messages": result.get("messages", messages)})
     except Exception as e:
         logger.error(f"AI chat error: {e}", exc_info=True)
-        return jsonify({"ok": False, "error": str(e)})
+        return jsonify({"ok": False, "error": f"AI 오류: {str(e)[:200]}"})
 
 @admin_bp.route("/api/ai-chat/reset", methods=["POST"])
 @admin_required

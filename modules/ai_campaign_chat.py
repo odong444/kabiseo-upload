@@ -163,11 +163,13 @@ TOOLS = [
     },
     {
         "name": "list_campaigns",
-        "description": "캠페인 목록을 조회합니다. 상태 필터링, 페이지네이션 지원.",
+        "description": "캠페인 목록을 조회합니다. 상태, 업체명, 캠페인명으로 필터링 가능.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "status": {"type": "string", "description": "상태 필터 (모집중/진행중/마감/종료 등)"},
+                "company": {"type": "string", "description": "업체명으로 필터 (부분일치)"},
+                "search": {"type": "string", "description": "캠페인명/상품명 검색 (부분일치)"},
                 "page": {"type": "integer", "description": "페이지 번호 (기본 1)"},
                 "per_page": {"type": "integer", "description": "페이지당 건수 (기본 20)"}
             }
@@ -545,10 +547,26 @@ class AICampaignChat:
             return {"ok": False, "error": "DB 연결 없음"}
 
         status = data.get("status", "")
-        page = data.get("page", 1)
-        per_page = data.get("per_page", 20)
+        company = data.get("company", "")
+        search = data.get("search", "")
+        page = data.get("page", 1) or 1
+        per_page = min(data.get("per_page", 20) or 20, 50)
 
-        if portal == "admin":
+        # 업체명/검색어 필터가 있으면 전체 조회 후 필터
+        if company or search:
+            all_campaigns = self._get_filtered_campaigns(portal, owner_id)
+            if status:
+                all_campaigns = [c for c in all_campaigns if c.get("상태") == status]
+            if company:
+                all_campaigns = [c for c in all_campaigns if company.lower() in (c.get("업체명", "") or "").lower()]
+            if search:
+                all_campaigns = [c for c in all_campaigns
+                                 if search.lower() in (c.get("캠페인명", "") or "").lower()
+                                 or search.lower() in (c.get("상품명", "") or "").lower()]
+            total = len(all_campaigns)
+            start = (page - 1) * per_page
+            campaigns = all_campaigns[start:start + per_page]
+        elif portal == "admin":
             campaigns, total = db.get_campaigns_page(page, per_page, status)
         else:
             all_campaigns = self._get_filtered_campaigns(portal, owner_id)
@@ -558,14 +576,23 @@ class AICampaignChat:
             start = (page - 1) * per_page
             campaigns = all_campaigns[start:start + per_page]
 
-        # Add stats
-        stats = db.get_campaign_stats() or {}
+        # 간략화: AI에 필요한 필드만 반환 (응답 크기 축소)
+        brief_campaigns = []
         for c in campaigns:
-            cid = c.get("캠페인ID", "")
-            if cid in stats:
-                c["_stats"] = stats[cid]
+            brief_campaigns.append({
+                "캠페인ID": c.get("캠페인ID", ""),
+                "캠페인명": c.get("캠페인명", ""),
+                "상품명": c.get("상품명", ""),
+                "업체명": c.get("업체명", ""),
+                "플랫폼": c.get("플랫폼", ""),
+                "상태": c.get("상태", ""),
+                "총수량": c.get("총수량", ""),
+                "일수량": c.get("일수량", ""),
+                "결제금액": c.get("결제금액", ""),
+                "리뷰비": c.get("리뷰비", ""),
+            })
 
-        return {"ok": True, "campaigns": campaigns, "total": total, "page": page}
+        return {"ok": True, "campaigns": brief_campaigns, "total": total, "page": page}
 
     def _do_stats(self, portal: str, owner_id) -> dict:
         """대시보드 통계"""
