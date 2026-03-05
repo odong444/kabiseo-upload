@@ -131,6 +131,27 @@
         document.body.style.overflow = '';
     };
 
+    function formatDeadline(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr + 'T00:00:00+09:00');
+        const now = new Date(Date.now() + 9 * 3600000);
+        const todayStr = now.toISOString().slice(0, 10);
+        const diff = Math.ceil((d - new Date(todayStr + 'T00:00:00Z')) / 86400000);
+        const label = `${d.getUTCMonth()+1}/${d.getUTCDate()}`;
+        if (diff < 0) return `${label} (기한초과)`;
+        if (diff === 0) return `${label} (오늘까지)`;
+        if (diff === 1) return `${label} (내일까지)`;
+        return `${label} (${diff}일 남음)`;
+    }
+    function isDeadlineSoon(dateStr) {
+        if (!dateStr) return false;
+        const d = new Date(dateStr + 'T00:00:00+09:00');
+        const now = new Date(Date.now() + 9 * 3600000);
+        const todayStr = now.toISOString().slice(0, 10);
+        const diff = Math.ceil((d - new Date(todayStr + 'T00:00:00Z')) / 86400000);
+        return diff <= 1;
+    }
+
     function renderGroup(items, done = false) {
         const first = items[0];
         const hasRejected = items.some(i => i.remark && i.remark.startsWith('반려'));
@@ -190,6 +211,7 @@
                     <div class="info-row"><span class="label">업체</span><span>${first.store_name || ''}</span></div>
                     <div class="info-row"><span class="label">날짜</span><span>${first.date}</span></div>
                     ${first.review_fee ? `<div class="info-row"><span class="label">리뷰비</span><span>${Reviewer.formatNumber(first.review_fee)}원</span></div>` : ''}
+                    ${first.review_deadline ? `<div class="info-row"><span class="label">리뷰기한</span><span${isDeadlineSoon(first.review_deadline) ? ' style="color:#dc2626;font-weight:600"' : ''}>${formatDeadline(first.review_deadline)}</span></div>` : ''}
                     <div class="id-list-section">
                         <span class="label">아이디 (${items.length})</span>
                         ${idsHtml}

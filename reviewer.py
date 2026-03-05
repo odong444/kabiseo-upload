@@ -366,6 +366,7 @@ def api_my():
             "purchase_capture": item.get("구매캡쳐링크", ""),
             "review_capture": item.get("리뷰캡쳐링크", ""),
             "review_fee": item.get("리뷰비", ""),
+            "review_deadline": item.get("리뷰기한", ""),
             "remark": item.get("비고", ""),
         })
 
