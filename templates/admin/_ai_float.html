@@ -1,6 +1,6 @@
 <!-- AI 플로팅 채팅 버튼 + 패널 -->
 <button class="ai-float-btn" id="aiFloatBtn" onclick="toggleAiChat()" title="AI 캠페인 관리">
-    <span style="font-size:22px;">🤖</span>
+    <span style="font-size:44px;">🤖</span>
 </button>
 
 <div id="aiChatPanel" style="display:none;">
@@ -35,13 +35,14 @@
 .ai-float-btn {
     position: fixed;
     bottom: 24px;
-    right: 24px;
-    width: 52px;
-    height: 52px;
+    /* 1200px 콘텐츠 박스 우측 가장자리에 위치 (좁은 화면은 24px 유지) */
+    right: max(24px, calc(50% - 620px));
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
     background: #3b82f6;
     border: none;
-    box-shadow: 0 2px 12px rgba(59,130,246,0.35);
+    box-shadow: 0 4px 20px rgba(59,130,246,0.4);
     cursor: pointer;
     z-index: 200;
     display: flex;
@@ -49,13 +50,13 @@
     justify-content: center;
     transition: transform 0.2s, box-shadow 0.2s;
 }
-.ai-float-btn:hover { box-shadow: 0 4px 20px rgba(59,130,246,0.5); transform: scale(1.05); }
+.ai-float-btn:hover { box-shadow: 0 6px 28px rgba(59,130,246,0.55); transform: scale(1.05); }
 .ai-float-btn:active { transform: scale(0.92); }
 
 #aiChatPanel {
     position: fixed;
-    bottom: 84px;
-    right: 24px;
+    bottom: 132px;
+    right: max(24px, calc(50% - 620px));
     width: 480px;
     height: 680px;
     background: #fff;
@@ -249,7 +250,8 @@
         height: 90vh;
         border-radius: 16px 16px 0 0;
     }
-    .ai-float-btn { bottom: 16px; right: 16px; }
+    .ai-float-btn { bottom: 16px; right: 16px; width: 64px; height: 64px; }
+    .ai-float-btn span { font-size: 30px !important; }
     .ai-chat-resize { display: none; }
 }
 </style>
