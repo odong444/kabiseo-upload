@@ -635,6 +635,16 @@ class DBManager:
         # 하위 호환: 시트 컬럼명 매핑
         return [self._campaign_to_sheet_dict(r) for r in rows]
 
+    def get_campaigns_simple(self) -> list[dict]:
+        """드롭다운/필터용 경량 캠페인 목록 (id + 이름만)"""
+        return self._fetchall(
+            """SELECT id AS "캠페인ID",
+                      COALESCE(NULLIF(campaign_name,''), product_name) AS "캠페인명",
+                      company AS "업체명", status AS "상태"
+               FROM campaigns WHERE status != '임시저장'
+               ORDER BY created_at DESC"""
+        )
+
     def get_campaigns_page(self, page: int = 1, per_page: int = 20,
                            status: str = "", company: str = "",
                            search: str = "") -> tuple[list, int]:
@@ -1062,56 +1072,81 @@ class DBManager:
         except (ValueError, TypeError):
             return 0
 
+    def _progress_rows_to_sheet_dicts(self, rows: list[dict]) -> list[dict]:
+        """progress DB rows → 시트 컬럼명 dict 리스트 (배치 조회로 N+1 제거)"""
+        if not rows:
+            return []
+        # 필요한 reviewer_id, campaign_id 일괄 수집
+        reviewer_ids = list({r["reviewer_id"] for r in rows if r.get("reviewer_id")})
+        campaign_ids = list({r["campaign_id"] for r in rows if r.get("campaign_id")})
+
+        # 일괄 조회 (2 쿼리로 끝)
+        reviewer_map = {}
+        if reviewer_ids:
+            rrows = self._fetchall(
+                "SELECT * FROM reviewers WHERE id = ANY(%s)", (reviewer_ids,)
+            )
+            reviewer_map = {r["id"]: r for r in rrows}
+
+        campaign_map = {}
+        if campaign_ids:
+            crows = self._fetchall(
+                "SELECT * FROM campaigns WHERE id = ANY(%s)", (campaign_ids,)
+            )
+            campaign_map = {r["id"]: self._campaign_to_sheet_dict(r) for r in crows}
+
+        results = []
+        for row in rows:
+            reviewer = reviewer_map.get(row.get("reviewer_id"), {})
+            campaign = campaign_map.get(row.get("campaign_id"), {})
+            results.append({
+                "_row_idx": row["id"],
+                "id": row["id"],
+                "캠페인ID": row.get("campaign_id", ""),
+                "업체명": campaign.get("업체명", "") if campaign else "",
+                "날짜": row["created_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("created_at") else "",
+                "created_at_iso": row["created_at"].astimezone(KST).isoformat() if row.get("created_at") else "",
+                "제품명": (campaign.get("캠페인명", "") or campaign.get("상품명", "")) if campaign else "",
+                "수취인명": row.get("recipient_name", ""),
+                "연락처": row.get("phone", ""),
+                "은행": row.get("bank", ""),
+                "계좌": row.get("account", ""),
+                "예금주": row.get("depositor", ""),
+                "결제금액": str(row.get("payment_amount", 0) or ""),
+                "아이디": row.get("store_id", ""),
+                "주문번호": row.get("order_number", ""),
+                "주소": row.get("address", ""),
+                "닉네임": row.get("nickname", ""),
+                "진행자이름": reviewer.get("name", "") if reviewer else "",
+                "진행자연락처": reviewer.get("phone", "") if reviewer else "",
+                "카카오친구": reviewer.get("kakao_friend", False) if reviewer else False,
+                "상태": row.get("status", ""),
+                "구매일": str(row["purchase_date"]) if row.get("purchase_date") else "",
+                "구매캡쳐링크": row.get("purchase_capture_url", ""),
+                "리뷰기한": str(row["review_deadline"]) if row.get("review_deadline") else "",
+                "리뷰제출일": str(row["review_submit_date"]) if row.get("review_submit_date") else "",
+                "리뷰캡쳐링크": row.get("review_capture_url", ""),
+                "리뷰비": str(row.get("review_fee", 0) or ""),
+                "입금금액": str(row.get("payment_total", 0) or ""),
+                "입금정리": str(row["settlement_date"]) if row.get("settlement_date") else "",
+                "입금완료": str(row["settled_date"]) if row.get("settled_date") else "",
+                "회수여부": "Y" if row.get("is_collected") else "",
+                "비고": row.get("remark", ""),
+                "AI구매검수": row.get("ai_purchase_result", ""),
+                "AI구매사유": row.get("ai_purchase_reason", ""),
+                "AI리뷰검수": row.get("ai_review_result", ""),
+                "AI리뷰사유": row.get("ai_review_reason", ""),
+                "AI검수시간": row["ai_verified_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("ai_verified_at") else "",
+                "AI관리자판정": row.get("ai_override", ""),
+                "사진세트": row.get("photo_set_number"),
+            })
+        return results
+
     def _progress_to_sheet_dict(self, row: dict) -> dict:
-        """progress DB row → 시트 컬럼명 dict (하위 호환)"""
+        """progress DB row → 시트 컬럼명 dict (단건 하위 호환)"""
         if not row:
             return {}
-        # reviewer 정보 조회
-        reviewer = self.get_reviewer_by_id(row["reviewer_id"]) if row.get("reviewer_id") else {}
-        campaign = self.get_campaign_by_id(row["campaign_id"]) if row.get("campaign_id") else {}
-
-        result = {
-            "_row_idx": row["id"],
-            "id": row["id"],
-            "캠페인ID": row.get("campaign_id", ""),
-            "업체명": campaign.get("업체명", "") if campaign else "",
-            "날짜": row["created_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("created_at") else "",
-            "created_at_iso": row["created_at"].astimezone(KST).isoformat() if row.get("created_at") else "",
-            "제품명": (campaign.get("캠페인명", "") or campaign.get("상품명", "")) if campaign else "",
-            "수취인명": row.get("recipient_name", ""),
-            "연락처": row.get("phone", ""),
-            "은행": row.get("bank", ""),
-            "계좌": row.get("account", ""),
-            "예금주": row.get("depositor", ""),
-            "결제금액": str(row.get("payment_amount", 0) or ""),
-            "아이디": row.get("store_id", ""),
-            "주문번호": row.get("order_number", ""),
-            "주소": row.get("address", ""),
-            "닉네임": row.get("nickname", ""),
-            "진행자이름": reviewer.get("name", "") if reviewer else "",
-            "진행자연락처": reviewer.get("phone", "") if reviewer else "",
-            "카카오친구": reviewer.get("kakao_friend", False) if reviewer else False,
-            "상태": row.get("status", ""),
-            "구매일": str(row["purchase_date"]) if row.get("purchase_date") else "",
-            "구매캡쳐링크": row.get("purchase_capture_url", ""),
-            "리뷰기한": str(row["review_deadline"]) if row.get("review_deadline") else "",
-            "리뷰제출일": str(row["review_submit_date"]) if row.get("review_submit_date") else "",
-            "리뷰캡쳐링크": row.get("review_capture_url", ""),
-            "리뷰비": str(row.get("review_fee", 0) or ""),
-            "입금금액": str(row.get("payment_total", 0) or ""),
-            "입금정리": str(row["settlement_date"]) if row.get("settlement_date") else "",
-            "입금완료": str(row["settled_date"]) if row.get("settled_date") else "",
-            "회수여부": "Y" if row.get("is_collected") else "",
-            "비고": row.get("remark", ""),
-            "AI구매검수": row.get("ai_purchase_result", ""),
-            "AI구매사유": row.get("ai_purchase_reason", ""),
-            "AI리뷰검수": row.get("ai_review_result", ""),
-            "AI리뷰사유": row.get("ai_review_reason", ""),
-            "AI검수시간": row["ai_verified_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("ai_verified_at") else "",
-            "AI관리자판정": row.get("ai_override", ""),
-            "사진세트": row.get("photo_set_number"),
-        }
-        return result
+        return self._progress_rows_to_sheet_dicts([row])[0]
 
     def search_by_name_phone(self, name: str, phone: str) -> list[dict]:
         """진행자 이름+연락처로 전체 건 검색"""
@@ -1122,7 +1157,7 @@ class DBManager:
             "SELECT * FROM progress WHERE reviewer_id = %s ORDER BY created_at DESC",
             (reviewer["id"],)
         )
-        return [self._progress_to_sheet_dict(r) for r in rows]
+        return self._progress_rows_to_sheet_dicts(rows)
 
     def search_by_depositor(self, capture_type: str, name: str) -> list[dict]:
         """예금주명으로 검색"""
@@ -1131,7 +1166,7 @@ class DBManager:
             "SELECT * FROM progress WHERE depositor = %s AND status = %s",
             (name, target_status)
         )
-        return [self._progress_to_sheet_dict(r) for r in rows]
+        return self._progress_rows_to_sheet_dicts(rows)
 
     def search_by_name_phone_or_depositor(self, capture_type: str, query: str,
                                            phone: str = "") -> list[dict]:
@@ -1160,7 +1195,7 @@ class DBManager:
             if r["id"] not in existing_ids:
                 results.append(r)
 
-        return [self._progress_to_sheet_dict(r) for r in results]
+        return self._progress_rows_to_sheet_dicts(results)
 
     def get_reviewer_items(self, name: str, phone: str) -> dict:
         """리뷰어의 진행현황: 진행중/완료 분류"""
@@ -1356,7 +1391,7 @@ class DBManager:
     def get_all_reviewers(self) -> list[dict]:
         """전체 progress 목록 (시트 호환)"""
         rows = self._fetchall("SELECT * FROM progress ORDER BY created_at DESC")
-        return [self._progress_to_sheet_dict(r) for r in rows]
+        return self._progress_rows_to_sheet_dicts(rows)
 
     def get_progress_page(self, page: int = 1, per_page: int = 50,
                           campaign_id: str = "", status: str = "",
@@ -2614,6 +2649,14 @@ class DBManager:
             "SELECT * FROM client_brands WHERE client_id = %s ORDER BY brand_name",
             (client_id,)
         )
+
+    def get_all_client_brands(self) -> dict:
+        """전체 클라이언트 브랜드를 {client_id: [brands]} 맵으로 반환 (N+1 제거용)"""
+        rows = self._fetchall("SELECT * FROM client_brands ORDER BY brand_name")
+        result = {}
+        for r in rows:
+            result.setdefault(r["client_id"], []).append(r)
+        return result
 
     def add_client_brand(self, client_id: int, brand_name: str) -> int:
         return self._execute_returning(
