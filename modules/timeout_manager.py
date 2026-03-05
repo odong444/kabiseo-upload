@@ -152,9 +152,41 @@ class TimeoutManager:
                 self._do_timeout_cancel(state)
                 continue
 
-            # 25분 초과 → 경고 (1회만)
+            # 25분 초과 → 경고 (DB 기반 중복방지)
             if elapsed >= self.warning and rid not in self._warned:
-                self._send_warning(state)
+                # DB에서 이미 경고 보냈는지 확인
+                already_warned = False
+                if self._db_manager:
+                    try:
+                        campaign_id = state.temp_data.get("campaign", {}).get("캠페인ID", "")
+                        store_ids = state.temp_data.get("store_ids", [])
+                        if campaign_id and store_ids:
+                            chk = self._db_manager._fetchone(
+                                """SELECT 1 FROM progress
+                                   WHERE campaign_id = %s AND store_id = ANY(%s)
+                                   AND status IN ('신청', '가이드전달')
+                                   AND timeout_warned_at IS NOT NULL LIMIT 1""",
+                                (campaign_id, store_ids)
+                            )
+                            already_warned = chk is not None
+                    except Exception:
+                        pass
+                if not already_warned:
+                    self._send_warning(state)
+                    # DB에 경고 시각 기록
+                    if self._db_manager:
+                        try:
+                            campaign_id = state.temp_data.get("campaign", {}).get("캠페인ID", "")
+                            store_ids = state.temp_data.get("store_ids", [])
+                            if campaign_id and store_ids:
+                                self._db_manager._execute(
+                                    """UPDATE progress SET timeout_warned_at = NOW()
+                                       WHERE campaign_id = %s AND store_id = ANY(%s)
+                                       AND status IN ('신청', '가이드전달')""",
+                                    (campaign_id, store_ids)
+                                )
+                        except Exception:
+                            pass
                 self._warned.add(rid)
 
     def _send_warning(self, state):
@@ -320,13 +352,13 @@ class TimeoutManager:
                 for sid in state.temp_data.get("store_ids", []):
                     active_keys.add((campaign_id, sid))
 
-        # 신청/가이드전달 상태 전체 조회 (buy_time 포함)
+        # 신청/가이드전달 상태 전체 조회 (buy_time 포함, 이미 경고 보낸 건 제외)
         rows = self._db_manager._fetchall(
             """SELECT p.id, p.campaign_id, p.store_id, p.created_at,
                       r.name, r.phone,
                       COALESCE(NULLIF(c.campaign_name, ''), c.product_name, '') AS product_name,
                       COALESCE(p.recipient_name, '') AS recipient_name,
-                      c.buy_time
+                      c.buy_time, p.timeout_warned_at
                FROM progress p
                JOIN reviewers r ON p.reviewer_id = r.id
                LEFT JOIN campaigns c ON p.campaign_id = c.id
@@ -385,25 +417,33 @@ class TimeoutManager:
             for r in group:
                 self._buy_time_notified.add(r["id"])
 
-        # ── 25분 경고 (카톡) ──
+        # ── 25분 경고 (카톡) — DB 기반 중복방지 ──
         for (name, phone), group in to_warn.items():
-            pid = group[0]["id"]
-            if pid in self._warned:
+            # 이미 경고 보낸 건이 하나라도 있으면 스킵
+            if any(r.get("timeout_warned_at") for r in group):
                 continue
-            self._warned.add(pid)
+            warn_ids = [r["id"] for r in group]
             if self._kakao_notifier:
                 try:
                     product = group[0].get("product_name", "")
                     recipient = group[0].get("recipient_name", "")
                     sids = ", ".join(r["store_id"] for r in group if r.get("store_id"))
                     if not product and not sids:
-                        logger.warning("DB 경고 스킵 (빈 캠페인): id=%s %s", pid, name)
-                        continue
-                    self._kakao_notifier.notify_timeout_warning(
-                        name, phone, product, recipient, sids)
-                    logger.info("DB 경고 발송: %s %s (%s)", name, phone, sids)
+                        logger.warning("DB 경고 스킵 (빈 캠페인): ids=%s %s", warn_ids, name)
+                    else:
+                        self._kakao_notifier.notify_timeout_warning(
+                            name, phone, product, recipient, sids)
+                        logger.info("DB 경고 발송: %s %s (%s)", name, phone, sids)
                 except Exception as e:
                     logger.warning("DB 경고 카톡 실패: %s", e)
+            # 경고 보낸 시각 DB에 기록 (카톡 실패해도 기록하여 재발송 방지)
+            try:
+                self._db_manager._execute(
+                    "UPDATE progress SET timeout_warned_at = NOW() WHERE id = ANY(%s)",
+                    (warn_ids,)
+                )
+            except Exception:
+                pass
 
         # ── 30분 취소 (DB + 카톡) ──
         all_cancel_ids = []

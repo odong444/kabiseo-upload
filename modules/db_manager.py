@@ -442,6 +442,11 @@ class DBManager:
                     cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS upload_pending TEXT DEFAULT ''")
                 except Exception:
                     pass
+                # 타임아웃 경고 중복방지
+                try:
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS timeout_warned_at TIMESTAMPTZ")
+                except Exception:
+                    pass
                 # 마이그레이션: progress.campaign_id FK를 ON DELETE SET NULL로 변경 + NOT NULL 해제
                 try:
                     cur.execute("""

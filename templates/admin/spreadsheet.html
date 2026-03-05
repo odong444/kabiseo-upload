@@ -602,9 +602,13 @@
                             <span class="remark-text">{{ item.get('비고', '') }}</span>
                             {% if item.get('구매캡쳐링크') %}
                             <button class="btn-capture purchase" onclick="event.stopPropagation();openCapture({{ item.get('_row_idx', 0) }},'purchase')" title="구매내역 캡쳐 보기">구매캡쳐</button>
+                            {% else %}
+                            <button class="btn-capture" style="background:#f5f3ff;color:#7c3aed;border-color:#c4b5fd;" onclick="event.stopPropagation();uploadCapture({{ item.get('_row_idx', 0) }},'purchase')" title="구매캡쳐 업로드">+구매</button>
                             {% endif %}
                             {% if item.get('리뷰캡쳐링크') %}
                             <button class="btn-capture review" onclick="event.stopPropagation();openCapture({{ item.get('_row_idx', 0) }},'review')" title="리뷰 캡쳐 보기">리뷰사진</button>
+                            {% else %}
+                            <button class="btn-capture" style="background:#f5f3ff;color:#7c3aed;border-color:#c4b5fd;" onclick="event.stopPropagation();uploadCapture({{ item.get('_row_idx', 0) }},'review')" title="리뷰캡쳐 업로드">+리뷰</button>
                             {% endif %}
                         </td>
                         <td style="white-space:nowrap;">
@@ -813,6 +817,28 @@
         if (e.key === 'ArrowLeft') captureNav(-1);
         else if (e.key === 'ArrowRight') captureNav(1);
     });
+
+    // --- 수동 캡쳐 업로드 ---
+    function uploadCapture(progressId, type) {
+        var label = type === 'purchase' ? '구매캡쳐' : '리뷰캡쳐';
+        var inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = 'image/*';
+        inp.multiple = true;
+        inp.onchange = function() {
+            if (!inp.files.length) return;
+            var fd = new FormData();
+            fd.append('type', type);
+            for (var i = 0; i < inp.files.length; i++) fd.append('files', inp.files[i]);
+            fetch('/admin/api/progress/' + progressId + '/upload-capture', {
+                method: 'POST', body: fd
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d.ok) { alert(label + ' 업로드 완료'); location.reload(); }
+                else { alert('실패: ' + (d.message || '오류')); }
+            });
+        };
+        inp.click();
+    }
 
     // --- Kakao Send ---
     var _kakaoIds = [];

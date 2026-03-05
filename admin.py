@@ -2418,6 +2418,41 @@ def api_progress_add():
         return jsonify({"ok": False, "message": str(e)})
 
 
+@admin_bp.route("/api/progress/<int:progress_id>/upload-capture", methods=["POST"])
+@admin_required
+def api_progress_upload_capture(progress_id):
+    """관리자 수동 캡쳐 이미지 업로드"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    capture_type = request.form.get("type", "purchase")  # purchase or review
+    if capture_type not in ("purchase", "review"):
+        return jsonify({"ok": False, "message": "잘못된 타입"})
+    files = request.files.getlist("files")
+    if not files:
+        return jsonify({"ok": False, "message": "파일이 없습니다"})
+    try:
+        row = models.db_manager.get_row_dict(progress_id)
+        if not row:
+            return jsonify({"ok": False, "message": "행을 찾을 수 없습니다"})
+        base = f"{capture_type}_{progress_id}"
+        for i, f in enumerate(files):
+            if not f or not f.filename:
+                continue
+            ext = os.path.splitext(f.filename)[1] or ".jpg"
+            suffix = f"_{i+1}" if len(files) > 1 else ""
+            filename = f"{base}{suffix}{ext}"
+            file_bytes = f.read()
+            models.db_manager.enqueue_drive_upload(
+                progress_id, capture_type, filename,
+                f.content_type or "image/jpeg", file_bytes
+            )
+        models.db_manager.set_upload_pending(progress_id, capture_type)
+        return jsonify({"ok": True, "message": f"{len(files)}장 업로드 대기"})
+    except Exception as e:
+        logger.error("수동 캡쳐 업로드 에러: %s", e, exc_info=True)
+        return jsonify({"ok": False, "message": str(e)})
+
+
 @admin_bp.route("/api/progress/delete", methods=["POST"])
 @admin_required
 def api_progress_delete():
