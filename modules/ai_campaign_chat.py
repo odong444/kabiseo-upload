@@ -239,14 +239,17 @@ TOOLS = [
     },
     {
         "name": "export_data",
-        "description": "요청된 데이터를 CSV 파일로 생성하여 다운로드 링크를 반환합니다. 캠페인 목록 또는 진행건 데이터를 내보낼 수 있습니다.",
+        "description": "요청된 데이터를 CSV 파일로 생성하여 다운로드 링크를 반환합니다. 캠페인 목록 또는 진행건 데이터를 내보낼 수 있습니다. 여러 필터를 조합하여 한 번에 내보낼 수 있습니다.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "type": {"type": "string", "enum": ["campaigns", "progress"], "description": "내보낼 데이터 종류"},
-                "campaign_id": {"type": "string", "description": "진행건 내보내기 시 캠페인 ID (선택)"},
+                "campaign_id": {"type": "string", "description": "캠페인 ID 필터 (선택)"},
+                "campaign_ids": {"type": "array", "items": {"type": "string"}, "description": "여러 캠페인 ID로 필터 (선택)"},
+                "company": {"type": "string", "description": "업체명 필터 - 부분일치 (선택)"},
+                "search": {"type": "string", "description": "캠페인명/상품명 검색 - 부분일치 (선택)"},
                 "status": {"type": "string", "description": "상태 필터 (선택)"},
-                "query": {"type": "string", "description": "검색어 (선택)"},
+                "query": {"type": "string", "description": "리뷰어 검색어 - progress용 (선택)"},
                 "columns": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -672,6 +675,10 @@ class AICampaignChat:
 
         row_count = 0
 
+        company_filter = data.get("company", "")
+        search_filter = data.get("search", "")
+        campaign_ids = data.get("campaign_ids", [])
+
         if export_type == "campaigns":
             columns = custom_columns or [
                 "캠페인ID", "캠페인명", "상품명", "업체명", "플랫폼", "캠페인유형",
@@ -683,6 +690,15 @@ class AICampaignChat:
             status_filter = data.get("status", "")
             if status_filter:
                 campaigns = [c for c in campaigns if c.get("상태") == status_filter]
+            if company_filter:
+                campaigns = [c for c in campaigns if company_filter.lower() in (c.get("업체명", "") or "").lower()]
+            if search_filter:
+                campaigns = [c for c in campaigns
+                             if search_filter.lower() in (c.get("캠페인명", "") or "").lower()
+                             or search_filter.lower() in (c.get("상품명", "") or "").lower()]
+            if campaign_ids:
+                id_set = set(campaign_ids)
+                campaigns = [c for c in campaigns if c.get("캠페인ID", "") in id_set]
             for c in campaigns:
                 writer.writerow([c.get(col, "") for col in columns])
             row_count = len(campaigns)
@@ -698,10 +714,20 @@ class AICampaignChat:
             campaign_id = data.get("campaign_id", "")
             status = data.get("status", "")
             query = data.get("query", "")
-            items, total = db.get_progress_page(1, 9999, campaign_id, status, query)
-            for it in items:
-                writer.writerow([it.get(col, "") for col in columns])
-            row_count = total
+            if campaign_ids:
+                # 여러 캠페인 합산
+                all_items = []
+                for cid in campaign_ids:
+                    items, _ = db.get_progress_page(1, 9999, cid, status, query)
+                    all_items.extend(items)
+                for it in all_items:
+                    writer.writerow([it.get(col, "") for col in columns])
+                row_count = len(all_items)
+            else:
+                items, total = db.get_progress_page(1, 9999, campaign_id, status, query)
+                for it in items:
+                    writer.writerow([it.get(col, "") for col in columns])
+                row_count = total
             filename = "progress"
         else:
             return {"ok": False, "error": f"알 수 없는 내보내기 유형: {export_type}"}
