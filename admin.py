@@ -2390,6 +2390,34 @@ def api_progress_bulk_extend():
     return jsonify({"ok": True, "done": done, "total": len(ids)})
 
 
+@admin_bp.route("/api/progress/add", methods=["POST"])
+@admin_required
+def api_progress_add():
+    """수동 행 추가"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "DB 미설정"})
+    data = request.get_json(silent=True) or {}
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+    store_id = data.get("store_id", "").strip()
+    campaign_id = data.get("campaign_id", "").strip()
+    status = data.get("status", "신청").strip()
+    if not name or not phone:
+        return jsonify({"ok": False, "message": "진행자 이름/연락처 필수"})
+    try:
+        pid = models.db_manager.add_progress({
+            "캠페인ID": campaign_id,
+            "진행자이름": name,
+            "진행자연락처": phone,
+            "아이디": store_id,
+            "상태": status,
+        })
+        return jsonify({"ok": True, "id": pid})
+    except Exception as e:
+        logger.error("수동 행 추가 에러: %s", e, exc_info=True)
+        return jsonify({"ok": False, "message": str(e)})
+
+
 @admin_bp.route("/api/progress/delete", methods=["POST"])
 @admin_required
 def api_progress_delete():

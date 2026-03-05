@@ -514,6 +514,7 @@
             <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#f0fdf4;color:#16a34a;font-weight:600;cursor:pointer;" onclick="bulkStatus()">상태변경</button>
             <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#eff6ff;color:#2563eb;font-weight:600;cursor:pointer;" onclick="bulkExtend()">일괄연장</button>
             <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#fef2f2;color:#dc2626;font-weight:600;cursor:pointer;" onclick="bulkDelete()">일괄삭제</button>
+            <button style="font-size:13px;padding:6px 16px;border:1px solid #ddd;border-radius:8px;background:#faf5ff;color:#7c3aed;font-weight:600;cursor:pointer;" onclick="openAddModal()">+ 수동추가</button>
             <span id="aiBatchResult" style="font-size:13px;color:#888;"></span>
         </div>
 
@@ -685,6 +686,45 @@
         </div>
     </div>
 
+    <!-- 수동추가 모달 -->
+    <div id="addModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center;">
+        <div style="background:#fff;border-radius:12px;padding:24px;max-width:420px;width:90%;box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="margin:0;">수동 행 추가</h3>
+                <button onclick="document.getElementById('addModal').style.display='none'" style="border:none;background:none;font-size:20px;cursor:pointer;">&times;</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:#555;">캠페인</label>
+                    <select id="addCampaign" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                        <option value="">미연결</option>
+                        {% for c in campaigns %}
+                        <option value="{{ c.get('캠페인ID','') }}">{{ c.get('캠페인명','') or c.get('상품명','') }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <div style="flex:1"><label style="font-size:12px;font-weight:600;color:#555;">진행자 이름 *</label><input id="addName" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>
+                    <div style="flex:1"><label style="font-size:12px;font-weight:600;color:#555;">연락처 *</label><input id="addPhone" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <div style="flex:1"><label style="font-size:12px;font-weight:600;color:#555;">아이디</label><input id="addStoreId" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;box-sizing:border-box;"></div>
+                    <div style="flex:1">
+                        <label style="font-size:12px;font-weight:600;color:#555;">상태</label>
+                        <select id="addStatus" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                            <option>신청</option><option>가이드전달</option><option>구매캡쳐대기</option>
+                            <option>리뷰대기</option><option>리뷰제출</option><option>입금대기</option><option>입금완료</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+                <button onclick="document.getElementById('addModal').style.display='none'" style="padding:8px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;">취소</button>
+                <button onclick="submitAdd()" style="padding:8px 16px;border:none;border-radius:6px;background:#7c3aed;color:#fff;cursor:pointer;font-weight:600;">추가</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 캡쳐 이미지 모달 -->
     <div id="captureModal" class="capture-modal-overlay">
         <div class="capture-modal">
@@ -817,6 +857,31 @@
             ids.push(parseInt(cb.value));
         });
         return ids;
+    }
+
+    function openAddModal() {
+        document.getElementById('addName').value = '';
+        document.getElementById('addPhone').value = '';
+        document.getElementById('addStoreId').value = '';
+        document.getElementById('addStatus').value = '신청';
+        document.getElementById('addModal').style.display = 'flex';
+    }
+    function submitAdd() {
+        var name = document.getElementById('addName').value.trim();
+        var phone = document.getElementById('addPhone').value.trim();
+        if (!name || !phone) { alert('진행자 이름과 연락처는 필수입니다.'); return; }
+        fetch('/admin/api/progress/add', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                campaign_id: document.getElementById('addCampaign').value,
+                name: name, phone: phone,
+                store_id: document.getElementById('addStoreId').value.trim(),
+                status: document.getElementById('addStatus').value
+            })
+        }).then(r => r.json()).then(d => {
+            if (d.ok) { alert('추가 완료 (ID: ' + d.id + ')'); location.reload(); }
+            else { alert('실패: ' + (d.message || '오류')); }
+        });
     }
 
     function bulkDelete() {
