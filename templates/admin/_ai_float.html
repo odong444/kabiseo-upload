@@ -221,10 +221,10 @@
     var sendBtn = document.getElementById('aiSendBtn');
     var panel = document.getElementById('aiChatPanel');
 
-    // sessionStorage로 대화 유지
+    // localStorage로 대화 유지
     var _storageKey = 'kabiseo_ai_chat';
     try {
-        var saved = sessionStorage.getItem(_storageKey);
+        var saved = localStorage.getItem(_storageKey);
         if (saved) {
             var parsed = JSON.parse(saved);
             _aiMessages = parsed.messages || [];
@@ -247,7 +247,7 @@
                     html: el.innerHTML !== el.textContent ? el.innerHTML : undefined
                 });
             });
-            sessionStorage.setItem(_storageKey, JSON.stringify({
+            localStorage.setItem(_storageKey, JSON.stringify({
                 messages: _aiMessages,
                 display: msgs
             }));
@@ -401,7 +401,7 @@
     window.resetAiChat = function() {
         _aiMessages = [];
         chatBox.innerHTML = '<div class="ai-msg ai">\uc548\ub155\ud558\uc138\uc694! \uce94\ud398\uc778 \ub4f1\ub85d/\uc218\uc815, \uc9c4\ud589 \ub370\uc774\ud130 \uc870\ud68c/\uc218\uc815, \uc5d1\uc140 \uc815\ub9ac\ub97c \ub3c4\uc640\ub4dc\ub9bd\ub2c8\ub2e4.</div>';
-        try { sessionStorage.removeItem(_storageKey); } catch(e) {}
+        try { localStorage.removeItem(_storageKey); } catch(e) {}
         fetch('/admin/api/ai-chat/reset', {method: 'POST'});
     };
 })();
