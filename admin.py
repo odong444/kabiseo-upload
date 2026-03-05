@@ -229,8 +229,8 @@ def campaigns():
         if today_target > 0 and today_done >= today_target and c.get("상태") in ("모집중", "진행중", ""):
             c["_daily_closed"] = True
 
-    pending_campaigns = [c for c in campaign_list if c.get("상태") in ("승인대기", "대행사승인", "반려")]
-    active_campaigns = [c for c in campaign_list if c.get("상태") not in ("승인대기", "대행사승인", "반려")]
+    pending_campaigns = [c for c in campaign_list if c.get("상태") in ("승인대기", "대행사승인")]
+    active_campaigns = [c for c in campaign_list if c.get("상태") not in ("승인대기", "대행사승인")]
 
     # 대행사 이름 매핑 (캠페인 목록에서 표시용)
     agency_map = {}
