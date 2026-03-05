@@ -1,12 +1,32 @@
 """AI 대화형 캠페인 관리 엔진 (Claude Sonnet)"""
+import csv
+import io
 import json
 import logging
 import os
+import time
+import uuid
 from anthropic import Anthropic
 
 import models
 
 logger = logging.getLogger(__name__)
+
+# CSV 내보내기 임시 저장소 (토큰 → {data, filename, created})
+_export_store = {}
+
+def _cleanup_exports():
+    """10분 이상 된 내보내기 파일 정리"""
+    now = time.time()
+    expired = [k for k, v in _export_store.items() if now - v["created"] > 600]
+    for k in expired:
+        del _export_store[k]
+
+def get_export(token: str) -> dict | None:
+    """토큰으로 내보내기 데이터 조회 (admin.py에서 사용)"""
+    _cleanup_exports()
+    return _export_store.pop(token, None)
+
 
 SYSTEM_PROMPT = """당신은 카비서 캠페인 관리 도우미입니다.
 캠페인 등록, 수정, 현황 조회를 대화형으로 처리합니다.
@@ -209,6 +229,25 @@ TOOLS = [
         }
     },
     {
+        "name": "export_data",
+        "description": "요청된 데이터를 CSV 파일로 생성하여 다운로드 링크를 반환합니다. 캠페인 목록 또는 진행건 데이터를 내보낼 수 있습니다.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "enum": ["campaigns", "progress"], "description": "내보낼 데이터 종류"},
+                "campaign_id": {"type": "string", "description": "진행건 내보내기 시 캠페인 ID (선택)"},
+                "status": {"type": "string", "description": "상태 필터 (선택)"},
+                "query": {"type": "string", "description": "검색어 (선택)"},
+                "columns": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "내보낼 컬럼 목록 (한국어 필드명). 비우면 기본 컬럼 전체."
+                }
+            },
+            "required": ["type"]
+        }
+    },
+    {
         "name": "parse_excel_data",
         "description": "사용자가 붙여넣은 엑셀/텍스트 데이터를 캠페인 필드 형식으로 파싱합니다. 탭/줄바꿈 구분 데이터를 분석하여 정리된 결과를 반환합니다.",
         "input_schema": {
@@ -355,6 +394,8 @@ class AICampaignChat:
                 return self._do_update_progress(input_data)
             elif name == "delete_progress":
                 return self._do_delete_progress(input_data)
+            elif name == "export_data":
+                return self._do_export_data(input_data, portal, owner_id)
             elif name == "parse_excel_data":
                 return {"ok": True, "raw_text": input_data.get("raw_text", ""),
                         "hint": "이 텍스트를 분석하여 캠페인 필드에 매핑하세요. 헤더행이 있으면 활용하고, 없으면 값 패턴으로 추론하세요."}
@@ -576,6 +617,69 @@ class AICampaignChat:
             return {"ok": True, "agencies": result, "total": len(result)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
+
+    def _do_export_data(self, data: dict, portal: str, owner_id) -> dict:
+        """데이터를 CSV로 생성하고 다운로드 토큰 반환"""
+        db = models.db_manager
+        if not db:
+            return {"ok": False, "error": "DB 연결 없음"}
+
+        export_type = data.get("type", "")
+        custom_columns = data.get("columns", [])
+
+        output = io.StringIO()
+        output.write('\ufeff')  # UTF-8 BOM
+        writer = csv.writer(output)
+
+        if export_type == "campaigns":
+            columns = custom_columns or [
+                "캠페인ID", "캠페인명", "상품명", "업체명", "플랫폼", "캠페인유형",
+                "상태", "총수량", "일수량", "결제금액", "리뷰비",
+                "구매가능시간", "키워드", "유입방식", "공개여부", "중복허용", "등록일",
+            ]
+            writer.writerow(columns)
+            campaigns = self._get_filtered_campaigns(portal, owner_id)
+            status_filter = data.get("status", "")
+            if status_filter:
+                campaigns = [c for c in campaigns if c.get("상태") == status_filter]
+            for c in campaigns:
+                writer.writerow([c.get(col, "") for col in columns])
+            filename = "campaigns"
+
+        elif export_type == "progress":
+            columns = custom_columns or [
+                "id", "캠페인ID", "제품명", "진행자이름", "진행자연락처",
+                "수취인명", "연락처", "아이디", "상태", "결제금액",
+                "리뷰비", "입금금액", "주문번호", "비고", "날짜",
+            ]
+            writer.writerow(columns)
+            campaign_id = data.get("campaign_id", "")
+            status = data.get("status", "")
+            query = data.get("query", "")
+            # 전체 조회 (페이지 없이)
+            items, total = db.get_progress_page(1, 9999, campaign_id, status, query)
+            for it in items:
+                writer.writerow([it.get(col, "") for col in columns])
+            filename = "progress"
+        else:
+            return {"ok": False, "error": f"알 수 없는 내보내기 유형: {export_type}"}
+
+        # 임시 저장소에 보관
+        token = uuid.uuid4().hex[:12]
+        _export_store[token] = {
+            "data": output.getvalue(),
+            "filename": f"{filename}_{int(time.time())}.csv",
+            "created": time.time(),
+        }
+        # 오래된 항목 정리 (10분 이상)
+        _cleanup_exports()
+
+        return {
+            "ok": True,
+            "download_url": f"/admin/api/ai-export/{token}",
+            "message": f"CSV 파일이 생성되었습니다. 아래 링크를 클릭하여 다운로드하세요.",
+            "total_rows": total if export_type == "progress" else len(campaigns),
+        }
 
     def _do_search_progress(self, data: dict) -> dict:
         """진행건 검색"""

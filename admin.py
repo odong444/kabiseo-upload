@@ -3008,6 +3008,21 @@ def api_ai_chat():
 def api_ai_chat_reset():
     return jsonify({"ok": True})
 
+@admin_bp.route("/api/ai-export/<token>")
+@admin_required
+def api_ai_export(token):
+    """AI가 생성한 CSV 파일 다운로드"""
+    from modules.ai_campaign_chat import get_export
+    export = get_export(token)
+    if not export:
+        return jsonify({"ok": False, "error": "만료되었거나 존재하지 않는 다운로드입니다"}), 404
+    return Response(
+        export["data"],
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={export['filename']}"},
+    )
+
+
 @admin_bp.route("/api/ai-chat/upload-image", methods=["POST"])
 @admin_required
 def api_ai_chat_upload_image():
