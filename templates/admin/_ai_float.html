@@ -4,9 +4,11 @@
 </button>
 
 <div id="aiChatPanel" style="display:none;">
+    <div class="ai-chat-resize" id="aiResizeHandle"></div>
     <div class="ai-chat-header">
         <span class="ai-chat-title">AI 캠페인 관리</span>
         <div style="display:flex;gap:4px;">
+            <button class="ai-chat-hdr-btn" onclick="toggleAiSize()" title="크게/작게" id="aiSizeBtn">⤢</button>
             <button class="ai-chat-hdr-btn" onclick="resetAiChat()" title="새 대화">↻</button>
             <button class="ai-chat-hdr-btn" onclick="toggleAiChat()" title="닫기">&times;</button>
         </div>
@@ -45,8 +47,8 @@
     position: fixed;
     bottom: 84px;
     right: 24px;
-    width: 420px;
-    height: 580px;
+    width: 480px;
+    height: 680px;
     background: #fff;
     border-radius: 12px;
     box-shadow: 0 4px 24px rgba(0,0,0,0.18);
@@ -56,9 +58,23 @@
     overflow: hidden;
     animation: aiSlideUp 0.2s ease-out;
 }
+#aiChatPanel.ai-expanded {
+    width: 640px;
+    height: calc(100vh - 100px);
+}
 @keyframes aiSlideUp {
     from { opacity: 0; transform: translateY(16px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+.ai-chat-resize {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 12px;
+    height: 12px;
+    cursor: nw-resize;
+    z-index: 10;
 }
 
 .ai-chat-header {
@@ -68,6 +84,7 @@
     padding: 12px 16px;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     flex-shrink: 0;
+    cursor: default;
 }
 .ai-chat-title { font-size: 15px; font-weight: 700; color: #fff; }
 .ai-chat-hdr-btn {
@@ -95,11 +112,11 @@
     background: #f8fafc;
 }
 .ai-msg {
-    max-width: 85%;
+    max-width: 88%;
     padding: 10px 14px;
     border-radius: 12px;
     font-size: 13px;
-    line-height: 1.6;
+    line-height: 1.7;
     word-break: break-word;
     white-space: pre-wrap;
 }
@@ -110,6 +127,23 @@
     border: 1px solid #e5e7eb;
     border-bottom-left-radius: 4px;
 }
+.ai-msg.ai a {
+    color: #2563eb;
+    text-decoration: underline;
+    font-weight: 600;
+}
+.ai-msg .ai-download-link {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 6px 14px;
+    background: #059669;
+    color: #fff !important;
+    text-decoration: none !important;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.ai-msg .ai-download-link:hover { background: #047857; }
 .ai-msg.user {
     align-self: flex-end;
     background: #3b82f6;
@@ -165,24 +199,27 @@
 
 /* 모바일 */
 @media (max-width: 640px) {
-    #aiChatPanel {
+    #aiChatPanel, #aiChatPanel.ai-expanded {
         bottom: 0;
         right: 0;
         width: 100%;
-        height: 85vh;
+        height: 90vh;
         border-radius: 16px 16px 0 0;
     }
     .ai-float-btn { bottom: 16px; right: 16px; }
+    .ai-chat-resize { display: none; }
 }
 </style>
 
 <script>
 (function() {
-    var _aiMessages = [];  // Anthropic format
+    var _aiMessages = [];
     var _aiOpen = false;
+    var _aiExpanded = false;
     var chatBox = document.getElementById('aiChatMessages');
     var chatInput = document.getElementById('aiChatInput');
     var sendBtn = document.getElementById('aiSendBtn');
+    var panel = document.getElementById('aiChatPanel');
 
     // sessionStorage로 대화 유지
     var _storageKey = 'kabiseo_ai_chat';
@@ -191,42 +228,62 @@
         if (saved) {
             var parsed = JSON.parse(saved);
             _aiMessages = parsed.messages || [];
-            // 저장된 대화 복원
             if (parsed.display && parsed.display.length > 0) {
                 chatBox.innerHTML = '';
                 parsed.display.forEach(function(d) {
-                    _addMsgEl(d.role, d.text);
+                    _addMsgEl(d.role, d.text, d.html);
                 });
             }
         }
     } catch(e) {}
 
-    function _saveChatState(displayMessages) {
+    function _saveChatState() {
         try {
+            var msgs = [];
+            chatBox.querySelectorAll('.ai-msg').forEach(function(el) {
+                msgs.push({
+                    role: el.classList.contains('user') ? 'user' : 'ai',
+                    text: el.textContent,
+                    html: el.innerHTML !== el.textContent ? el.innerHTML : undefined
+                });
+            });
             sessionStorage.setItem(_storageKey, JSON.stringify({
                 messages: _aiMessages,
-                display: displayMessages || _getDisplayMessages()
+                display: msgs
             }));
         } catch(e) {}
     }
 
-    function _getDisplayMessages() {
-        var msgs = [];
-        chatBox.querySelectorAll('.ai-msg').forEach(function(el) {
-            msgs.push({
-                role: el.classList.contains('user') ? 'user' : 'ai',
-                text: el.textContent
-            });
+    function _linkify(text) {
+        // /admin/api/ai-export/... → 다운로드 버튼
+        var t = text.replace(/(?:https?:\/\/[^\s]+)?(\/admin\/api\/ai-export\/[a-f0-9]+)/g,
+            '<a href="$1" class="ai-download-link" target="_blank">📥 CSV 다운로드</a>');
+        // 일반 URL → 링크
+        t = t.replace(/(https?:\/\/[^\s<]+)/g, function(url) {
+            if (url.indexOf('ai-export') !== -1) return url; // 이미 처리됨
+            return '<a href="' + url + '" target="_blank" rel="noopener">' + url + '</a>';
         });
-        return msgs;
+        return t;
     }
 
-    function _addMsgEl(role, text) {
+    function _addMsgEl(role, text, rawHtml) {
         var div = document.createElement('div');
         div.className = 'ai-msg ' + (role === 'user' ? 'user' : 'ai');
-        div.textContent = text;
+        if (rawHtml) {
+            div.innerHTML = rawHtml;
+        } else if (role === 'ai') {
+            div.innerHTML = _linkify(_escapeHtml(text));
+        } else {
+            div.textContent = text;
+        }
         chatBox.appendChild(div);
         chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function _escapeHtml(text) {
+        var d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
     }
 
     function _showTyping() {
@@ -243,7 +300,6 @@
         if (el) el.remove();
     }
 
-    // Auto-resize textarea
     chatInput.addEventListener('input', function() {
         this.style.height = 'auto';
         this.style.height = Math.min(this.scrollHeight, 100) + 'px';
@@ -257,7 +313,6 @@
     });
 
     window.toggleAiChat = function() {
-        var panel = document.getElementById('aiChatPanel');
         _aiOpen = !_aiOpen;
         panel.style.display = _aiOpen ? 'flex' : 'none';
         if (_aiOpen) {
@@ -265,6 +320,35 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
     };
+
+    window.toggleAiSize = function() {
+        _aiExpanded = !_aiExpanded;
+        panel.classList.toggle('ai-expanded', _aiExpanded);
+        document.getElementById('aiSizeBtn').textContent = _aiExpanded ? '⤡' : '⤢';
+    };
+
+    // 드래그 리사이즈 (좌상단 코너)
+    (function() {
+        var handle = document.getElementById('aiResizeHandle');
+        var startX, startY, startW, startH;
+        handle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            startX = e.clientX; startY = e.clientY;
+            startW = panel.offsetWidth; startH = panel.offsetHeight;
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+        function onMove(e) {
+            var dw = startX - e.clientX;
+            var dh = startY - e.clientY;
+            panel.style.width = Math.max(360, startW + dw) + 'px';
+            panel.style.height = Math.max(400, startH + dh) + 'px';
+        }
+        function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        }
+    })();
 
     window.sendAiMessage = function() {
         var text = chatInput.value.trim();

@@ -92,6 +92,13 @@ SYSTEM_PROMPT = """당신은 카비서 캠페인 관리 도우미입니다.
 - 사용자가 엑셀에서 복사해서 붙여넣은 텍스트를 캠페인 필드에 맞게 정리
 - 탭/줄바꿈으로 구분된 데이터를 파싱하여 필드별로 매핑
 - 정리된 결과를 보여주고, 등록할지 확인 받기
+
+## 데이터 내보내기 (CSV 다운로드)
+- 사용자가 데이터를 엑셀로 달라고 하면 export_data 도구를 사용
+- 캠페인 목록 또는 진행건 데이터를 CSV 파일로 생성
+- 응답에 다운로드 링크를 포함하여 안내 (예: "다운로드: /admin/api/ai-export/abc123")
+- columns 파라미터로 원하는 컬럼만 선택 가능
+- 사용자가 특정 조건을 지정하면 status, campaign_id, query 등으로 필터링
 """
 
 # Tool definitions for Claude
@@ -273,7 +280,7 @@ class AICampaignChat:
 
     def _get_tools_for_portal(self, portal: str) -> list:
         """포탈별 사용 가능한 도구 필터링"""
-        _ADMIN_ONLY = {"search_progress", "update_progress", "delete_progress", "parse_excel_data"}
+        _ADMIN_ONLY = {"search_progress", "update_progress", "delete_progress", "parse_excel_data", "export_data"}
         if portal == "admin":
             return TOOLS  # 전체 접근
         elif portal == "agency":
@@ -631,6 +638,8 @@ class AICampaignChat:
         output.write('\ufeff')  # UTF-8 BOM
         writer = csv.writer(output)
 
+        row_count = 0
+
         if export_type == "campaigns":
             columns = custom_columns or [
                 "캠페인ID", "캠페인명", "상품명", "업체명", "플랫폼", "캠페인유형",
@@ -644,6 +653,7 @@ class AICampaignChat:
                 campaigns = [c for c in campaigns if c.get("상태") == status_filter]
             for c in campaigns:
                 writer.writerow([c.get(col, "") for col in columns])
+            row_count = len(campaigns)
             filename = "campaigns"
 
         elif export_type == "progress":
@@ -656,10 +666,10 @@ class AICampaignChat:
             campaign_id = data.get("campaign_id", "")
             status = data.get("status", "")
             query = data.get("query", "")
-            # 전체 조회 (페이지 없이)
             items, total = db.get_progress_page(1, 9999, campaign_id, status, query)
             for it in items:
                 writer.writerow([it.get(col, "") for col in columns])
+            row_count = total
             filename = "progress"
         else:
             return {"ok": False, "error": f"알 수 없는 내보내기 유형: {export_type}"}
@@ -671,14 +681,13 @@ class AICampaignChat:
             "filename": f"{filename}_{int(time.time())}.csv",
             "created": time.time(),
         }
-        # 오래된 항목 정리 (10분 이상)
         _cleanup_exports()
 
         return {
             "ok": True,
             "download_url": f"/admin/api/ai-export/{token}",
-            "message": f"CSV 파일이 생성되었습니다. 아래 링크를 클릭하여 다운로드하세요.",
-            "total_rows": total if export_type == "progress" else len(campaigns),
+            "message": f"CSV 파일이 생성되었습니다 ({row_count}건). 아래 링크를 클릭하여 다운로드하세요.",
+            "total_rows": row_count,
         }
 
     def _do_search_progress(self, data: dict) -> dict:
