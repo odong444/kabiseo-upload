@@ -275,7 +275,7 @@ class AICampaignChat:
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY 환경변수가 설정되지 않았습니다")
-        self.client = Anthropic(api_key=api_key)
+        self.client = Anthropic(api_key=api_key, timeout=120.0)
         self.model = "claude-sonnet-4-20250514"
 
     def _get_tools_for_portal(self, portal: str) -> list:
@@ -329,8 +329,13 @@ class AICampaignChat:
 
     def _process_response(self, response, messages, tools, system, portal, owner_id, depth=0):
         """응답 처리 (tool_use 루프 포함)"""
-        if depth > 5:
-            return {"reply": "처리 중 오류가 발생했습니다. 다시 시도해주세요.", "messages": messages}
+        if depth > 3:
+            # 중간 텍스트가 있으면 그것이라도 반환
+            text_parts = []
+            if response and response.content:
+                text_parts = [b.text for b in response.content if hasattr(b, 'text')]
+            reply = "\n".join(text_parts) if text_parts else "처리가 길어지고 있습니다. 질문을 더 구체적으로 해주세요."
+            return {"reply": reply, "messages": messages}
 
         # Collect assistant content blocks — serialize to plain dicts
         assistant_content = response.content

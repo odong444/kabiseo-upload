@@ -362,12 +362,16 @@
         _aiMessages.push({role: 'user', content: text});
         _showTyping();
 
+        var controller = new AbortController();
+        var timeoutId = setTimeout(function() { controller.abort(); }, 90000);
+
         fetch('/admin/api/ai-chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({messages: _aiMessages})
+            body: JSON.stringify({messages: _aiMessages}),
+            signal: controller.signal
         })
-        .then(function(r) { return r.json(); })
+        .then(function(r) { clearTimeout(timeoutId); return r.json(); })
         .then(function(data) {
             _hideTyping();
             if (data.ok) {
@@ -378,9 +382,14 @@
             }
             _saveChatState();
         })
-        .catch(function() {
+        .catch(function(err) {
+            clearTimeout(timeoutId);
             _hideTyping();
-            _addMsgEl('ai', '\ub124\ud2b8\uc6cc\ud06c \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4.');
+            if (err.name === 'AbortError') {
+                _addMsgEl('ai', '\uc751\ub2f5 \uc2dc\uac04\uc774 \ucd08\uacfc\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \uc9c8\ubb38\uc744 \ub354 \uac04\uacb0\ud558\uac8c \ud574\uc8fc\uc138\uc694.');
+            } else {
+                _addMsgEl('ai', '\ub124\ud2b8\uc6cc\ud06c \uc624\ub958\uac00 \ubc1c\uc0dd\ud588\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.');
+            }
             _saveChatState();
         })
         .finally(function() {
