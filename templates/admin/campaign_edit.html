@@ -161,10 +161,10 @@
                         {% for c in (clients or []) %}
                           {% if c.brands %}
                             {% for b in c.brands %}
-                            <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}({{ b.brand_name }})" data-brand="{{ b.brand_name }}" {{ 'selected' if client_info and client_info.id == c.id and campaign.get('업체명', '') == c.company_name ~ '(' ~ b.brand_name ~ ')' }}>{{ c.company_name }}({{ b.brand_name }}){% if c.agency_name %} - {{ c.agency_name }}{% endif %}</option>
+                            <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}({{ b.brand_name }})" data-brand="{{ b.brand_name }}" {{ 'selected' if client_info and client_info.id == c.id and campaign.get('업체명', '') == c.company_name ~ '(' ~ b.brand_name ~ ')' }}>{{ c.company_name }}({{ b.brand_name }})</option>
                             {% endfor %}
                           {% else %}
-                            <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" data-brand="" {{ 'selected' if client_info and client_info.id == c.id }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
+                            <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" data-brand="" {{ 'selected' if client_info and client_info.id == c.id }}>{{ c.company_name }}</option>
                           {% endif %}
                         {% endfor %}
                     </select>
