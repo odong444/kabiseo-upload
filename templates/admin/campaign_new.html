@@ -207,7 +207,13 @@
                         <select name="업체ID_select" id="clientSelect">
                             <option value="">직접입력</option>
                             {% for c in clients %}
-                            <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" {{ 'selected' if copy.get('업체ID')|string == c.id|string }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
+                              {% if c.brands %}
+                                {% for b in c.brands %}
+                                <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}({{ b.brand_name }})" data-brand="{{ b.brand_name }}" {{ 'selected' if copy.get('업체ID')|string == c.id|string and copy.get('업체명', '') == c.company_name ~ '(' ~ b.brand_name ~ ')' }}>{{ c.company_name }}({{ b.brand_name }}){% if c.agency_name %} - {{ c.agency_name }}{% endif %}</option>
+                                {% endfor %}
+                              {% else %}
+                                <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" data-brand="" {{ 'selected' if copy.get('업체ID')|string == c.id|string }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
+                              {% endif %}
                             {% endfor %}
                         </select>
                         {% set has_client = copy.get('업체ID') and (copy.get('업체ID')|string != '0') %}

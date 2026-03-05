@@ -159,7 +159,13 @@
                     <select name="업체ID_select" id="clientSelect">
                         <option value="">직접입력</option>
                         {% for c in (clients or []) %}
-                        <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" {{ 'selected' if client_info and client_info.id == c.id }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
+                          {% if c.brands %}
+                            {% for b in c.brands %}
+                            <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}({{ b.brand_name }})" data-brand="{{ b.brand_name }}" {{ 'selected' if client_info and client_info.id == c.id and campaign.get('업체명', '') == c.company_name ~ '(' ~ b.brand_name ~ ')' }}>{{ c.company_name }}({{ b.brand_name }}){% if c.agency_name %} - {{ c.agency_name }}{% endif %}</option>
+                            {% endfor %}
+                          {% else %}
+                            <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" data-name="{{ c.company_name }}" data-brand="" {{ 'selected' if client_info and client_info.id == c.id }}>{{ c.company_name }}{% if c.agency_name %} ({{ c.agency_name }}){% endif %}</option>
+                          {% endif %}
                         {% endfor %}
                     </select>
                     <input type="text" name="업체명" id="companyNameInput" value="{{ campaign.get('업체명', '') }}" placeholder="업체명 직접입력" style="margin-top:6px;{{ 'display:none;' if client_info }}">

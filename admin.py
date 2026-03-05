@@ -273,6 +273,9 @@ def campaign_edit(campaign_id):
     # 대행사/클라이언트 정보
     agencies = models.db_manager.get_agencies() if models.db_manager else []
     clients_list = models.db_manager.get_clients() if models.db_manager else []
+    # 각 클라이언트에 브랜드 목록 추가
+    for c in clients_list:
+        c['brands'] = models.db_manager.get_client_brands(c['id'])
     agency_info = None
     client_info = None
     aid = safe_int(campaign.get("대행사ID", 0))
@@ -910,6 +913,10 @@ def campaign_new():
 
     agencies = models.db_manager.get_agencies() if models.db_manager else []
     clients_list = models.db_manager.get_clients() if models.db_manager else []
+    # 각 클라이언트에 브랜드 목록 추가
+    if models.db_manager:
+        for c in clients_list:
+            c['brands'] = models.db_manager.get_client_brands(c['id'])
     return render_template("admin/campaign_new.html",
                           promo_category_list=categories,
                           copy=copy_data,
