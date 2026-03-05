@@ -178,8 +178,14 @@ def campaign_new_post():
     for field in fields:
         data[field] = request.form.get(field, "").strip()
 
-    # 업체명 기본값: 세션의 company_name
-    if not data.get("업체명"):
+    # 업체명: 브랜드가 등록되어 있으면 브랜드 중 하나여야 함
+    brands = models.db_manager.get_client_brands(session["client_id"])
+    if brands:
+        brand_names = {b["brand_name"] for b in brands}
+        if data.get("업체명") not in brand_names:
+            # 폼에서 선택 안 했거나 잘못된 값 → 첫 번째 브랜드로 fallback
+            data["업체명"] = brands[0]["brand_name"]
+    elif not data.get("업체명"):
         data["업체명"] = session.get("client_company", "")
 
     # 상품링크에서 상품코드 자동 추출
@@ -512,3 +518,34 @@ def api_ai_chat_upload_image():
         return jsonify({"ok": False, "error": "Drive 업로더를 사용할 수 없습니다"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+
+# ─── 브랜드 관리 ───
+
+@client_bp.route("/api/brands")
+@client_required
+def api_brands():
+    brands = models.db_manager.get_client_brands(session["client_id"])
+    return jsonify([{"id": b["id"], "brand_name": b["brand_name"]} for b in brands])
+
+
+@client_bp.route("/api/brands", methods=["POST"])
+@client_required
+def api_brands_add():
+    data = request.get_json(silent=True) or {}
+    name = data.get("brand_name", "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "브랜드명을 입력해주세요."}), 400
+    # 중복 체크
+    existing = models.db_manager.get_client_brands(session["client_id"])
+    if any(b["brand_name"] == name for b in existing):
+        return jsonify({"ok": False, "error": "이미 등록된 브랜드입니다."}), 400
+    brand_id = models.db_manager.add_client_brand(session["client_id"], name)
+    return jsonify({"ok": True, "id": brand_id, "brand_name": name})
+
+
+@client_bp.route("/api/brands/<int:brand_id>", methods=["DELETE"])
+@client_required
+def api_brands_delete(brand_id):
+    models.db_manager.delete_client_brand(brand_id, session["client_id"])
+    return jsonify({"ok": True})

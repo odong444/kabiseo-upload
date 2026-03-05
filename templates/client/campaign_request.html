@@ -111,6 +111,15 @@
             <div class="form-section">
                 <h3>캠페인 정보</h3>
                 <div class="form-grid">
+                    <div class="form-group" id="brandSelectWrap">
+                        <label>브랜드(업체명) *</label>
+                        <select name="업체명" id="brandSelect" required>
+                            <option value="">선택</option>
+                        </select>
+                        <small id="brandHint" style="display:none;">
+                            <a href="{{ url_for('client.dashboard') }}" style="color:#2563eb;">대시보드</a>에서 브랜드를 먼저 등록해주세요.
+                        </small>
+                    </div>
                     <div class="form-group form-group-full">
                         <label>캠페인명</label>
                         <input type="text" name="캠페인명" value="{{ draft.get('캠페인명', '') if draft else '' }}" placeholder="예: 들기름 2월 2차 (비우면 상품명으로 표시)">
@@ -475,6 +484,41 @@
             alert('임시저장 실패');
         }
     }
+
+    // 브랜드 로딩
+    (function() {
+        var sel = document.getElementById('brandSelect');
+        var wrap = document.getElementById('brandSelectWrap');
+        var hint = document.getElementById('brandHint');
+        var draftBrand = {{ (draft.get('업체명', '') if draft else '')|tojson }};
+        var companyName = {{ company_name|tojson }};
+
+        fetch('/client/api/brands')
+            .then(function(r) { return r.json(); })
+            .then(function(brands) {
+                if (!brands.length) {
+                    // 브랜드 미등록: 회사명으로 고정
+                    sel.innerHTML = '<option value="' + companyName + '" selected>' + companyName + '</option>';
+                    hint.style.display = '';
+                    return;
+                }
+                sel.innerHTML = '';
+                if (brands.length > 1) {
+                    sel.innerHTML = '<option value="">브랜드 선택</option>';
+                }
+                brands.forEach(function(b) {
+                    var opt = document.createElement('option');
+                    opt.value = b.brand_name;
+                    opt.textContent = b.brand_name;
+                    if (draftBrand && draftBrand === b.brand_name) opt.selected = true;
+                    else if (!draftBrand && brands.length === 1) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+            })
+            .catch(function() {
+                sel.innerHTML = '<option value="' + companyName + '" selected>' + companyName + '</option>';
+            });
+    })();
     </script>
 </body>
 </html>

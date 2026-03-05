@@ -297,6 +297,14 @@ CREATE TABLE IF NOT EXISTS clients (
 );
 CREATE INDEX IF NOT EXISTS idx_clients_login ON clients(login_id);
 
+CREATE TABLE IF NOT EXISTS client_brands (
+    id          SERIAL PRIMARY KEY,
+    client_id   INTEGER NOT NULL,
+    brand_name  TEXT NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_client_brands_client ON client_brands(client_id);
+
 CREATE TABLE IF NOT EXISTS recruit_sends (
     id              SERIAL PRIMARY KEY,
     campaign_id     TEXT NOT NULL,
@@ -2577,6 +2585,26 @@ class DBManager:
 
     def delete_client(self, client_id: int):
         self._execute("DELETE FROM clients WHERE id = %s", (client_id,))
+
+    # ─────────── 클라이언트 브랜드 ───────────
+
+    def get_client_brands(self, client_id: int) -> list[dict]:
+        return self._fetchall(
+            "SELECT * FROM client_brands WHERE client_id = %s ORDER BY brand_name",
+            (client_id,)
+        )
+
+    def add_client_brand(self, client_id: int, brand_name: str) -> int:
+        return self._execute_returning(
+            "INSERT INTO client_brands (client_id, brand_name) VALUES (%s, %s) RETURNING id",
+            (client_id, brand_name)
+        )
+
+    def delete_client_brand(self, brand_id: int, client_id: int):
+        self._execute(
+            "DELETE FROM client_brands WHERE id = %s AND client_id = %s",
+            (brand_id, client_id)
+        )
 
     # ─────────── 대행사 관리 ───────────
 

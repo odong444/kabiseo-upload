@@ -230,6 +230,19 @@
             </div>
         </div>
 
+        <!-- 내 브랜드 -->
+        <div style="margin-bottom:20px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:700;color:#475569;">내 브랜드</span>
+                <div id="brandList" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+                <div style="display:flex;gap:4px;align-items:center;margin-left:auto;">
+                    <input type="text" id="brandInput" placeholder="브랜드명 추가" style="padding:5px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;width:130px;">
+                    <button onclick="addBrand()" style="padding:5px 12px;border:none;border-radius:6px;background:#3b82f6;color:#fff;font-size:12px;font-weight:600;cursor:pointer;">추가</button>
+                </div>
+            </div>
+            <div id="brandEmpty" style="display:none;font-size:12px;color:#94a3b8;margin-top:6px;">등록된 브랜드가 없습니다. 브랜드를 등록하면 캠페인 생성 시 선택할 수 있습니다.</div>
+        </div>
+
         <!-- 탭 -->
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('campaigns')">캠페인별 보기</button>
@@ -683,6 +696,65 @@ async function sendMessage() {
         btn.textContent = '카톡 발송';
     }
 }
+
+// ─── 브랜드 관리 ───
+(function() {
+    var listEl = document.getElementById('brandList');
+    var emptyEl = document.getElementById('brandEmpty');
+    var input = document.getElementById('brandInput');
+
+    function renderBrands(brands) {
+        listEl.innerHTML = '';
+        if (!brands.length) {
+            emptyEl.style.display = '';
+            return;
+        }
+        emptyEl.style.display = 'none';
+        brands.forEach(function(b) {
+            var tag = document.createElement('span');
+            tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#e0f2fe;color:#0369a1;border-radius:6px;font-size:12px;font-weight:600;';
+            tag.textContent = b.brand_name;
+            var x = document.createElement('button');
+            x.textContent = '\u00d7';
+            x.style.cssText = 'border:none;background:none;color:#0369a1;font-size:14px;cursor:pointer;padding:0 2px;line-height:1;';
+            x.onclick = function() { deleteBrand(b.id); };
+            tag.appendChild(x);
+            listEl.appendChild(tag);
+        });
+    }
+
+    function loadBrands() {
+        fetch('/client/api/brands')
+            .then(function(r) { return r.json(); })
+            .then(renderBrands)
+            .catch(function() {});
+    }
+
+    window.addBrand = function() {
+        var name = input.value.trim();
+        if (!name) return;
+        fetch('/client/api/brands', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({brand_name: name})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) { input.value = ''; loadBrands(); }
+            else alert(d.error || '등록 실패');
+        });
+    };
+
+    function deleteBrand(id) {
+        if (!confirm('이 브랜드를 삭제하시겠습니까?')) return;
+        fetch('/client/api/brands/' + id, { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(d) { if (d.ok) loadBrands(); });
+    }
+
+    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addBrand(); } });
+    loadBrands();
+})();
 </script>
 </body>
 </html>
