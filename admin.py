@@ -2004,16 +2004,20 @@ def debug_campaigns():
 @admin_required
 def spreadsheet():
     page = request.args.get("page", 1, type=int)
-    per_page = 50
+    per_page = request.args.get("per_page", 30, type=int)
+    if per_page not in (10, 30, 50, 100):
+        per_page = 30
     campaign_filter = request.args.get("campaign", "")
     status_filter = request.args.get("status", "")
+    q_filter = request.args.get("q", "").strip()
 
     items = []
     total = 0
     campaigns = []
     if models.db_manager:
         items, total = models.db_manager.get_progress_page(
-            page, per_page, campaign_id=campaign_filter, status=status_filter
+            page, per_page, campaign_id=campaign_filter, status=status_filter,
+            q=q_filter
         )
         try:
             campaigns = models.campaign_manager.get_all_campaigns() if models.campaign_manager else []
@@ -2026,6 +2030,8 @@ def spreadsheet():
                            items=items, campaigns=campaigns,
                            campaign_filter=campaign_filter,
                            status_filter=status_filter,
+                           q_filter=q_filter,
+                           per_page=per_page,
                            page=page, total_pages=total_pages,
                            total=total)
 

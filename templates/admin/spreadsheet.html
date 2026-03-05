@@ -67,8 +67,26 @@
         text-align: left;
         position: sticky;
         top: 0;
+        z-index: 2;
+    }
+    .spreadsheet-table thead .filter-row th {
+        background: #f0f0f0;
+        padding: 3px 4px;
+        position: sticky;
+        top: 28px;
         z-index: 1;
     }
+    .col-filter {
+        width: 100%;
+        padding: 3px 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 11px;
+        outline: none;
+        box-sizing: border-box;
+    }
+    .col-filter:focus { border-color: #fee500; }
+    .col-filter::placeholder { color: #bbb; }
     .spreadsheet-table tbody tr {
         border-bottom: 1px solid #f0f0f0;
     }
@@ -399,7 +417,16 @@
                 <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
                 {% endfor %}
             </select>
+            <input type="text" id="filterQ" placeholder="통합검색 (이름/연락처/아이디)" value="{{ q_filter or '' }}" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;width:200px;">
+            <select id="filterPerPage" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fff;">
+                {% for pp in [10, 30, 50, 100] %}
+                <option value="{{ pp }}" {% if per_page == pp %}selected{% endif %}>{{ pp }}건</option>
+                {% endfor %}
+            </select>
             <button class="btn-filter" onclick="applyFilters()">필터 적용</button>
+            {% if campaign_filter or status_filter or q_filter %}
+            <button class="btn-filter" onclick="window.location.href='{{ url_for('admin.spreadsheet') }}'" style="background:#f5f5f5;color:#666;border-color:#ddd;">초기화</button>
+            {% endif %}
         </div>
 
         <!-- 타임아웃 모니터 -->
@@ -447,6 +474,32 @@
                         <th>입금금액</th>
                         <th>AI검수</th>
                         <th>비고</th>
+                        <th></th>
+                    </tr>
+                    <tr class="filter-row">
+                        <th></th>
+                        <th><input class="col-filter" data-col="0" placeholder="ID"></th>
+                        <th><input class="col-filter" data-col="1" placeholder="날짜"></th>
+                        <th><input class="col-filter" data-col="2" placeholder="업체명"></th>
+                        <th><input class="col-filter" data-col="3" placeholder="제품명"></th>
+                        <th><input class="col-filter" data-col="4" placeholder="진행자"></th>
+                        <th><input class="col-filter" data-col="5" placeholder="연락처"></th>
+                        <th></th>
+                        <th><input class="col-filter" data-col="7" placeholder="수취인"></th>
+                        <th><input class="col-filter" data-col="8" placeholder="연락처"></th>
+                        <th><input class="col-filter" data-col="9" placeholder="은행"></th>
+                        <th></th>
+                        <th><input class="col-filter" data-col="11" placeholder="예금주"></th>
+                        <th><input class="col-filter" data-col="12" placeholder="아이디"></th>
+                        <th><input class="col-filter" data-col="13" placeholder="주문번호"></th>
+                        <th></th>
+                        <th><input class="col-filter" data-col="15" placeholder="상태"></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th></th>
+                        <th><input class="col-filter" data-col="21" placeholder="비고"></th>
                         <th></th>
                     </tr>
                 </thead>
@@ -524,7 +577,7 @@
         {% if total_pages > 1 %}
         <div class="pagination">
             {% if page > 1 %}
-            <a href="{{ url_for('admin.spreadsheet', page=page-1, campaign=campaign_filter, status=status_filter) }}">&laquo; 이전</a>
+            <a href="{{ url_for('admin.spreadsheet', page=page-1, campaign=campaign_filter, status=status_filter, q=q_filter, per_page=per_page) }}">&laquo; 이전</a>
             {% else %}
             <span class="disabled">&laquo; 이전</span>
             {% endif %}
@@ -533,7 +586,7 @@
                 {% if p == page %}
                 <span class="current">{{ p }}</span>
                 {% elif p <= 3 or p > total_pages - 2 or (p >= page - 2 and p <= page + 2) %}
-                <a href="{{ url_for('admin.spreadsheet', page=p, campaign=campaign_filter, status=status_filter) }}">{{ p }}</a>
+                <a href="{{ url_for('admin.spreadsheet', page=p, campaign=campaign_filter, status=status_filter, q=q_filter, per_page=per_page) }}">{{ p }}</a>
                 {% elif p == 4 and page > 6 %}
                 <span class="ellipsis">...</span>
                 {% elif p == total_pages - 2 and page < total_pages - 5 %}
@@ -542,7 +595,7 @@
             {% endfor %}
 
             {% if page < total_pages %}
-            <a href="{{ url_for('admin.spreadsheet', page=page+1, campaign=campaign_filter, status=status_filter) }}">다음 &raquo;</a>
+            <a href="{{ url_for('admin.spreadsheet', page=page+1, campaign=campaign_filter, status=status_filter, q=q_filter, per_page=per_page) }}">다음 &raquo;</a>
             {% else %}
             <span class="disabled">다음 &raquo;</span>
             {% endif %}
@@ -979,12 +1032,52 @@
     function applyFilters() {
         var campaign = document.getElementById('filterCampaign').value;
         var status = document.getElementById('filterStatus').value;
+        var q = document.getElementById('filterQ').value.trim();
+        var perPage = document.getElementById('filterPerPage').value;
         var params = new URLSearchParams();
         if (campaign) params.set('campaign', campaign);
         if (status) params.set('status', status);
+        if (q) params.set('q', q);
+        if (perPage && perPage !== '30') params.set('per_page', perPage);
         var qs = params.toString();
         window.location.href = '{{ url_for("admin.spreadsheet") }}' + (qs ? '?' + qs : '');
     }
+
+    // 통합검색 Enter 키
+    document.getElementById('filterQ').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyFilters(); });
+
+    // --- Column Filters (client-side, current page) ---
+    (function() {
+        var filters = document.querySelectorAll('.col-filter');
+        var tbody = document.querySelector('#spreadsheetTable tbody');
+        if (!tbody) return;
+        var allRows = Array.from(tbody.querySelectorAll('tr'));
+
+        function runColFilters() {
+            var active = [];
+            filters.forEach(function(inp) {
+                var v = inp.value.trim().toLowerCase();
+                if (v) active.push({ col: parseInt(inp.getAttribute('data-col')), val: v });
+            });
+            allRows.forEach(function(row) {
+                var tds = row.querySelectorAll('td');
+                var show = true;
+                for (var i = 0; i < active.length; i++) {
+                    var f = active[i];
+                    // td index is col+1 because first td is checkbox
+                    var td = tds[f.col + 1];
+                    if (!td) { show = false; break; }
+                    var text = td.textContent.toLowerCase();
+                    if (text.indexOf(f.val) === -1) { show = false; break; }
+                }
+                row.style.display = show ? '' : 'none';
+            });
+        }
+
+        filters.forEach(function(inp) {
+            inp.addEventListener('input', runColFilters);
+        });
+    })();
 
     // --- Inline Edit (double-click) ---
     document.querySelectorAll('#spreadsheetTable td.editable').forEach(function(td) {
