@@ -222,6 +222,11 @@ def campaigns():
                     today_target = safe_int(range_match.group(2))
                 else:
                     today_target = safe_int(daily_str)
+        # 총수량 다 찼으면 오늘목표 무의미
+        active_cnt = safe_int(c.get("신청수", 0))
+        total_cnt = safe_int(c.get("총수량", 0))
+        if total_cnt > 0 and active_cnt >= total_cnt:
+            today_target = 0
         c["오늘목표"] = str(today_target)
 
         # 당일마감 판단

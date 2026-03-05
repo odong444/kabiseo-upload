@@ -438,7 +438,17 @@
                         </td>
                         <td>
                             <span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span>
-                            {% if c.get('_daily_closed') %}<span class="admin-status-badge 당일마감">당일마감</span>{% endif %}
+                            {% if total > 0 and settle >= total %}
+                            <span class="admin-status-badge 마감" style="background:#dcfce7;color:#16a34a;">캠페인완료</span>
+                            {% elif total > 0 and review >= total %}
+                            <span class="admin-status-badge 마감" style="background:#fef3c7;color:#d97706;">캠페인마감</span>
+                            {% elif total > 0 and purchase >= total %}
+                            <span class="admin-status-badge 마감" style="background:#dbeafe;color:#2563eb;">모집마감</span>
+                            {% elif total > 0 and active >= total %}
+                            <span class="admin-status-badge 마감">마감</span>
+                            {% elif c.get('_daily_closed') %}
+                            <span class="admin-status-badge 당일마감">당일마감</span>
+                            {% endif %}
                         </td>
                         <td>
                             <div class="campaign-actions">
