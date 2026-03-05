@@ -1482,13 +1482,19 @@ def api_ai_batch():
 @admin_bp.route("/settlement")
 @admin_required
 def settlement():
-    items = []
+    tab = request.args.get("tab", "pending")  # pending / done
+    pending_items = []
+    done_items = []
     if models.db_manager:
         all_items = models.db_manager.get_all_reviewers()
-        items = [i for i in all_items if i.get("상태") == "입금대기"]
-    # 리뷰제출일 오름차순 (오래된 것 먼저)
-    items = _sort_by_date_asc(items, "리뷰제출일")
-    return render_template("admin/settlement.html", items=items)
+        pending_items = [i for i in all_items if i.get("상태") == "입금대기"]
+        done_items = [i for i in all_items if i.get("상태") == "입금완료"]
+    pending_items = _sort_by_date_asc(pending_items, "리뷰제출일")
+    done_items = _sort_by_date_asc(done_items, "입금완료")
+    return render_template("admin/settlement.html",
+                           tab=tab,
+                           pending_items=pending_items,
+                           done_items=done_items)
 
 
 @admin_bp.route("/settlement/process", methods=["POST"])
@@ -1514,31 +1520,55 @@ def settlement_process():
     return redirect(url_for("admin.settlement"))
 
 
-@admin_bp.route("/settlement/download")
+def _settlement_memo(item):
+    """구매진행일(MMDD) + 업체명, 총 8자 제한"""
+    date_str = item.get("구매일", "") or item.get("날짜", "")
+    mmdd = ""
+    if date_str:
+        try:
+            parts = date_str.replace("/", "-").split("-")
+            if len(parts) >= 3:
+                mmdd = parts[1].zfill(2) + parts[2].zfill(2)[:2]
+            elif len(parts) == 2:
+                mmdd = parts[0].zfill(2) + parts[1].zfill(2)[:2]
+        except Exception:
+            mmdd = ""
+    company = item.get("업체명", "")
+    remain = 8 - len(mmdd)
+    if remain > 0 and company:
+        company = company[:remain]
+    elif remain <= 0:
+        company = ""
+    return mmdd + company
+
+
+@admin_bp.route("/settlement/download", methods=["POST"])
 @admin_required
 def settlement_download():
-    """입금대기 목록 엑셀(CSV) 다운로드"""
+    """선택 항목 CSV 다운로드 (은행, 계좌, 입금금액, 예금주, 메모)"""
+    ids_str = request.form.get("ids", "")
+    if not ids_str or not models.db_manager:
+        flash("다운로드할 항목을 선택해주세요.")
+        return redirect(url_for("admin.settlement"))
+
+    id_list = [int(x) for x in ids_str.split(",") if x.strip().isdigit()]
     items = []
-    if models.db_manager:
-        all_items = models.db_manager.get_all_reviewers()
-        items = [i for i in all_items if i.get("상태") == "입금대기"]
-    items = _sort_by_date_asc(items, "리뷰제출일")
+    for pid in id_list:
+        row = models.db_manager.get_row_dict(pid)
+        if row:
+            items.append(row)
 
     output = io.StringIO()
     output.write('\ufeff')  # UTF-8 BOM for Excel
     writer = csv.writer(output)
-    writer.writerow(["수취인명", "연락처", "은행", "계좌", "예금주", "아이디", "제품명", "입금금액", "리뷰제출일"])
+    writer.writerow(["은행", "계좌", "입금금액", "예금주", "적요"])
     for item in items:
         writer.writerow([
-            item.get("수취인명", ""),
-            item.get("연락처", ""),
             item.get("은행", ""),
             item.get("계좌", ""),
-            item.get("예금주", ""),
-            item.get("아이디", ""),
-            item.get("제품명", ""),
             item.get("입금금액", ""),
-            item.get("리뷰제출일", ""),
+            item.get("예금주", ""),
+            _settlement_memo(item),
         ])
 
     from modules.utils import today_str
