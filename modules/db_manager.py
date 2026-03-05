@@ -1597,11 +1597,11 @@ class DBManager:
         return count
 
     def count_all_campaigns(self) -> dict:
-        """캠페인별 진행중 건수 — 취소/타임아웃취소 제외 ({캠페인ID: count})"""
+        """캠페인별 구매완료 건수 ({캠페인ID: count})"""
         rows = self._fetchall(
             """SELECT campaign_id, COUNT(*) as cnt FROM progress
-               WHERE status NOT IN (%s, %s) GROUP BY campaign_id""",
-            (STATUS_TIMEOUT, STATUS_CANCELLED)
+               WHERE status = ANY(%s) GROUP BY campaign_id""",
+            (list(_DONE_STATUSES),)
         )
         return {r["campaign_id"]: r["cnt"] for r in rows}
 
