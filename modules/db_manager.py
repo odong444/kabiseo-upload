@@ -1600,16 +1600,16 @@ class DBManager:
         """캠페인별 단계별 건수. {캠페인ID: {reserved, review_stage, payment_stage}}"""
         rows = self._fetchall(
             """SELECT campaign_id,
-                  COUNT(*) FILTER (WHERE status NOT IN (%s, %s)) AS reserved,
-                  COUNT(*) FILTER (WHERE status IN ('리뷰대기','리뷰제출','입금대기','입금완료')) AS review_stage,
-                  COUNT(*) FILTER (WHERE status IN ('입금대기','입금완료')) AS payment_stage
+                  SUM(CASE WHEN status NOT IN (%s, %s) THEN 1 ELSE 0 END) AS reserved,
+                  SUM(CASE WHEN status IN ('리뷰대기','리뷰제출','입금대기','입금완료') THEN 1 ELSE 0 END) AS review_stage,
+                  SUM(CASE WHEN status IN ('입금대기','입금완료') THEN 1 ELSE 0 END) AS payment_stage
                FROM progress GROUP BY campaign_id""",
             (STATUS_TIMEOUT, STATUS_CANCELLED)
         )
         return {r["campaign_id"]: {
-            "reserved": r["reserved"],
-            "review_stage": r["review_stage"],
-            "payment_stage": r["payment_stage"],
+            "reserved": r["reserved"] or 0,
+            "review_stage": r["review_stage"] or 0,
+            "payment_stage": r["payment_stage"] or 0,
         } for r in rows}
 
     def count_all_campaigns(self) -> dict:

@@ -78,8 +78,8 @@ def api_campaigns():
     reviewer_items = []
     try:
         detail_counts = models.db_manager.count_all_campaigns_detail()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("count_all_campaigns_detail 에러: %s", e, exc_info=True)
     try:
         today_counts = models.db_manager.count_today_all_campaigns()
     except Exception:
