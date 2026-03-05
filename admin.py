@@ -175,11 +175,15 @@ def campaigns():
     page = request.args.get("page", 1, type=int)
     per_page = 20
     status_filter = request.args.get("status", "")
+    company_filter = request.args.get("company", "").strip()
+    search_filter = request.args.get("search", "").strip()
 
     campaign_list = []
     total = 0
     if models.db_manager:
-        campaign_list, total = models.db_manager.get_campaigns_page(page, per_page, status_filter)
+        campaign_list, total = models.db_manager.get_campaigns_page(
+            page, per_page, status_filter, company=company_filter, search=search_filter
+        )
 
     total_pages = (total + per_page - 1) // per_page if total else 1
 
@@ -240,7 +244,8 @@ def campaigns():
                            active_campaigns=active_campaigns,
                            agency_map=agency_map,
                            page=page, total_pages=total_pages,
-                           total=total, status_filter=status_filter)
+                           total=total, status_filter=status_filter,
+                           company_filter=company_filter, search_filter=search_filter)
 
 
 @admin_bp.route("/campaigns/<campaign_id>/edit", methods=["GET"])
@@ -832,13 +837,14 @@ def api_campaigns_bulk_update():
 @admin_bp.route("/api/campaigns/export-csv")
 @admin_required
 def api_campaigns_export_csv():
-    """선택한 캠페인들을 CSV로 내보내기"""
+    """캠페인 CSV 내보내기 — ids 지정 또는 필터(status/company/search)"""
     if not models.db_manager:
         return jsonify({"ok": False, "error": "시스템 초기화 중"}), 503
+
     ids_str = request.args.get("ids", "")
-    campaign_ids = [s.strip() for s in ids_str.split(",") if s.strip()]
-    if not campaign_ids:
-        return jsonify({"ok": False, "error": "캠페인을 선택하세요"}), 400
+    status = request.args.get("status", "")
+    company = request.args.get("company", "").strip()
+    search = request.args.get("search", "").strip()
 
     columns = [
         "캠페인ID", "캠페인명", "상품명", "업체명", "플랫폼", "캠페인유형",
@@ -850,11 +856,19 @@ def api_campaigns_export_csv():
     output.write('\ufeff')  # UTF-8 BOM for Excel
     writer = csv.writer(output)
     writer.writerow(columns)
-    for cid in campaign_ids:
-        c = models.db_manager.get_campaign_by_id(cid)
-        if not c:
-            continue
-        writer.writerow([c.get(col, "") for col in columns])
+
+    if ids_str:
+        # 선택 ID 기반
+        campaign_ids = [s.strip() for s in ids_str.split(",") if s.strip()]
+        for cid in campaign_ids:
+            c = models.db_manager.get_campaign_by_id(cid)
+            if c:
+                writer.writerow([c.get(col, "") for col in columns])
+    else:
+        # 필터 기반 전체
+        items, _ = models.db_manager.get_campaigns_page(1, 9999, status, company=company, search=search)
+        for c in items:
+            writer.writerow([c.get(col, "") for col in columns])
 
     from modules.utils import today_str
     filename = f"campaigns_{today_str()}.csv"

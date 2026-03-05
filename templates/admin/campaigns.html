@@ -275,7 +275,7 @@
             </div>
         </div>
 
-        <!-- 상태 필터 -->
+        <!-- 필터 바 -->
         <div class="campaign-filter-bar">
             <label style="font-size:13px;font-weight:600;color:#555;">상태:</label>
             <select id="campaignStatusFilter">
@@ -284,7 +284,13 @@
                 <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
                 {% endfor %}
             </select>
+            <input type="text" id="campaignCompanyFilter" placeholder="업체명" value="{{ company_filter or '' }}" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:120px;">
+            <input type="text" id="campaignSearchFilter" placeholder="캠페인명/상품명" value="{{ search_filter or '' }}" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:150px;">
             <button class="btn-filter" onclick="applyCampaignFilter()">필터 적용</button>
+            {% if company_filter or search_filter %}
+            <button class="btn-filter" onclick="clearCampaignFilter()" style="background:#f5f5f5;color:#666;border-color:#ddd;">초기화</button>
+            {% endif %}
+            <button class="btn-filter" onclick="downloadFilteredCsv()" style="background:#fff;color:#059669;border-color:#059669;">CSV 다운로드</button>
             <button class="btn-filter" onclick="toggleDraftList()" id="draftToggleBtn" style="background:#f0f4ff;color:#4a6cf7;border-color:#4a6cf7;">임시저장 <span id="draftCountBadge" style="display:none;background:#4a6cf7;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">0</span></button>
             <span style="font-size:13px;color:#6b7280;margin-left:8px;">총 <strong>{{ total }}</strong>건</span>
         </div>
@@ -598,7 +604,7 @@
         {% if total_pages > 1 %}
         <div class="pagination">
             {% if page > 1 %}
-            <a href="{{ url_for('admin.campaigns', page=page-1, status=status_filter) }}">&laquo; 이전</a>
+            <a href="{{ url_for('admin.campaigns', page=page-1, status=status_filter, company=company_filter, search=search_filter) }}">&laquo; 이전</a>
             {% else %}
             <span class="disabled">&laquo; 이전</span>
             {% endif %}
@@ -607,7 +613,7 @@
                 {% if p == page %}
                 <span class="current">{{ p }}</span>
                 {% elif p <= 3 or p > total_pages - 2 or (p >= page - 2 and p <= page + 2) %}
-                <a href="{{ url_for('admin.campaigns', page=p, status=status_filter) }}">{{ p }}</a>
+                <a href="{{ url_for('admin.campaigns', page=p, status=status_filter, company=company_filter, search=search_filter) }}">{{ p }}</a>
                 {% elif p == 4 and page > 6 %}
                 <span class="ellipsis">...</span>
                 {% elif p == total_pages - 2 and page < total_pages - 5 %}
@@ -616,7 +622,7 @@
             {% endfor %}
 
             {% if page < total_pages %}
-            <a href="{{ url_for('admin.campaigns', page=page+1, status=status_filter) }}">다음 &raquo;</a>
+            <a href="{{ url_for('admin.campaigns', page=page+1, status=status_filter, company=company_filter, search=search_filter) }}">다음 &raquo;</a>
             {% else %}
             <span class="disabled">다음 &raquo;</span>
             {% endif %}
@@ -863,13 +869,36 @@
             .catch(function() {});
     })();
 
-    // 캠페인 상태 필터
+    // 캠페인 필터
     function applyCampaignFilter() {
         var status = document.getElementById('campaignStatusFilter').value;
+        var company = document.getElementById('campaignCompanyFilter').value.trim();
+        var search = document.getElementById('campaignSearchFilter').value.trim();
         var params = new URLSearchParams();
         if (status) params.set('status', status);
+        if (company) params.set('company', company);
+        if (search) params.set('search', search);
         window.location.href = '{{ url_for("admin.campaigns") }}' + (params.toString() ? '?' + params.toString() : '');
     }
+
+    function clearCampaignFilter() {
+        window.location.href = '{{ url_for("admin.campaigns") }}';
+    }
+
+    function downloadFilteredCsv() {
+        var status = document.getElementById('campaignStatusFilter').value;
+        var company = document.getElementById('campaignCompanyFilter').value.trim();
+        var search = document.getElementById('campaignSearchFilter').value.trim();
+        var params = new URLSearchParams();
+        if (status) params.set('status', status);
+        if (company) params.set('company', company);
+        if (search) params.set('search', search);
+        window.location = '/admin/api/campaigns/export-csv' + (params.toString() ? '?' + params.toString() : '');
+    }
+
+    // 필터 입력창 Enter 키 지원
+    document.getElementById('campaignCompanyFilter').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyCampaignFilter(); });
+    document.getElementById('campaignSearchFilter').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyCampaignFilter(); });
 
     // 홍보 토글
     (function() {

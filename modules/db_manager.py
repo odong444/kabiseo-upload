@@ -608,7 +608,8 @@ class DBManager:
         return [self._campaign_to_sheet_dict(r) for r in rows]
 
     def get_campaigns_page(self, page: int = 1, per_page: int = 20,
-                           status: str = "") -> tuple[list, int]:
+                           status: str = "", company: str = "",
+                           search: str = "") -> tuple[list, int]:
         """캠페인 페이지네이션. (items, total_count) 반환."""
         conditions = []
         params = []
@@ -618,6 +619,13 @@ class DBManager:
         else:
             # 임시저장은 기본 목록에서 제외 (status 필터 없을 때)
             conditions.append("status != '임시저장'")
+        if company:
+            conditions.append("COALESCE(company_name, '') ILIKE %s")
+            params.append(f"%{company}%")
+        if search:
+            conditions.append("(COALESCE(campaign_name, '') ILIKE %s OR COALESCE(product_name, '') ILIKE %s)")
+            params.append(f"%{search}%")
+            params.append(f"%{search}%")
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
