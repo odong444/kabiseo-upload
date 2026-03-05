@@ -68,25 +68,97 @@
         position: sticky;
         top: 0;
         z-index: 2;
+        white-space: nowrap;
     }
-    .spreadsheet-table thead .filter-row th {
-        background: #f0f0f0;
-        padding: 3px 4px;
-        position: sticky;
-        top: 28px;
-        z-index: 1;
+    .spreadsheet-table thead th.filterable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
     }
-    .col-filter {
+    .spreadsheet-table thead th.filterable:hover { background: #eef2f7; }
+    .filter-icon {
+        display: inline-block;
+        font-size: 9px;
+        margin-left: 2px;
+        color: #bbb;
+        vertical-align: middle;
+    }
+    .filter-icon.active { color: #2563eb; }
+    .col-filter-dropdown {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        min-width: 180px;
+        max-height: 320px;
+        background: #fff;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        z-index: 100;
+        font-weight: 400;
+        padding: 0;
+        overflow: hidden;
+    }
+    .col-filter-dropdown.open { display: block; }
+    .cfd-search {
         width: 100%;
-        padding: 3px 5px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 11px;
+        padding: 8px 10px;
+        border: none;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 12px;
         outline: none;
         box-sizing: border-box;
     }
-    .col-filter:focus { border-color: #fee500; }
-    .col-filter::placeholder { color: #bbb; }
+    .cfd-actions {
+        display: flex;
+        gap: 8px;
+        padding: 6px 10px;
+        border-bottom: 1px solid #f0f0f0;
+        font-size: 11px;
+    }
+    .cfd-actions a {
+        color: #2563eb;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .cfd-actions a:hover { text-decoration: underline; }
+    .cfd-list {
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 4px 0;
+    }
+    .cfd-list label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        font-size: 12px;
+        color: #333;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .cfd-list label:hover { background: #f8fafc; }
+    .cfd-list input[type="checkbox"] { flex-shrink: 0; }
+    .cfd-apply {
+        display: flex;
+        justify-content: flex-end;
+        padding: 6px 10px;
+        border-top: 1px solid #e5e7eb;
+    }
+    .cfd-apply button {
+        padding: 5px 14px;
+        border: none;
+        border-radius: 6px;
+        background: #fee500;
+        font-size: 12px;
+        font-weight: 600;
+        color: #3c1e1e;
+        cursor: pointer;
+    }
+    .cfd-apply button:hover { background: #e6cf00; }
     .spreadsheet-table tbody tr {
         border-bottom: 1px solid #f0f0f0;
     }
@@ -452,54 +524,28 @@
                 <thead>
                     <tr>
                         <th style="width:30px;"><input type="checkbox" id="checkAll"></th>
-                        <th>ID</th>
-                        <th>신청일시</th>
-                        <th>업체명</th>
-                        <th>제품명</th>
-                        <th>진행자</th>
+                        <th class="filterable" data-col="0">ID<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="1">신청일시<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="2">업체명<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="3">제품명<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="4">진행자<span class="filter-icon">▼</span></th>
                         <th>진행자연락처</th>
                         <th>카톡</th>
-                        <th>수취인명</th>
+                        <th class="filterable" data-col="7">수취인명<span class="filter-icon">▼</span></th>
                         <th>연락처</th>
-                        <th>은행</th>
+                        <th class="filterable" data-col="9">은행<span class="filter-icon">▼</span></th>
                         <th>계좌</th>
-                        <th>예금주</th>
-                        <th>아이디</th>
-                        <th>주문번호</th>
+                        <th class="filterable" data-col="11">예금주<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="12">아이디<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="13">주문번호<span class="filter-icon">▼</span></th>
                         <th>주소</th>
-                        <th style="min-width:110px;">상태</th>
-                        <th>구매일</th>
-                        <th>리뷰기한</th>
-                        <th>리뷰비</th>
-                        <th>입금금액</th>
-                        <th>AI검수</th>
-                        <th>비고</th>
-                        <th></th>
-                    </tr>
-                    <tr class="filter-row">
-                        <th></th>
-                        <th><input class="col-filter" data-col="0" placeholder="ID"></th>
-                        <th><input class="col-filter" data-col="1" placeholder="날짜"></th>
-                        <th><input class="col-filter" data-col="2" placeholder="업체명"></th>
-                        <th><input class="col-filter" data-col="3" placeholder="제품명"></th>
-                        <th><input class="col-filter" data-col="4" placeholder="진행자"></th>
-                        <th><input class="col-filter" data-col="5" placeholder="연락처"></th>
-                        <th></th>
-                        <th><input class="col-filter" data-col="7" placeholder="수취인"></th>
-                        <th><input class="col-filter" data-col="8" placeholder="연락처"></th>
-                        <th><input class="col-filter" data-col="9" placeholder="은행"></th>
-                        <th></th>
-                        <th><input class="col-filter" data-col="11" placeholder="예금주"></th>
-                        <th><input class="col-filter" data-col="12" placeholder="아이디"></th>
-                        <th><input class="col-filter" data-col="13" placeholder="주문번호"></th>
-                        <th></th>
-                        <th><input class="col-filter" data-col="15" placeholder="상태"></th>
-                        <th></th>
-                        <th></th>
-                        <th></th>
-                        <th></th>
-                        <th></th>
-                        <th><input class="col-filter" data-col="21" placeholder="비고"></th>
+                        <th class="filterable" data-col="15" style="min-width:110px;">상태<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="16">구매일<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="17">리뷰기한<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="18">리뷰비<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="19">입금금액<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="20">AI검수<span class="filter-icon">▼</span></th>
+                        <th class="filterable" data-col="21">비고<span class="filter-icon">▼</span></th>
                         <th></th>
                     </tr>
                 </thead>
@@ -1046,36 +1092,188 @@
     // 통합검색 Enter 키
     document.getElementById('filterQ').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyFilters(); });
 
-    // --- Column Filters (client-side, current page) ---
+    // --- Excel-style Column Filters ---
     (function() {
-        var filters = document.querySelectorAll('.col-filter');
         var tbody = document.querySelector('#spreadsheetTable tbody');
         if (!tbody) return;
         var allRows = Array.from(tbody.querySelectorAll('tr'));
+        var headers = document.querySelectorAll('#spreadsheetTable thead th.filterable');
+        // colFilters: { colIndex: Set of selected values } — null means all selected
+        var colFilters = {};
+        var openDropdown = null;
 
-        function runColFilters() {
-            var active = [];
-            filters.forEach(function(inp) {
-                var v = inp.value.trim().toLowerCase();
-                if (v) active.push({ col: parseInt(inp.getAttribute('data-col')), val: v });
-            });
+        function getColText(row, colIdx) {
+            var tds = row.querySelectorAll('td');
+            var td = tds[colIdx + 1]; // +1 for checkbox
+            if (!td) return '';
+            return td.textContent.trim();
+        }
+
+        function getUniqueValues(colIdx) {
+            var vals = {};
             allRows.forEach(function(row) {
-                var tds = row.querySelectorAll('td');
+                var t = getColText(row, colIdx);
+                var key = t || '(빈값)';
+                vals[key] = true;
+            });
+            return Object.keys(vals).sort();
+        }
+
+        function applyAllFilters() {
+            allRows.forEach(function(row) {
                 var show = true;
-                for (var i = 0; i < active.length; i++) {
-                    var f = active[i];
-                    // td index is col+1 because first td is checkbox
-                    var td = tds[f.col + 1];
-                    if (!td) { show = false; break; }
-                    var text = td.textContent.toLowerCase();
-                    if (text.indexOf(f.val) === -1) { show = false; break; }
+                for (var col in colFilters) {
+                    if (!colFilters.hasOwnProperty(col)) continue;
+                    var allowed = colFilters[col];
+                    if (!allowed) continue; // null = all
+                    var t = getColText(row, parseInt(col)) || '(빈값)';
+                    if (!allowed.has(t)) { show = false; break; }
                 }
                 row.style.display = show ? '' : 'none';
             });
+            // update filter icons
+            headers.forEach(function(th) {
+                var col = th.getAttribute('data-col');
+                var icon = th.querySelector('.filter-icon');
+                if (icon) {
+                    icon.classList.toggle('active', !!colFilters[col]);
+                }
+            });
         }
 
-        filters.forEach(function(inp) {
-            inp.addEventListener('input', runColFilters);
+        function closeAllDropdowns() {
+            document.querySelectorAll('.col-filter-dropdown.open').forEach(function(d) {
+                d.classList.remove('open');
+            });
+            openDropdown = null;
+        }
+
+        function createDropdown(th, colIdx) {
+            var existing = th.querySelector('.col-filter-dropdown');
+            if (existing) { existing.remove(); }
+
+            var values = getUniqueValues(colIdx);
+            var currentFilter = colFilters[colIdx]; // null or Set
+
+            var dd = document.createElement('div');
+            dd.className = 'col-filter-dropdown';
+
+            // Search
+            var searchInput = document.createElement('input');
+            searchInput.className = 'cfd-search';
+            searchInput.placeholder = '검색...';
+            searchInput.addEventListener('click', function(e) { e.stopPropagation(); });
+            dd.appendChild(searchInput);
+
+            // Actions
+            var actions = document.createElement('div');
+            actions.className = 'cfd-actions';
+            var selAll = document.createElement('a');
+            selAll.textContent = '전체선택';
+            var deselAll = document.createElement('a');
+            deselAll.textContent = '전체해제';
+            actions.appendChild(selAll);
+            actions.appendChild(deselAll);
+            dd.appendChild(actions);
+
+            // List
+            var listDiv = document.createElement('div');
+            listDiv.className = 'cfd-list';
+
+            var checkboxes = [];
+            values.forEach(function(val) {
+                var label = document.createElement('label');
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = val;
+                cb.checked = !currentFilter || currentFilter.has(val);
+                cb.addEventListener('click', function(e) { e.stopPropagation(); });
+                var span = document.createElement('span');
+                span.textContent = val;
+                span.style.overflow = 'hidden';
+                span.style.textOverflow = 'ellipsis';
+                label.appendChild(cb);
+                label.appendChild(span);
+                label.addEventListener('click', function(e) { e.stopPropagation(); });
+                listDiv.appendChild(label);
+                checkboxes.push({ cb: cb, label: label, val: val });
+            });
+            dd.appendChild(listDiv);
+
+            // Search filter
+            searchInput.addEventListener('input', function() {
+                var q = searchInput.value.trim().toLowerCase();
+                checkboxes.forEach(function(item) {
+                    item.label.style.display = item.val.toLowerCase().indexOf(q) !== -1 ? '' : 'none';
+                });
+            });
+
+            // Select all / deselect all
+            selAll.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                checkboxes.forEach(function(item) {
+                    if (item.label.style.display !== 'none') item.cb.checked = true;
+                });
+            });
+            deselAll.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                checkboxes.forEach(function(item) {
+                    if (item.label.style.display !== 'none') item.cb.checked = false;
+                });
+            });
+
+            // Apply button
+            var applyDiv = document.createElement('div');
+            applyDiv.className = 'cfd-apply';
+            var applyBtn = document.createElement('button');
+            applyBtn.textContent = '적용';
+            applyBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var selected = new Set();
+                var allChecked = true;
+                checkboxes.forEach(function(item) {
+                    if (item.cb.checked) selected.add(item.val);
+                    else allChecked = false;
+                });
+                if (allChecked || selected.size === 0) {
+                    delete colFilters[colIdx]; // 전체 = 필터 해제
+                } else {
+                    colFilters[colIdx] = selected;
+                }
+                closeAllDropdowns();
+                applyAllFilters();
+            });
+            applyDiv.appendChild(applyBtn);
+            dd.appendChild(applyDiv);
+
+            dd.addEventListener('click', function(e) { e.stopPropagation(); });
+            th.appendChild(dd);
+            return dd;
+        }
+
+        headers.forEach(function(th) {
+            th.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var colIdx = parseInt(th.getAttribute('data-col'));
+                var dd = th.querySelector('.col-filter-dropdown');
+
+                if (dd && dd.classList.contains('open')) {
+                    closeAllDropdowns();
+                    return;
+                }
+                closeAllDropdowns();
+                dd = createDropdown(th, colIdx);
+                dd.classList.add('open');
+                openDropdown = dd;
+                // focus search
+                var si = dd.querySelector('.cfd-search');
+                if (si) setTimeout(function() { si.focus(); }, 50);
+            });
+        });
+
+        // 외부 클릭 시 닫기
+        document.addEventListener('click', function() {
+            closeAllDropdowns();
         });
     })();
 
