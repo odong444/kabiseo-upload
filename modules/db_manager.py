@@ -504,6 +504,21 @@ class DBManager:
                     cur.execute("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS agency_id INTEGER DEFAULT NULL")
                 except Exception:
                     pass
+                # 마이그레이션: 리뷰기한 빈 건 일괄 채우기 (구매일 + 캠페인 리뷰기한일수)
+                try:
+                    cur.execute("""
+                        UPDATE progress p SET review_deadline =
+                            (p.purchase_date + c.review_deadline_days * INTERVAL '1 day')::date
+                        FROM campaigns c
+                        WHERE p.campaign_id = c.id
+                          AND c.review_deadline_days > 0
+                          AND p.purchase_date IS NOT NULL
+                          AND (p.review_deadline IS NULL)
+                    """)
+                    if cur.rowcount > 0:
+                        logger.info("리뷰기한 빈 건 일괄 채우기: %d건", cur.rowcount)
+                except Exception:
+                    pass
                 # 기존 구매캡쳐 반려 비고 잔류 정리: 재제출 완료된 건의 비고 클리어
                 try:
                     cur.execute("""
