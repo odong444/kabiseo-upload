@@ -456,7 +456,6 @@
                             <span class="progress-pct {{ rate_class }}">{{ active }}/{{ total }} ({{ rate }}%)</span>
                         </td>
                         <td>
-                            <span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span>
                             {% if total > 0 and settle >= total %}
                             <span class="admin-status-badge 마감" style="background:#dcfce7;color:#16a34a;">캠페인완료</span>
                             {% elif total > 0 and review >= total %}
@@ -467,6 +466,8 @@
                             <span class="admin-status-badge 마감">마감</span>
                             {% elif c.get('_daily_closed') %}
                             <span class="admin-status-badge 당일마감">당일마감</span>
+                            {% else %}
+                            <span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span>
                             {% endif %}
                         </td>
                         <td>
