@@ -268,6 +268,16 @@ CREATE TABLE IF NOT EXISTS campaign_photos (
 CREATE INDEX IF NOT EXISTS idx_campaign_photos_campaign ON campaign_photos(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_campaign_photos_set ON campaign_photos(campaign_id, set_number);
 
+CREATE TABLE IF NOT EXISTS campaign_review_texts (
+    id              SERIAL PRIMARY KEY,
+    campaign_id     TEXT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    text_number     INTEGER NOT NULL,
+    review_text     TEXT NOT NULL DEFAULT '',
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_crt_campaign ON campaign_review_texts(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_crt_num ON campaign_review_texts(campaign_id, text_number);
+
 CREATE TABLE IF NOT EXISTS drive_upload_queue (
     id              SERIAL PRIMARY KEY,
     progress_id     INTEGER NOT NULL,
@@ -429,6 +439,11 @@ class DBManager:
                 # 사진 세트 할당 번호
                 try:
                     cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS photo_set_number INTEGER")
+                except Exception:
+                    pass
+                # 리뷰내용 할당 번호
+                try:
+                    cur.execute("ALTER TABLE progress ADD COLUMN IF NOT EXISTS review_text_number INTEGER")
                 except Exception:
                     pass
                 # 동시진행그룹
@@ -658,7 +673,7 @@ class DBManager:
             # 임시저장은 기본 목록에서 제외 (status 필터 없을 때)
             conditions.append("status != '임시저장'")
         if company:
-            conditions.append("COALESCE(company_name, '') ILIKE %s")
+            conditions.append("COALESCE(company, '') ILIKE %s")
             params.append(f"%{company}%")
         if search:
             conditions.append("(COALESCE(campaign_name, '') ILIKE %s OR COALESCE(product_name, '') ILIKE %s)")
@@ -1139,6 +1154,7 @@ class DBManager:
                 "AI검수시간": row["ai_verified_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("ai_verified_at") else "",
                 "AI관리자판정": row.get("ai_override", ""),
                 "사진세트": row.get("photo_set_number"),
+                "리뷰내용번호": row.get("review_text_number"),
             })
         return results
 
@@ -1485,6 +1501,7 @@ class DBManager:
                 "AI검수시간": row["ai_verified_at"].astimezone(KST).strftime("%Y-%m-%d %H:%M") if row.get("ai_verified_at") else "",
                 "AI관리자판정": row.get("ai_override", ""),
                 "사진세트": row.get("photo_set_number"),
+                "리뷰내용번호": row.get("review_text_number"),
                 "buy_time": row.get("buy_time", ""),
             })
         return items, total
@@ -2376,6 +2393,84 @@ class DBManager:
         for r in rows:
             assigned[r["photo_set_number"]] = {"name": r["name"], "phone": r["phone"]}
         return {sn: assigned.get(sn) for sn in photo_sets}
+
+    # ─────────── 캠페인 리뷰내용 ───────────
+
+    def add_campaign_review_text(self, campaign_id: str, text_number: int, review_text: str):
+        self._execute(
+            """INSERT INTO campaign_review_texts (campaign_id, text_number, review_text)
+               VALUES (%s, %s, %s)""",
+            (campaign_id, text_number, review_text),
+        )
+
+    def get_campaign_review_texts(self, campaign_id: str) -> dict:
+        """캠페인 리뷰내용 반환. {1: "리뷰텍스트1", 2: "리뷰텍스트2", ...}"""
+        rows = self._fetchall(
+            "SELECT * FROM campaign_review_texts WHERE campaign_id = %s ORDER BY text_number",
+            (campaign_id,),
+        )
+        return {r["text_number"]: r["review_text"] for r in rows}
+
+    def delete_campaign_review_texts(self, campaign_id: str):
+        self._execute("DELETE FROM campaign_review_texts WHERE campaign_id = %s", (campaign_id,))
+
+    def get_next_review_text_number(self, campaign_id: str) -> int | None:
+        """미할당된 가장 작은 리뷰내용 번호 반환. 없으면 None."""
+        row = self._fetchone(
+            """SELECT crt.text_number FROM campaign_review_texts crt
+               WHERE crt.campaign_id = %s
+               AND crt.text_number NOT IN (
+                   SELECT DISTINCT review_text_number FROM progress
+                   WHERE campaign_id = %s AND review_text_number IS NOT NULL
+                   AND status NOT IN ('타임아웃취소', '취소')
+               )
+               ORDER BY crt.text_number
+               LIMIT 1""",
+            (campaign_id, campaign_id),
+        )
+        return row["text_number"] if row else None
+
+    def assign_review_text(self, progress_ids: list[int], text_number: int):
+        """progress 목록에 리뷰내용 번호 할당"""
+        if not progress_ids:
+            return
+        self._execute(
+            "UPDATE progress SET review_text_number = %s WHERE id = ANY(%s)",
+            (text_number, progress_ids),
+        )
+
+    def get_unassigned_review_text_progress(self, campaign_id: str) -> list[dict]:
+        """리뷰내용 미할당 + 활성 상태 진행건"""
+        return self._fetchall(
+            """SELECT p.id AS progress_id, p.reviewer_id, p.status,
+                      p.store_id, p.recipient_name, p.photo_set_number,
+                      r.name, r.phone
+               FROM progress p
+               JOIN reviewers r ON p.reviewer_id = r.id
+               WHERE p.campaign_id = %s
+               AND p.review_text_number IS NULL
+               AND p.status NOT IN ('타임아웃취소', '취소', '입금완료')
+               ORDER BY p.created_at""",
+            (campaign_id,),
+        )
+
+    def get_review_text_assignments(self, campaign_id: str) -> dict:
+        """리뷰내용별 할당 현황. {text_number: {"name": str, "phone": str} | None}"""
+        review_texts = self.get_campaign_review_texts(campaign_id)
+        if not review_texts:
+            return {}
+        rows = self._fetchall(
+            """SELECT DISTINCT p.review_text_number, r.name, r.phone
+               FROM progress p
+               JOIN reviewers r ON p.reviewer_id = r.id
+               WHERE p.campaign_id = %s AND p.review_text_number IS NOT NULL
+               AND p.status NOT IN ('타임아웃취소', '취소')""",
+            (campaign_id,),
+        )
+        assigned = {}
+        for r in rows:
+            assigned[r["review_text_number"]] = {"name": r["name"], "phone": r["phone"]}
+        return {tn: assigned.get(tn) for tn in review_texts}
 
     # ─────────── Drive 업로드 큐 ───────────
 
