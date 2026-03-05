@@ -63,6 +63,14 @@ def request_friend_add(name: str, phone: str) -> bool:
     return send_task("friend_add", {"name": name, "phone": phone}, priority=1)
 
 
+def request_friend_add_by_id(name: str, phone: str, kakao_id: str) -> bool:
+    """카카오 ID로 친구추가 요청 (priority=1 긴급)."""
+    phone = _format_phone(phone)
+    return send_task("friend_add_by_id", {
+        "name": name, "phone": phone, "kakao_id": kakao_id,
+    }, priority=1)
+
+
 def request_reminder(name: str, phone: str, message: str) -> bool:
     """독촉 메시지 요청 (priority=1 긴급)."""
     phone = _format_phone(phone)

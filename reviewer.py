@@ -903,6 +903,13 @@ def api_submit_kakao_id():
         is_urgent=True,
     )
 
+    # PC1에 카카오 ID 친구추가 태스크 자동 전송
+    try:
+        from modules.signal_sender import request_friend_add_by_id
+        request_friend_add_by_id(name, phone, kakao_id)
+    except Exception:
+        pass
+
     # 관리자 카톡 알림
     if models.kakao_notifier:
         try:
