@@ -8,9 +8,31 @@ import time
 import uuid
 from anthropic import Anthropic
 
+import random
+
 import models
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_schedule(total: int, lo: int, hi: int, days: int) -> list[int]:
+    """총수량을 일수에 맞게 lo~hi 범위로 랜덤 배분"""
+    schedule = []
+    remaining = total
+    for i in range(days):
+        if i == days - 1:
+            schedule.append(max(0, remaining))
+        else:
+            left = days - i - 1
+            min_today = max(lo, remaining - hi * left)
+            max_today = min(hi, remaining - lo * left)
+            if min_today > max_today:
+                min_today = max_today = max(1, remaining // (left + 1))
+            val = random.randint(max(1, min_today), max(1, max_today))
+            val = min(val, remaining)
+            schedule.append(val)
+            remaining -= val
+    return schedule
 
 # CSV 내보내기 임시 저장소 (토큰 → {data, filename, created})
 _export_store = {}
@@ -54,6 +76,7 @@ SYSTEM_PROMPT = """당신은 카비서 캠페인 관리 도우미입니다.
 - 리뷰기한일수(review_deadline_days): 정수
 - 캠페인가이드(campaign_guide): 텍스트 (리뷰어에게 전달할 구매 가이드)
 - 추가안내사항(extra_info): 텍스트 (구매 주의사항)
+- 시작일(start_date): "YYYY-MM-DD" [미지정 시 오늘 날짜]
 
 ### 추가 설정 (선택)
 - 상품이미지(product_image): URL
@@ -69,6 +92,15 @@ SYSTEM_PROMPT = """당신은 카비서 캠페인 관리 도우미입니다.
 4. 확인 받은 뒤에만 create_campaign을 호출하세요.
 5. **등록 시 is_public은 항상 "N"(비노출)으로 설정하세요.**
 6. 등록 완료 후 "캠페인이 **비노출** 상태로 등록되었습니다. 내용 확인 후 캠페인 목록에서 노출로 변경해주세요." 라고 안내하세요.
+7. **시작일을 반드시 확인하세요.** 사용자가 시작일을 안 알려주면 "시작일은 오늘로 할까요?" 물어보세요.
+8. **일별 진행일정은 자동 생성됩니다.** 총수량, 일수량, 진행일수만 있으면 시스템이 자동 배분합니다. 별도 입력 불필요.
+
+## 업체명/대행사 매칭 규칙 (매우 중요)
+- 사용자가 업체명(company)이나 대행사를 말하면, **먼저 list_clients(query=검색어) 또는 list_agencies(query=검색어)를 호출**하여 기존 등록된 목록에서 검색하세요.
+- 정확히 일치하는 업체가 있으면: "○○ 맞으시죠?" 확인 후 정확한 이름으로 설정.
+- 비슷한 이름이 여러 개 있으면: 후보 목록을 보여주고 "이 중 어떤 업체인가요?" 물어보세요.
+- 검색 결과가 없으면: "등록된 업체 중 '○○'을 찾을 수 없습니다. 입력하신 이름 그대로 사용할까요?" 확인.
+- 이렇게 하면 오타나 약칭을 써도 정확한 업체명으로 매칭됩니다.
 
 ## 상태 워크플로우
 - 관리자 생성 → "모집중" (비노출)
@@ -130,7 +162,8 @@ TOOLS = [
                 "review_deadline_days": {"type": "integer", "description": "리뷰기한일수"},
                 "is_public": {"type": "string", "description": "공개여부 (Y/N)"},
                 "campaign_guide": {"type": "string", "description": "캠페인가이드"},
-                "extra_info": {"type": "string", "description": "추가안내사항"}
+                "extra_info": {"type": "string", "description": "추가안내사항"},
+                "start_date": {"type": "string", "description": "시작일 (YYYY-MM-DD). 미지정 시 오늘 날짜"}
             },
             "required": ["product_name", "platform", "total_qty", "payment_amount"]
         }
@@ -185,18 +218,22 @@ TOOLS = [
     },
     {
         "name": "list_clients",
-        "description": "등록된 업체(클라이언트) 목록을 조회합니다.",
+        "description": "등록된 업체(클라이언트) 목록을 조회합니다. query로 업체명 부분일치 검색 가능.",
         "input_schema": {
             "type": "object",
-            "properties": {}
+            "properties": {
+                "query": {"type": "string", "description": "업체명 검색어 (부분일치)"}
+            }
         }
     },
     {
         "name": "list_agencies",
-        "description": "등록된 대행사 목록을 조회합니다.",
+        "description": "등록된 대행사 목록을 조회합니다. query로 대행사명 부분일치 검색 가능.",
         "input_schema": {
             "type": "object",
-            "properties": {}
+            "properties": {
+                "query": {"type": "string", "description": "대행사명 검색어 (부분일치)"}
+            }
         }
     },
     {
@@ -402,9 +439,9 @@ class AICampaignChat:
             elif name == "get_dashboard_stats":
                 return self._do_stats(portal, owner_id)
             elif name == "list_clients":
-                return self._do_list_clients(portal, owner_id)
+                return self._do_list_clients(input_data, portal, owner_id)
             elif name == "list_agencies":
-                return self._do_list_agencies()
+                return self._do_list_agencies(input_data)
             elif name == "search_progress":
                 return self._do_search_progress(input_data)
             elif name == "update_progress":
@@ -441,7 +478,8 @@ class AICampaignChat:
             "buy_time": "구매가능시간", "allow_duplicate": "중복허용",
             "keyword": "키워드", "entry_method": "유입방식",
             "review_deadline_days": "리뷰기한일수", "is_public": "공개여부",
-            "campaign_guide": "캠페인가이드", "extra_info": "추가안내사항"
+            "campaign_guide": "캠페인가이드", "extra_info": "추가안내사항",
+            "start_date": "시작일"
         }
 
         for k, v in data.items():
@@ -457,6 +495,19 @@ class AICampaignChat:
         campaign_data["공개여부"] = "N"
         if "중복허용" not in campaign_data:
             campaign_data["중복허용"] = "N"
+
+        # 시작일 기본값: 오늘
+        if not campaign_data.get("시작일"):
+            from datetime import datetime, timezone, timedelta
+            kst = timezone(timedelta(hours=9))
+            campaign_data["시작일"] = datetime.now(kst).strftime("%Y-%m-%d")
+
+        # 일별 진행일정 자동 생성
+        total = int(campaign_data.get("총수량", 0) or 0)
+        daily = int(campaign_data.get("일수량", 0) or 0)
+        days = int(campaign_data.get("진행일수", 0) or 0)
+        if total > 0 and daily > 0 and days > 0:
+            campaign_data["일정"] = _generate_schedule(total, max(1, daily - 1), daily + 1, days)
 
         # Portal-specific status
         if portal == "admin":
@@ -630,31 +681,51 @@ class AICampaignChat:
             "today": total_today
         }
 
-    def _do_list_clients(self, portal: str, owner_id) -> dict:
-        """업체 목록"""
+    def _do_list_clients(self, data: dict, portal: str, owner_id) -> dict:
+        """업체 목록 (query로 부분일치 검색 가능)"""
         db = models.db_manager
         if not db:
             return {"ok": False, "error": "DB 연결 없음"}
         try:
+            query = (data.get("query") or "").strip()
             if portal == "agency" and owner_id:
-                clients = db._fetchall(
-                    "SELECT id, company_name, login_id FROM clients WHERE agency_id = %s ORDER BY company_name",
-                    (owner_id,)
-                )
+                if query:
+                    clients = db._fetchall(
+                        "SELECT id, company_name, login_id FROM clients WHERE agency_id = %s AND company_name ILIKE %s ORDER BY company_name",
+                        (owner_id, f"%{query}%")
+                    )
+                else:
+                    clients = db._fetchall(
+                        "SELECT id, company_name, login_id FROM clients WHERE agency_id = %s ORDER BY company_name",
+                        (owner_id,)
+                    )
             else:
-                clients = db._fetchall("SELECT id, company_name, login_id FROM clients ORDER BY company_name")
+                if query:
+                    clients = db._fetchall(
+                        "SELECT id, company_name, login_id FROM clients WHERE company_name ILIKE %s ORDER BY company_name",
+                        (f"%{query}%",)
+                    )
+                else:
+                    clients = db._fetchall("SELECT id, company_name, login_id FROM clients ORDER BY company_name")
             result = [{"id": c["id"], "업체명": c["company_name"], "로그인ID": c["login_id"]} for c in clients]
             return {"ok": True, "clients": result, "total": len(result)}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
-    def _do_list_agencies(self) -> dict:
-        """대행사 목록"""
+    def _do_list_agencies(self, data: dict) -> dict:
+        """대행사 목록 (query로 부분일치 검색 가능)"""
         db = models.db_manager
         if not db:
             return {"ok": False, "error": "DB 연결 없음"}
         try:
-            agencies = db._fetchall("SELECT id, company_name, login_id FROM agencies ORDER BY company_name")
+            query = (data.get("query") or "").strip()
+            if query:
+                agencies = db._fetchall(
+                    "SELECT id, company_name, login_id FROM agencies WHERE company_name ILIKE %s ORDER BY company_name",
+                    (f"%{query}%",)
+                )
+            else:
+                agencies = db._fetchall("SELECT id, company_name, login_id FROM agencies ORDER BY company_name")
             result = [{"id": a["id"], "대행사명": a["company_name"], "로그인ID": a["login_id"]} for a in agencies]
             return {"ok": True, "agencies": result, "total": len(result)}
         except Exception as e:

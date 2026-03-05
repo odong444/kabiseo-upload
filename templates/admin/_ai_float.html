@@ -256,6 +256,10 @@
 
 <script>
 (function() {
+    // 포탈 자동 감지 (admin / agency / client)
+    var _aiPortal = window.location.pathname.startsWith('/agency') ? '/agency' :
+                    window.location.pathname.startsWith('/client') ? '/client' : '/admin';
+
     var _aiMessages = [];
     var _aiOpen = false;
     var _aiExpanded = false;
@@ -267,8 +271,8 @@
     var sessionItems = document.getElementById('aiSessionItems');
 
     // ──────── 세션 관리 ────────
-    var _sessionsKey = 'kabiseo_ai_sessions';
-    var _currentKey = 'kabiseo_ai_current';
+    var _sessionsKey = 'kabiseo_ai_sessions' + _aiPortal.replace('/', '_');
+    var _currentKey = 'kabiseo_ai_current' + _aiPortal.replace('/', '_');
     var _currentSessionId = null;
     var MAX_SESSIONS = 20;
 
@@ -358,7 +362,7 @@
         _aiMessages = [];
         chatBox.innerHTML = '<div class="ai-msg ai">안녕하세요! 캠페인 등록/수정, 진행 데이터 조회/수정, 엑셀 정리를 도와드립니다.</div>';
         localStorage.setItem(_currentKey, _currentSessionId);
-        fetch('/admin/api/ai-chat/reset', {method: 'POST'});
+        fetch(_aiPortal + '/api/ai-chat/reset', {method: 'POST'});
         _hideSessionList();
     }
 
@@ -458,8 +462,8 @@
     window.startNewSession = _startNew;
 
     function _linkify(text) {
-        // /admin/api/ai-export/... → 다운로드 버튼
-        var t = text.replace(/(?:https?:\/\/[^\s]+)?(\/admin\/api\/ai-export\/[a-f0-9]+)/g,
+        // /admin|agency|client/api/ai-export/... → 다운로드 버튼
+        var t = text.replace(/(?:https?:\/\/[^\s]+)?(\/(?:admin|agency|client)\/api\/ai-export\/[a-f0-9]+)/g,
             '<a href="$1" class="ai-download-link" target="_blank">📥 CSV 다운로드</a>');
         // 일반 URL → 링크
         t = t.replace(/(https?:\/\/[^\s<]+)/g, function(url) {
@@ -568,7 +572,7 @@
         var controller = new AbortController();
         var timeoutId = setTimeout(function() { controller.abort(); }, 90000);
 
-        fetch('/admin/api/ai-chat', {
+        fetch(_aiPortal + '/api/ai-chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({messages: _aiMessages}),
