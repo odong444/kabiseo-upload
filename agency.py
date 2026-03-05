@@ -31,6 +31,14 @@ def agency_required(f):
     return decorated
 
 
+@agency_bp.route("/")
+def index():
+    """루트 접속 시 로그인 or 대시보드로 리다이렉트"""
+    if session.get("agency_id"):
+        return redirect(url_for("agency.dashboard"))
+    return redirect(url_for("agency.login"))
+
+
 @agency_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
@@ -411,7 +419,7 @@ def campaign_draft_delete(campaign_id):
         return jsonify({"ok": False, "error": "임시저장 캠페인이 아닙니다."}), 404
     if str(campaign.get("대행사ID", "")) != str(agency_id):
         return jsonify({"ok": False, "error": "접근 권한이 없습니다."}), 403
-    ok = models.db_manager.delete_draft_campaign(campaign_id)
+    ok = models.db_manager.delete_campaign(campaign_id)
     return jsonify({"ok": ok})
 
 
