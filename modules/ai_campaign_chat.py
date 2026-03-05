@@ -630,21 +630,17 @@ class AICampaignChat:
             start = (page - 1) * per_page
             campaigns = all_campaigns[start:start + per_page]
 
-        # 간략화: AI에 필요한 필드만 반환 (응답 크기 축소)
+        # 캠페인 주요 필드 반환
+        _LIST_FIELDS = [
+            "캠페인ID", "캠페인명", "상품명", "업체명", "플랫폼", "상태",
+            "총수량", "일수량", "진행일수", "결제금액", "리뷰비",
+            "시작일", "구매가능시간", "키워드", "유입방식", "옵션",
+            "캠페인유형", "상품링크", "리뷰기한일수", "공개여부",
+            "중복허용", "1인일일제한", "일정", "등록일",
+        ]
         brief_campaigns = []
         for c in campaigns:
-            brief_campaigns.append({
-                "캠페인ID": c.get("캠페인ID", ""),
-                "캠페인명": c.get("캠페인명", ""),
-                "상품명": c.get("상품명", ""),
-                "업체명": c.get("업체명", ""),
-                "플랫폼": c.get("플랫폼", ""),
-                "상태": c.get("상태", ""),
-                "총수량": c.get("총수량", ""),
-                "일수량": c.get("일수량", ""),
-                "결제금액": c.get("결제금액", ""),
-                "리뷰비": c.get("리뷰비", ""),
-            })
+            brief_campaigns.append({k: c.get(k, "") for k in _LIST_FIELDS})
 
         return {"ok": True, "campaigns": brief_campaigns, "total": total, "page": page}
 
@@ -830,23 +826,17 @@ class AICampaignChat:
         page = data.get("page", 1) or 1
         per_page = min(data.get("per_page", 20) or 20, 50)
         items, total = db.get_progress_page(page, per_page, campaign_id, status, query)
-        # 간략화: 주요 필드만 반환
+        # 진행건 주요 필드 반환
+        _PROG_FIELDS = [
+            "id", "캠페인ID", "제품명", "진행자이름", "진행자연락처",
+            "수취인명", "연락처", "아이디", "닉네임", "상태",
+            "결제금액", "리뷰비", "입금금액", "주문번호", "비고",
+            "은행", "계좌", "예금주", "주소",
+            "구매일", "리뷰기한", "리뷰제출일", "날짜",
+        ]
         brief = []
         for it in items:
-            brief.append({
-                "id": it.get("id"),
-                "캠페인ID": it.get("캠페인ID", ""),
-                "제품명": it.get("제품명", ""),
-                "진행자이름": it.get("진행자이름", ""),
-                "진행자연락처": it.get("진행자연락처", ""),
-                "아이디": it.get("아이디", ""),
-                "상태": it.get("상태", ""),
-                "결제금액": it.get("결제금액", ""),
-                "리뷰비": it.get("리뷰비", ""),
-                "입금금액": it.get("입금금액", ""),
-                "비고": it.get("비고", ""),
-                "날짜": it.get("날짜", ""),
-            })
+            brief.append({k: it.get(k, "") for k in _PROG_FIELDS})
         return {"ok": True, "items": brief, "total": total, "page": page, "per_page": per_page}
 
     def _do_update_progress(self, data: dict) -> dict:
