@@ -87,12 +87,31 @@ class DriveQueueWorker:
             # 큐 완료 처리 (file_data 삭제)
             self.db.complete_upload(queue_id)
 
-            # AI 검수 트리거
+            # AI 검수: 같은 progress_id의 모든 파일 업로드 완료 후 합쳐진 URL로 1회만 실행
             if self.ai_verify_fn:
+                has_remaining = False
                 try:
-                    self.ai_verify_fn(capture_type, progress_id, drive_link)
+                    has_remaining = self.db.has_pending_uploads(progress_id, capture_type)
                 except Exception as e:
-                    logger.warning("Drive 큐 #%s: AI 검수 트리거 실패 (무시): %s", queue_id, e)
+                    logger.warning("Drive 큐 #%s: pending 체크 실패: %s", queue_id, e)
+
+                if has_remaining:
+                    logger.info("Drive 큐 #%s: progress=%s 남은 파일 있음, AI 검수 대기",
+                                queue_id, progress_id)
+                else:
+                    # 모든 파일 업로드 완료 → DB에서 합쳐진 전체 URL로 AI 검수
+                    try:
+                        row = self.db.get_row_dict(progress_id)
+                        if row:
+                            url_field = "구매캡쳐링크" if capture_type == "purchase" else "리뷰캡쳐링크"
+                            combined_url = row.get(url_field, "") or drive_link
+                            logger.info("Drive 큐 #%s: progress=%s 전체 업로드 완료, AI 검수 시작 (images=%d)",
+                                        queue_id, progress_id, len(combined_url.split(",")))
+                            self.ai_verify_fn(capture_type, progress_id, combined_url)
+                        else:
+                            self.ai_verify_fn(capture_type, progress_id, drive_link)
+                    except Exception as e:
+                        logger.warning("Drive 큐 #%s: AI 검수 트리거 실패 (무시): %s", queue_id, e)
 
         except Exception as e:
             attempt = job.get("attempt_count", 0)

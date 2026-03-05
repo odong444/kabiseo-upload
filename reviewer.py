@@ -677,6 +677,7 @@ def api_task_purchase(progress_id):
                status = '리뷰대기',
                purchase_date = COALESCE(purchase_date, (NOW() AT TIME ZONE 'Asia/Seoul')::date),
                remark = CASE WHEN remark LIKE '구매캡쳐 반려%%' OR remark LIKE 'AI 자동반려%%' THEN '' ELSE remark END,
+               ai_purchase_result = '', ai_purchase_reason = '',
                updated_at = NOW()
                WHERE id = %s""",
             (
@@ -750,10 +751,12 @@ def api_task_review(progress_id):
             )
         models.db_manager.set_upload_pending(progress_id, "review")
 
-        # 상태 즉시 변경 + 리뷰제출일 기록 (Drive 업로드 완료 대기 없이)
+        # 상태 즉시 변경 + 리뷰제출일 기록 + 이전 AI 결과 클리어 (Drive 업로드 완료 대기 없이)
         models.db_manager._execute(
             """UPDATE progress SET status = '리뷰제출',
                review_submit_date = (NOW() AT TIME ZONE 'Asia/Seoul')::date,
+               remark = CASE WHEN remark LIKE 'AI 자동반려%%' OR remark LIKE '리뷰캡쳐 반려%%' THEN '' ELSE remark END,
+               ai_review_result = '', ai_review_reason = '',
                updated_at = NOW() WHERE id = %s""",
             (progress_id,)
         )

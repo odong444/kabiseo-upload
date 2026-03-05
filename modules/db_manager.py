@@ -1241,10 +1241,11 @@ class DBManager:
                 (drive_link, drive_link, STATUS_REVIEW_WAIT, progress_id)
             )
         elif capture_type == "review":
-            # 반려 사유 클리어
+            # 반려 사유 클리어 (관리자 반려 "반려:" + AI 자동반려 "AI 자동반려:")
             row = self._fetchone("SELECT remark FROM progress WHERE id = %s", (progress_id,))
             remark_update = ""
-            if row and row.get("remark", "").startswith("반려"):
+            remark_val = row.get("remark", "") if row else ""
+            if remark_val.startswith("반려") or remark_val.startswith("AI 자동반려"):
                 remark_update = ", remark = ''"
 
             self._execute(
@@ -2364,6 +2365,16 @@ class DBManager:
                WHERE id = %s""",
             (error, queue_id)
         )
+
+    def has_pending_uploads(self, progress_id: int, capture_type: str) -> bool:
+        """같은 progress_id + capture_type의 pending/processing 큐 항목이 남아있는지"""
+        row = self._fetchone(
+            """SELECT COUNT(*) as cnt FROM drive_upload_queue
+               WHERE progress_id = %s AND capture_type = %s
+               AND status IN ('pending', 'processing')""",
+            (progress_id, capture_type)
+        )
+        return (row["cnt"] if row else 0) > 0
 
     def reset_stale_processing(self):
         """서버 재시작 시 processing → pending 복구"""
