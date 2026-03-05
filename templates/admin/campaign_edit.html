@@ -133,7 +133,7 @@
                 <div class="form-group form-group-full">
                     <label>상태</label>
                     <select name="상태" style="max-width:200px;">
-                        {% for s in ['모집중', '진행중', '마감', '종료', '승인대기', '대행사승인', '반려'] %}
+                        {% for s in ['모집중', '모집마감', '마감', '종료', '승인대기', '대행사승인', '반려'] %}
                         <option value="{{ s }}" {{ 'selected' if campaign.get('상태', '') == s }}>{{ s }}</option>
                         {% endfor %}
                     </select>

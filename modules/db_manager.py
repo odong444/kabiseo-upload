@@ -721,6 +721,29 @@ class DBManager:
             }
         return result
 
+    def auto_update_campaign_statuses(self):
+        """자동 상태 전환: 모집중→모집마감 (구매완료>=총수량), 모집마감→마감 (리뷰완료>=총수량)"""
+        # 모집중 → 모집마감 (리뷰대기 이상 = 구매 완료한 인원 >= 총수량)
+        sql_recruit_close = """
+            UPDATE campaigns SET status = '모집마감'
+            WHERE status = '모집중'
+              AND total_qty > 0
+              AND (SELECT COUNT(*) FROM progress p
+                   WHERE p.campaign_id = campaigns.id
+                     AND p.status IN ('리뷰대기','리뷰제출','입금대기','입금완료')) >= total_qty
+        """
+        self._execute(sql_recruit_close)
+        # 모집마감 → 마감
+        sql_close = """
+            UPDATE campaigns SET status = '마감'
+            WHERE status = '모집마감'
+              AND total_qty > 0
+              AND (SELECT COUNT(*) FROM progress p
+                   WHERE p.campaign_id = campaigns.id
+                     AND p.status IN ('리뷰제출','입금대기','입금완료')) >= total_qty
+        """
+        self._execute(sql_close)
+
     def get_campaign_by_id(self, campaign_id: str) -> dict | None:
         row = self._fetchone("SELECT * FROM campaigns WHERE id = %s", (campaign_id,))
         return self._campaign_to_sheet_dict(row) if row else None

@@ -277,6 +277,11 @@ def api_apply():
     if not campaign:
         return jsonify({"ok": False, "error": "캠페인을 찾을 수 없습니다"}), 404
 
+    # 상태 체크 (모집마감/마감/종료 시 신청 불가)
+    c_status = campaign.get("상태", "")
+    if c_status in ("모집마감", "마감", "종료"):
+        return jsonify({"ok": False, "error": "모집이 마감된 캠페인입니다."}), 400
+
     # 구매시간 체크
     from modules.utils import is_within_buy_time
     buy_time_str = campaign.get("구매가능시간", "")
@@ -755,6 +760,7 @@ def api_task_purchase(progress_id):
                 file.content_type or "image/jpeg", file_bytes
             )
         models.db_manager.set_upload_pending(progress_id, "purchase")
+        models.db_manager.auto_update_campaign_statuses()
 
         return jsonify({"ok": True, "message": "구매 캡쳐 제출 완료!"})
     except Exception as e:
@@ -804,6 +810,7 @@ def api_task_review(progress_id):
             (progress_id,)
         )
 
+        models.db_manager.auto_update_campaign_statuses()
         return jsonify({"ok": True, "message": "리뷰 캡쳐 제출 완료!"})
     except Exception as e:
         logger.error("리뷰 제출 에러: %s", e, exc_info=True)

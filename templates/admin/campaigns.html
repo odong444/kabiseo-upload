@@ -10,6 +10,7 @@
     #campaignTable { min-width: 1100px; }
     .admin-status-badge.모집중 { background: #e3f2fd; color: #1565c0; }
     .admin-status-badge.진행중 { background: #e8f5e9; color: #2e7d32; }
+    .admin-status-badge.모집마감 { background: #dbeafe; color: #2563eb; }
     .admin-status-badge.마감 { background: #fff8e1; color: #f57f17; }
     .admin-status-badge.종료 { background: #f5f5f5; color: #999; }
     .admin-status-badge.대행사승인 { background: #ede9fe; color: #6d28d9; }
@@ -288,7 +289,7 @@
             <label style="font-size:13px;font-weight:600;color:#555;">상태:</label>
             <select id="campaignStatusFilter">
                 <option value="">전체</option>
-                {% for s in ['모집중','진행중','마감','종료','중지','승인대기','대행사승인','반려'] %}
+                {% for s in ['모집중','모집마감','마감','종료','중지','승인대기','대행사승인','반려'] %}
                 <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
                 {% endfor %}
             </select>
@@ -396,11 +397,9 @@
                         <th>
                             <select id="closedFilter" onchange="filterCampaigns()" style="font-size:12px;padding:2px 4px;border:1px solid #d1d5db;border-radius:4px;background:#fff;">
                                 <option value="">상태(전체)</option>
-                                <option value="진행중">진행중</option>
-                                <option value="마감">마감</option>
+                                <option value="모집중">모집중</option>
                                 <option value="모집마감">모집마감</option>
-                                <option value="캠페인마감">캠페인마감</option>
-                                <option value="캠페인완료">캠페인완료</option>
+                                <option value="마감">마감</option>
                                 <option value="당일마감">당일마감</option>
                             </select>
                         </th>
@@ -420,7 +419,7 @@
                     {% set rate_class = 'high' if rate >= 70 else ('mid' if rate >= 40 else 'low') %}
                     <!-- 메인 행 -->
                     {% set is_hidden = c.get('공개여부', 'Y') in ('N', 'n', False) %}
-                    {% set closed_tag = '캠페인완료' if (total > 0 and settle >= total) else ('캠페인마감' if (total > 0 and review >= total) else ('모집마감' if (total > 0 and purchase >= total) else ('마감' if (total > 0 and active >= total) else ('당일마감' if c.get('_daily_closed') else '진행중')))) %}
+                    {% set closed_tag = '당일마감' if (c.get('_daily_closed') and c.get('상태') == '모집중') else c.get('상태', '모집중') %}
                     <tr class="campaign-row{{ ' hidden-campaign' if is_hidden }}" data-idx="{{ loop.index0 }}" data-cid="{{ c.get('캠페인ID', '') }}" data-group="{{ c.get('동시진행그룹', '') }}" data-name="{{ c.get('캠페인명', '') or c.get('상품명', '') }}" data-company="{{ c.get('업체명', '') }}" data-total="{{ total }}" data-active="{{ active }}" data-rate="{{ rate }}" data-purchase="{{ purchase }}" data-review="{{ review }}" data-settle="{{ settle }}" data-status="{{ c.get('상태', '') }}" data-closed="{{ closed_tag }}" onclick="toggleDetail({{ loop.index0 }})">
                         <td onclick="event.stopPropagation();"><input type="checkbox" class="campaign-check" value="{{ c.get('캠페인ID', '') }}" onchange="updateGroupButtons()"></td>
                         <td><button type="button" class="toggle-btn" id="toggleBtn{{ loop.index0 }}">&#9660;</button></td>
@@ -456,15 +455,7 @@
                             <span class="progress-pct {{ rate_class }}">{{ active }}/{{ total }} ({{ rate }}%)</span>
                         </td>
                         <td>
-                            {% if total > 0 and settle >= total %}
-                            <span class="admin-status-badge 마감" style="background:#dcfce7;color:#16a34a;">캠페인완료</span>
-                            {% elif total > 0 and review >= total %}
-                            <span class="admin-status-badge 마감" style="background:#fef3c7;color:#d97706;">캠페인마감</span>
-                            {% elif total > 0 and purchase >= total %}
-                            <span class="admin-status-badge 마감" style="background:#dbeafe;color:#2563eb;">모집마감</span>
-                            {% elif total > 0 and active >= total %}
-                            <span class="admin-status-badge 마감">마감</span>
-                            {% elif c.get('_daily_closed') %}
+                            {% if c.get('_daily_closed') and c.get('상태') == '모집중' %}
                             <span class="admin-status-badge 당일마감">당일마감</span>
                             {% else %}
                             <span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span>
@@ -1857,7 +1848,7 @@
             var detailRow = (detail && detail.classList.contains('detail-row')) ? detail : null;
             pairs.push({row: row, detail: detailRow});
         });
-        var closedOrder = {'진행중': 0, '당일마감': 1, '마감': 2, '모집마감': 3, '캠페인마감': 4, '캠페인완료': 5};
+        var closedOrder = {'모집중': 0, '당일마감': 1, '모집마감': 2, '마감': 3, '종료': 4};
         pairs.sort(function(a, b) {
             var ca = closedOrder[a.row.getAttribute('data-closed')] || 0;
             var cb = closedOrder[b.row.getAttribute('data-closed')] || 0;

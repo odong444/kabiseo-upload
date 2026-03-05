@@ -187,6 +187,10 @@ def campaigns():
 
     total_pages = (total + per_page - 1) // per_page if total else 1
 
+    # 자동 상태 전환 (모집중→모집마감→마감)
+    if models.db_manager:
+        models.db_manager.auto_update_campaign_statuses()
+
     # 실시간 통계 반영
     stats = {}
     if models.db_manager:
@@ -2353,6 +2357,8 @@ def api_progress_update():
 
     try:
         models.db_manager.update_progress_field(int(progress_id), field, value)
+        if field == "상태":
+            models.db_manager.auto_update_campaign_statuses()
         return jsonify({"ok": True})
     except Exception as e:
         logger.error(f"스프레드시트 수정 에러: {e}")
@@ -2559,6 +2565,7 @@ def api_progress_bulk_status():
             done += 1
         except Exception:
             pass
+    models.db_manager.auto_update_campaign_statuses()
     return jsonify({"ok": True, "done": done, "total": len(ids)})
 
 
