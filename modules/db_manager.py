@@ -1596,8 +1596,24 @@ class DBManager:
             logger.info("취소 행 삭제: %d건 (%d시간 초과)", count, hours)
         return count
 
+    def count_all_campaigns_detail(self) -> dict:
+        """캠페인별 단계별 건수. {캠페인ID: {reserved, review_stage, payment_stage}}"""
+        rows = self._fetchall(
+            """SELECT campaign_id,
+                  COUNT(*) FILTER (WHERE status NOT IN (%s, %s)) AS reserved,
+                  COUNT(*) FILTER (WHERE status IN ('리뷰대기','리뷰제출','입금대기','입금완료')) AS review_stage,
+                  COUNT(*) FILTER (WHERE status IN ('입금대기','입금완료')) AS payment_stage
+               FROM progress GROUP BY campaign_id""",
+            (STATUS_TIMEOUT, STATUS_CANCELLED)
+        )
+        return {r["campaign_id"]: {
+            "reserved": r["reserved"],
+            "review_stage": r["review_stage"],
+            "payment_stage": r["payment_stage"],
+        } for r in rows}
+
     def count_all_campaigns(self) -> dict:
-        """캠페인별 구매완료 건수 ({캠페인ID: count})"""
+        """하위호환: 캠페인별 구매완료 건수 ({캠페인ID: count})"""
         rows = self._fetchall(
             """SELECT campaign_id, COUNT(*) as cnt FROM progress
                WHERE status = ANY(%s) GROUP BY campaign_id""",

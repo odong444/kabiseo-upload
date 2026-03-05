@@ -73,11 +73,11 @@ def api_campaigns():
     if not all_campaigns:
         return jsonify([])
 
-    actual_counts = {}
+    detail_counts = {}
     today_counts = {}
     reviewer_items = []
     try:
-        actual_counts = models.db_manager.count_all_campaigns()
+        detail_counts = models.db_manager.count_all_campaigns_detail()
     except Exception:
         pass
     try:
@@ -102,11 +102,24 @@ def api_campaigns():
         if status not in ("모집중", "진행중", ""):
             continue
         total = safe_int(c.get("총수량", 0))
-        done = actual_counts.get(campaign_id, 0) or safe_int(c.get("완료수량", 0))
-        total_remaining = total - done
+        dc = detail_counts.get(campaign_id, {})
+        reserved = dc.get("reserved", 0) or safe_int(c.get("완료수량", 0))
+        review_stage = dc.get("review_stage", 0)
+        payment_stage = dc.get("payment_stage", 0)
+        total_remaining = total - reserved
 
-        is_closed = total_remaining <= 0
-        closed_reason = "마감" if is_closed else ""
+        # 마감 판단: 입금대기+ >= 총수량 → 캠페인마감, 리뷰대기+ >= 총수량 → 모집마감
+        is_closed = False
+        closed_reason = ""
+        if total > 0 and payment_stage >= total:
+            is_closed = True
+            closed_reason = "캠페인마감"
+        elif total > 0 and review_stage >= total:
+            is_closed = True
+            closed_reason = "모집마감"
+        elif total_remaining <= 0:
+            is_closed = True
+            closed_reason = "마감"
 
         daily_target = models.campaign_manager._get_today_target(c)
         today_done = today_counts.get(campaign_id, 0)
