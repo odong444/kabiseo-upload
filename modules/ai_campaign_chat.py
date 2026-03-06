@@ -113,6 +113,17 @@ SYSTEM_PROMPT = """당신은 카비서 캠페인 관리 도우미입니다.
 3. 한국어 대화, 간결하게
 4. 이미지 URL이 전달되면 상품이미지로 활용
 
+## 홍보 관리
+- 캠페인별 홍보 ON/OFF: manage_promotion(campaign_id, enabled)
+- 캠페인별 한줄멘트: manage_promotion(campaign_id, message="...") — 통합 메시지에 표시될 한줄 설명
+- 홍보 상태 조회: manage_promotion(action="status") — 홍보중인 캠페인 목록
+- 통합 홍보 메시지 템플릿: manage_promo_template(action="get"|"update")
+  - promo_header: 머리말 (기본: "리뷰 진행 체험단/기자단 모집합니다!")
+  - promo_footer: 꼬리말 (기본: "많은 지원 부탁드려요:)")
+  - promo_link: 링크 (기본: "https://kabiseo.com/campaigns")
+- 통합 메시지 미리보기: manage_promo_template(action="preview")
+- 홍보 관련 질문에는 적절한 도구를 사용하여 응답
+
 ## 대행사/업체 연결
 - 캠페인에 대행사 연결: update_campaign으로 `대행사ID` 필드 수정
 - 캠페인에 업체 연결: update_campaign으로 `클라이언트ID` 필드 수정
@@ -312,6 +323,42 @@ TOOLS = [
             },
             "required": ["raw_text"]
         }
+    },
+    {
+        "name": "manage_promotion",
+        "description": "캠페인별 홍보 설정을 관리합니다. 홍보 ON/OFF 토글, 한줄멘트 수정, 홍보중인 캠페인 상태 조회.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["toggle", "set_message", "status"],
+                    "description": "toggle: 홍보 ON/OFF, set_message: 한줄멘트 설정, status: 홍보중 캠페인 목록"
+                },
+                "campaign_id": {"type": "string", "description": "캠페인 ID (toggle, set_message 시 필수)"},
+                "enabled": {"type": "boolean", "description": "홍보 활성화 여부 (toggle 시)"},
+                "message": {"type": "string", "description": "홍보 한줄멘트 (set_message 시)"}
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "manage_promo_template",
+        "description": "통합 홍보 메시지 템플릿을 조회하거나 수정합니다. 머리말/꼬리말/링크 설정 및 미리보기.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["get", "update", "preview"],
+                    "description": "get: 현재 설정 조회, update: 설정 변경, preview: 통합 메시지 미리보기"
+                },
+                "promo_header": {"type": "string", "description": "머리말 (update 시)"},
+                "promo_footer": {"type": "string", "description": "꼬리말 (update 시)"},
+                "promo_link": {"type": "string", "description": "링크 URL (update 시)"}
+            },
+            "required": ["action"]
+        }
     }
 ]
 
@@ -328,7 +375,7 @@ class AICampaignChat:
 
     def _get_tools_for_portal(self, portal: str) -> list:
         """포탈별 사용 가능한 도구 필터링"""
-        _ADMIN_ONLY = {"search_progress", "update_progress", "delete_progress", "parse_excel_data", "export_data"}
+        _ADMIN_ONLY = {"search_progress", "update_progress", "delete_progress", "parse_excel_data", "export_data", "manage_promotion", "manage_promo_template"}
         if portal == "admin":
             return TOOLS  # 전체 접근
         elif portal == "agency":
@@ -459,6 +506,10 @@ class AICampaignChat:
             elif name == "parse_excel_data":
                 return {"ok": True, "raw_text": input_data.get("raw_text", ""),
                         "hint": "이 텍스트를 분석하여 캠페인 필드에 매핑하세요. 헤더행이 있으면 활용하고, 없으면 값 패턴으로 추론하세요."}
+            elif name == "manage_promotion":
+                return self._do_manage_promotion(input_data)
+            elif name == "manage_promo_template":
+                return self._do_manage_promo_template(input_data)
             else:
                 return {"ok": False, "error": f"알 수 없는 도구: {name}"}
         except Exception as e:
@@ -856,6 +907,132 @@ class AICampaignChat:
             return {"ok": False, "error": f"진행건 {progress_id}을(를) 찾을 수 없습니다"}
         except Exception as e:
             return {"ok": False, "error": str(e)}
+
+    def _do_manage_promotion(self, data: dict) -> dict:
+        """캠페인별 홍보 설정 관리"""
+        db = models.db_manager
+        if not db:
+            return {"ok": False, "error": "DB 연결 없음"}
+
+        action = data.get("action", "")
+
+        if action == "status":
+            # 홍보중인 캠페인 목록
+            campaigns = db.get_all_campaigns()
+            promo_on = []
+            promo_off_active = []
+            for c in campaigns:
+                if c.get("상태") not in ("모집중", "진행중"):
+                    continue
+                is_promo = c.get("홍보활성") == "Y"
+                info = {
+                    "캠페인ID": c.get("캠페인ID", ""),
+                    "상품명": c.get("상품명", ""),
+                    "업체명": c.get("업체명", ""),
+                    "홍보활성": "ON" if is_promo else "OFF",
+                    "홍보메시지": c.get("홍보메시지", "") or "(미설정)",
+                }
+                if is_promo:
+                    promo_on.append(info)
+                else:
+                    promo_off_active.append(info)
+            return {
+                "ok": True,
+                "홍보중": promo_on,
+                "홍보OFF_활성캠페인": promo_off_active[:10],
+                "홍보중_수": len(promo_on),
+                "홍보OFF_활성_수": len(promo_off_active),
+            }
+
+        campaign_id = data.get("campaign_id", "")
+        if not campaign_id:
+            return {"ok": False, "error": "캠페인 ID가 필요합니다"}
+
+        campaign = db.get_campaign_by_id(campaign_id)
+        if not campaign:
+            return {"ok": False, "error": f"캠페인을 찾을 수 없습니다: {campaign_id}"}
+
+        if action == "toggle":
+            enabled = data.get("enabled", True)
+            db.update_campaign(campaign_id, {"홍보활성": "Y" if enabled else "N"})
+            return {
+                "ok": True,
+                "message": f"'{campaign.get('상품명', '')}' 홍보를 {'활성화' if enabled else '비활성화'}했습니다.",
+                "캠페인ID": campaign_id,
+                "홍보활성": "Y" if enabled else "N",
+            }
+
+        elif action == "set_message":
+            message = data.get("message", "")
+            db.update_campaign(campaign_id, {"홍보메시지": message})
+            return {
+                "ok": True,
+                "message": f"'{campaign.get('상품명', '')}' 홍보 한줄멘트를 설정했습니다.",
+                "캠페인ID": campaign_id,
+                "홍보메시지": message or "(비움)",
+            }
+
+        return {"ok": False, "error": f"알 수 없는 action: {action}"}
+
+    def _do_manage_promo_template(self, data: dict) -> dict:
+        """통합 홍보 메시지 템플릿 관리"""
+        db = models.db_manager
+        if not db:
+            return {"ok": False, "error": "DB 연결 없음"}
+
+        action = data.get("action", "")
+
+        # 현재 설정 로드
+        header = db.get_setting("promo_header", "리뷰 진행 체험단/기자단 모집합니다!")
+        footer = db.get_setting("promo_footer", "많은 지원 부탁드려요:)")
+        link = db.get_setting("promo_link", "https://kabiseo.com/campaigns")
+
+        if action == "update":
+            if "promo_header" in data:
+                header = data["promo_header"]
+                db.set_setting("promo_header", header)
+            if "promo_footer" in data:
+                footer = data["promo_footer"]
+                db.set_setting("promo_footer", footer)
+            if "promo_link" in data:
+                link = data["promo_link"]
+                db.set_setting("promo_link", link)
+            return {
+                "ok": True,
+                "message": "홍보 메시지 템플릿이 수정되었습니다.",
+                "promo_header": header,
+                "promo_footer": footer,
+                "promo_link": link,
+            }
+
+        if action in ("get", "preview"):
+            result = {
+                "ok": True,
+                "promo_header": header,
+                "promo_footer": footer,
+                "promo_link": link,
+            }
+            if action == "preview":
+                # 실제 홍보중인 캠페인으로 미리보기 생성
+                campaigns = db.get_all_campaigns()
+                lines = []
+                for c in campaigns:
+                    if c.get("홍보활성") != "Y":
+                        continue
+                    if c.get("상태") not in ("모집중", "진행중"):
+                        continue
+                    msg = c.get("홍보메시지", "") or c.get("상품명", "")
+                    if msg:
+                        lines.append(f"🔹 {msg}")
+                if lines:
+                    preview = f"{header}\n\n" + "\n".join(lines) + f"\n\n{footer}\n👉 {link}"
+                else:
+                    preview = "(홍보 활성화된 캠페인이 없어 미리보기를 생성할 수 없습니다)"
+                result["preview"] = preview
+                result["홍보중_캠페인수"] = len(lines)
+            return result
+
+        return {"ok": False, "error": f"알 수 없는 action: {action}"}
 
     def _get_filtered_campaigns(self, portal: str, owner_id) -> list:
         """포탈별 캠페인 필터링"""
