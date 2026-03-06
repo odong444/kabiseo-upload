@@ -579,6 +579,7 @@
         html += '</div></div>';
 
         document.getElementById('allDataWrap').innerHTML = html;
+        setTimeout(initColumnResize, 0);
     }
 
     function goDPage(p) { _dPage = p; renderAllData(); }
