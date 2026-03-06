@@ -532,8 +532,9 @@
                             <div class="file-upload-label" id="reviewTextLabel">{{ '새 엑셀로 교체하려면 클릭' if review_text_count else '클릭하여 리뷰내용 엑셀을 선택하세요 (.xlsx)' }}</div>
                         </div>
                         <div style="color:#999;font-size:12px;margin-top:4px;">
-                            엑셀 A열에 리뷰내용을 한 행에 하나씩 입력하세요. 각 행이 하나의 리뷰내용으로 진행자에게 자동 분배됩니다.<br>
-                            사진 세트와 함께 등록하면 같은 번호끼리 세트로 묶여 분배됩니다. (사진세트 1번 = 리뷰내용 1번)
+                            엑셀 A열에 리뷰내용을 한 행에 하나씩 입력하세요. 헤더 없이 1행부터 바로 입력합니다.<br>
+                            사진 세트와 함께 등록하면 같은 번호끼리 세트로 묶여 분배됩니다. (사진세트 1번 = 리뷰내용 1번)<br>
+                            <a href="{{ url_for('static', filename='review_text_sample.xlsx') }}" download style="color:#2563eb;text-decoration:none;font-weight:600;">📥 예시파일 다운로드</a>
                         </div>
                     </div>
 

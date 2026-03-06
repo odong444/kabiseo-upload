@@ -331,10 +331,33 @@ def campaign_new_post():
     try:
         if draft_id:
             models.db_manager.update_campaign(draft_id, data)
+            campaign_id_for_rt = draft_id
             display_name = data.get("캠페인명", "").strip() or data.get("상품명", "")
         else:
             models.db_manager.create_campaign(data)
+            campaign_id_for_rt = data["캠페인ID"]
             display_name = data.get("캠페인명", "").strip() or data["상품명"]
+
+        # 리뷰내용 엑셀 업로드
+        review_text_file = request.files.get("리뷰내용엑셀")
+        if review_text_file and review_text_file.filename:
+            try:
+                from openpyxl import load_workbook
+                from io import BytesIO
+                wb = load_workbook(BytesIO(review_text_file.read()), read_only=True)
+                ws = wb.active
+                text_count = 0
+                for idx, row in enumerate(ws.iter_rows(min_row=1, max_col=1, values_only=True), start=1):
+                    text = str(row[0]).strip() if row[0] else ""
+                    if text:
+                        models.db_manager.add_campaign_review_text(campaign_id_for_rt, idx, text)
+                        text_count += 1
+                wb.close()
+                if text_count:
+                    flash(f"리뷰내용 {text_count}건 업로드 완료")
+            except Exception as rte:
+                logger.error(f"리뷰내용 엑셀 업로드 에러: {rte}")
+
         flash(f"캠페인 '{display_name}' 요청이 접수되었습니다. 관리자 승인 후 진행됩니다.")
     except Exception as e:
         logger.error(f"캠페인 생성 에러: {e}")

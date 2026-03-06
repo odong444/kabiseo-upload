@@ -276,6 +276,18 @@
                         <label>캠페인 가이드</label>
                         <textarea name="캠페인가이드" rows="6" placeholder="리뷰어에게 전달할 구매 가이드를 작성하세요.&#10;&#10;예시:&#10;1. 네이버에서 '들기름 국산' 검색&#10;2. '건강한들녘' 스토어 찾기&#10;3. 상품 페이지에서 3분 이상 체류&#10;4. 옵션: 300ml 선택 후 구매&#10;5. 결제 시 네이버페이 사용">{{ draft.get('캠페인가이드', '') if draft else '' }}</textarea>
                     </div>
+                    <div class="form-group form-group-full">
+                        <label>리뷰내용 자동분배 (엑셀)</label>
+                        <div class="file-upload-area" id="reviewTextUploadArea">
+                            <input type="file" name="리뷰내용엑셀" id="reviewTextFile" accept=".xlsx,.xls">
+                            <div class="file-upload-label" id="reviewTextLabel">클릭하여 리뷰내용 엑셀을 선택하세요 (.xlsx)</div>
+                        </div>
+                        <div style="color:#999;font-size:12px;margin-top:4px;">
+                            엑셀 A열에 리뷰내용을 한 행에 하나씩 입력하세요. 헤더 없이 1행부터 바로 입력합니다.<br>
+                            사진 세트와 함께 등록하면 같은 번호끼리 세트로 묶여 분배됩니다. (사진세트 1번 = 리뷰내용 1번)<br>
+                            <a href="{{ url_for('static', filename='review_text_sample.xlsx') }}" download style="color:#6d28d9;text-decoration:none;font-weight:600;">📥 예시파일 다운로드</a>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -472,6 +484,21 @@
             } else {
                 imageLabel.textContent = '클릭하여 이미지를 선택하세요 (JPG, PNG)';
                 imageArea.classList.remove('has-file');
+            }
+        });
+
+        // 리뷰내용 엑셀 업로드
+        var rtArea = document.getElementById('reviewTextUploadArea');
+        var rtFile = document.getElementById('reviewTextFile');
+        var rtLabel = document.getElementById('reviewTextLabel');
+        rtArea.addEventListener('click', function() { rtFile.click(); });
+        rtFile.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                rtLabel.textContent = this.files[0].name;
+                rtArea.classList.add('has-file');
+            } else {
+                rtLabel.textContent = '클릭하여 리뷰내용 엑셀을 선택하세요 (.xlsx)';
+                rtArea.classList.remove('has-file');
             }
         });
     })();
