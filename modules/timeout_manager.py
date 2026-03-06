@@ -37,6 +37,8 @@ class TimeoutManager:
         self._running = False
         self._thread = None
         self._warned = set()  # 이미 경고 보낸 reviewer_id
+        self._db_warned = set()  # DB 기반 경고 보낸 (name, phone) — 인메모리 이중방어
+        self._db_cancelled = set()  # DB 기반 취소 알림 보낸 (name, phone)
         self._buy_time_notified = set()  # 구매시간 시작 알림 보낸 progress_id
         self._buy_time_notified_date = ""  # 알림 셋 초기화용 날짜
         self._socketio = None
@@ -338,10 +340,12 @@ class TimeoutManager:
         warning_cutoff = now - timedelta(seconds=self.warning)
         timeout_cutoff = now - timedelta(seconds=self.timeout)
 
-        # 날짜 바뀌면 구매시간 알림 셋 초기화
+        # 날짜 바뀌면 인메모리 알림 셋 초기화
         today_str = now.strftime("%Y-%m-%d")
         if self._buy_time_notified_date != today_str:
             self._buy_time_notified.clear()
+            self._db_warned.clear()
+            self._db_cancelled.clear()
             self._buy_time_notified_date = today_str
 
         # 인메모리 세션이 있는 건은 _check_all()에서 처리하므로 제외
@@ -417,11 +421,15 @@ class TimeoutManager:
             for r in group:
                 self._buy_time_notified.add(r["id"])
 
-        # ── 25분 경고 (카톡) — DB 기반 중복방지 ──
+        # ── 25분 경고 (카톡) — DB + 인메모리 이중 중복방지 ──
         for (name, phone), group in to_warn.items():
-            # 이미 경고 보낸 건이 하나라도 있으면 스킵
+            # 이미 경고 보낸 건이 하나라도 있으면 스킵 (DB 기반)
             if any(r.get("timeout_warned_at") for r in group):
                 continue
+            # 인메모리 이중 방어
+            if (name, phone) in self._db_warned:
+                continue
+            self._db_warned.add((name, phone))
             warn_ids = [r["id"] for r in group]
             if self._kakao_notifier:
                 try:
@@ -452,6 +460,10 @@ class TimeoutManager:
             ids = [r["id"] for r in group]
             all_cancel_ids.extend(ids)
             affected_campaigns.update(r["campaign_id"] for r in group if r["campaign_id"])
+            # 인메모리 이중 방어 (카톡 중복 발송 방지)
+            if (name, phone) in self._db_cancelled:
+                continue
+            self._db_cancelled.add((name, phone))
             # 카톡 취소 알림
             if self._kakao_notifier:
                 try:

@@ -203,7 +203,7 @@ class KakaoNotifier:
     # ──────── 리뷰 기한 리마인더 (스케줄러) ────────
 
     def send_review_deadline_reminders(self) -> int:
-        """D-3, D-1 리뷰 기한 리마인더. 발송 건수 반환."""
+        """D-3, D-1 리뷰 기한 리마인더. 같은 사람에게는 한 번만 발송."""
         today = now_kst().date()
         d3 = today + timedelta(days=3)
         d1 = today + timedelta(days=1)
@@ -222,25 +222,46 @@ class KakaoNotifier:
             (d3, d1, today)
         )
 
-        sent = 0
+        # 같은 (name, phone) 그룹화 → 한 번만 발송
+        grouped = {}
         for row in rows:
-            deadline = row["review_deadline"]
-            days_left = (deadline - today).days
+            key = (row["name"], row["phone"])
+            grouped.setdefault(key, []).append(row)
+
+        sent = 0
+        for (name, phone), group in grouped.items():
+            # 가장 임박한 기한 기준
+            min_deadline = min(r["review_deadline"] for r in group)
+            days_left = (min_deadline - today).days
+
+            # 여러 건의 상품/아이디 합산
+            products = []
+            sids = []
+            recipients = []
+            for r in group:
+                if r.get("product_name") and r["product_name"] not in products:
+                    products.append(r["product_name"])
+                if r.get("store_id") and r["store_id"] not in sids:
+                    sids.append(r["store_id"])
+                if r.get("recipient_name") and r["recipient_name"] not in recipients:
+                    recipients.append(r["recipient_name"])
 
             msg = ktpl.REVIEW_DEADLINE_REMINDER.format(
                 days=days_left,
-                recipient_name=row.get("recipient_name", ""),
-                product_name=row.get("product_name", ""),
-                store_ids=row.get("store_id", ""),
+                recipient_name=", ".join(recipients) if recipients else "",
+                product_name=", ".join(products) if products else "",
+                store_ids=", ".join(sids) if sids else "",
                 web_url=self.web_url,
             )
 
-            ok = request_notification(row["name"], row["phone"], self._add_footer(msg))
+            ok = request_notification(name, phone, self._add_footer(msg))
+            # 성공 여부와 관계없이 모든 건 last_reminder_date 업데이트 (재발송 방지)
+            all_ids = [r["id"] for r in group]
+            self.db._execute(
+                "UPDATE progress SET last_reminder_date = %s WHERE id = ANY(%s)",
+                (today, all_ids)
+            )
             if ok:
-                self.db._execute(
-                    "UPDATE progress SET last_reminder_date = %s WHERE id = %s",
-                    (today, row["id"])
-                )
                 sent += 1
 
         return sent
