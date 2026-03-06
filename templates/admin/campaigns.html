@@ -685,7 +685,8 @@
                 <div id="rtInfo" style="margin-bottom:16px;">
                     <p style="color:#94a3b8;font-size:13px;">로딩 중...</p>
                 </div>
-                <div id="rtResetWrap" style="margin-bottom:12px;display:none;">
+                <div id="rtResetWrap" style="margin-bottom:12px;display:none;gap:8px;align-items:center;">
+                    <a id="rtDownloadBtn" href="#" download class="admin-btn" style="font-size:12px;padding:4px 14px;background:#dbeafe;color:#1e40af;border-color:#93c5fd;text-decoration:none;">다운로드</a>
                     <button onclick="resetAllReviewTexts()" class="admin-btn" style="font-size:12px;padding:4px 14px;background:#fef2f2;color:#dc2626;border-color:#fca5a5;">전체 초기화</button>
                 </div>
 
@@ -1707,7 +1708,8 @@
                 document.getElementById('rtResetWrap').style.display = 'none';
                 return;
             }
-            document.getElementById('rtResetWrap').style.display = '';
+            document.getElementById('rtResetWrap').style.display = 'flex';
+            document.getElementById('rtDownloadBtn').href = '/admin/api/campaign/' + _rtModalCampaignId + '/review-texts/download';
             container.innerHTML = '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;">'
                 + '<span>총 <b>' + d.total_texts + '</b>건</span>'
                 + '<span>배분 <b style="color:#16a34a;">' + d.assigned_count + '</b>건</span>'

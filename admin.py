@@ -8,7 +8,7 @@ import csv
 import logging
 import requests as _requests
 from functools import wraps
-from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify, flash, Response
+from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify, flash, Response, send_file
 
 import models
 from modules.utils import safe_int
@@ -922,6 +922,24 @@ def api_delete_campaign_review_texts(campaign_id):
         return jsonify({"ok": True})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/review-texts/download", methods=["GET"])
+@admin_required
+def api_download_review_texts(campaign_id):
+    """등록된 리뷰내용을 엑셀로 다운로드"""
+    from openpyxl import Workbook
+    from io import BytesIO
+    texts = models.db_manager.get_campaign_review_texts(campaign_id)
+    wb = Workbook()
+    ws = wb.active
+    for tn in sorted(texts.keys()):
+        ws.append([texts[tn]])
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                     as_attachment=True, download_name=f"review_texts_{campaign_id}.xlsx")
 
 
 @admin_bp.route("/api/campaign/<campaign_id>/upload-review-texts", methods=["POST"])
