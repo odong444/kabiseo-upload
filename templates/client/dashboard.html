@@ -575,7 +575,7 @@ function renderAllData() {
     html += '</div></div>';
 
     document.getElementById('allDataWrap').innerHTML = html;
-    setTimeout(initColumnResize, 0);
+    requestAnimationFrame(initColumnResize);
 }
 
 function goDPage(p) { _dPage = p; renderAllData(); }
@@ -766,31 +766,43 @@ async function sendMessage() {
 function initColumnResize() {
     document.querySelectorAll('.data-table').forEach(table => {
         var ths = table.querySelectorAll('thead th');
-        if (!ths.length) return;
-        // 현재 렌더링 너비를 고정값으로 잠금
-        ths.forEach(th => { th.style.width = th.offsetWidth + 'px'; });
-        // 테이블을 auto로 전환해야 개별 열 리사이즈가 독립적으로 작동
-        table.style.tableLayout = 'auto';
-        table.style.width = 'auto';
-        table.style.minWidth = '100%';
+        if (!ths.length || table._resizeInit) return;
+        table._resizeInit = true;
 
-        ths.forEach(th => {
+        // colgroup 생성 — table-layout:fixed에서 열 너비 제어
+        var cg = table.querySelector('colgroup');
+        if (!cg) {
+            cg = document.createElement('colgroup');
+            for (var i = 0; i < ths.length; i++) {
+                var col = document.createElement('col');
+                col.style.width = ths[i].offsetWidth + 'px';
+                cg.appendChild(col);
+            }
+            table.insertBefore(cg, table.firstChild);
+        }
+        var cols = cg.querySelectorAll('col');
+
+        ths.forEach((th, idx) => {
             if (th.querySelector('.col-resize-handle')) return;
             const handle = document.createElement('div');
             handle.className = 'col-resize-handle';
             th.appendChild(handle);
 
-            let startX, startW;
             handle.addEventListener('mousedown', function(e) {
                 e.preventDefault();
-                startX = e.pageX;
-                startW = th.offsetWidth;
+                var startX = e.pageX;
+                var startW = th.offsetWidth;
                 handle.classList.add('active');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
                 const onMove = (ev) => {
-                    th.style.width = Math.max(40, startW + (ev.pageX - startX)) + 'px';
+                    var w = Math.max(40, startW + (ev.pageX - startX));
+                    cols[idx].style.width = w + 'px';
                 };
                 const onUp = () => {
                     handle.classList.remove('active');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
                     document.removeEventListener('mousemove', onMove);
                     document.removeEventListener('mouseup', onUp);
                 };
