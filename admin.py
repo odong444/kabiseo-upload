@@ -314,9 +314,10 @@ def campaign_edit(campaign_id):
         return redirect(url_for("admin.campaigns"))
 
     categories = _fetch_server_categories()
-    # 기존 사진 세트 수 전달
+    # 기존 사진 세트 수 + 파일명 전달
     photo_sets = models.db_manager.get_campaign_photo_sets(campaign_id)
     campaign["_photo_set_count"] = len(photo_sets) if photo_sets else 0
+    campaign["_photo_sets"] = photo_sets
     review_texts = models.db_manager.get_campaign_review_texts(campaign_id)
     campaign["_review_text_count"] = len(review_texts) if review_texts else 0
 
@@ -613,6 +614,28 @@ def _parse_photo_set_filename(filename: str) -> tuple[int, int]:
     return 0, 0
 
 
+@admin_bp.route("/api/campaign/<campaign_id>/photo/<int:photo_id>", methods=["DELETE"])
+@admin_required
+def api_delete_campaign_photo(campaign_id, photo_id):
+    """개별 사진 삭제"""
+    try:
+        models.db_manager.delete_campaign_photo_by_id(photo_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/photos", methods=["DELETE"])
+@admin_required
+def api_delete_campaign_photos(campaign_id):
+    """캠페인 사진 전체 삭제 (초기화)"""
+    try:
+        models.db_manager.delete_campaign_photos(campaign_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @admin_bp.route("/api/campaign/<campaign_id>/upload-photos", methods=["POST"])
 @admin_required
 def api_campaign_upload_photos(campaign_id):
@@ -887,6 +910,17 @@ def api_campaign_review_texts(campaign_id):
         })
     except Exception as e:
         logger.error(f"리뷰내용 조회 에러: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@admin_bp.route("/api/campaign/<campaign_id>/review-texts", methods=["DELETE"])
+@admin_required
+def api_delete_campaign_review_texts(campaign_id):
+    """캠페인 리뷰내용 전체 삭제 (초기화)"""
+    try:
+        models.db_manager.delete_campaign_review_texts(campaign_id)
+        return jsonify({"ok": True})
+    except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
 

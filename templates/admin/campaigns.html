@@ -638,12 +638,20 @@
                 <div id="photoSetsInfo" style="margin-bottom:16px;">
                     <p style="color:#94a3b8;font-size:13px;">로딩 중...</p>
                 </div>
+                <div id="photoResetWrap" style="margin-bottom:12px;display:none;">
+                    <button onclick="resetAllPhotos()" class="admin-btn" style="font-size:12px;padding:4px 14px;background:#fef2f2;color:#dc2626;border-color:#fca5a5;">전체 초기화</button>
+                </div>
 
                 <!-- 업로드 -->
                 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:16px;">
                     <h3 style="font-size:14px;margin:0 0 8px;color:#334155;">사진 업로드</h3>
                     <p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">파일명 규칙: 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg ... (세트번호-인덱스)</p>
-                    <input type="file" id="photoFiles" multiple accept="image/*" style="margin-bottom:8px;font-size:13px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <button type="button" onclick="document.getElementById('photoFiles').click()" class="admin-btn" style="font-size:13px;padding:6px 16px;">파일 선택</button>
+                        <button type="button" id="photoResetBtn" onclick="resetModalPhotoFiles()" class="admin-btn" style="font-size:12px;padding:4px 12px;display:none;background:#f1f5f9;color:#64748b;border-color:#e2e8f0;">초기화</button>
+                        <input type="file" id="photoFiles" multiple accept="image/*" style="display:none;">
+                    </div>
+                    <div id="photoFileList" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;"></div>
                     <div id="photoPreview" style="font-size:12px;color:#64748b;margin-bottom:8px;"></div>
                     <button onclick="uploadPhotos()" class="admin-btn admin-btn-primary" style="font-size:13px;padding:6px 16px;" id="btnUploadPhotos">업로드</button>
                     <span id="uploadStatus" style="font-size:13px;margin-left:8px;"></span>
@@ -677,6 +685,9 @@
                 <div id="rtInfo" style="margin-bottom:16px;">
                     <p style="color:#94a3b8;font-size:13px;">로딩 중...</p>
                 </div>
+                <div id="rtResetWrap" style="margin-bottom:12px;display:none;">
+                    <button onclick="resetAllReviewTexts()" class="admin-btn" style="font-size:12px;padding:4px 14px;background:#fef2f2;color:#dc2626;border-color:#fca5a5;">전체 초기화</button>
+                </div>
 
                 <!-- 엑셀 업로드 -->
                 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:16px;">
@@ -684,7 +695,12 @@
                     <p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">A열에 리뷰내용을 한 행에 하나씩 입력한 .xlsx 파일 (헤더 없이 1행부터)
                         <a href="{{ url_for('static', filename='review_text_sample.xlsx') }}" download style="color:#2563eb;text-decoration:none;font-weight:600;margin-left:8px;">📥 예시파일</a>
                     </p>
-                    <input type="file" id="rtFile" accept=".xlsx,.xls" style="margin-bottom:8px;font-size:13px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <button type="button" onclick="document.getElementById('rtFile').click()" class="admin-btn" style="font-size:13px;padding:6px 16px;">파일 선택</button>
+                        <span id="rtFileName" style="font-size:13px;color:#64748b;"></span>
+                        <span id="rtFileRemove" style="display:none;cursor:pointer;color:#94a3b8;font-size:16px;" onclick="clearRtFile()" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">&times;</span>
+                        <input type="file" id="rtFile" accept=".xlsx,.xls" style="display:none;">
+                    </div>
                     <button onclick="uploadReviewTexts()" class="admin-btn admin-btn-primary" style="font-size:13px;padding:6px 16px;" id="btnUploadRT">업로드</button>
                     <span id="rtUploadStatus" style="font-size:13px;margin-left:8px;"></span>
                 </div>
@@ -1238,8 +1254,10 @@
         _photoModalCampaignId = campaignId;
         document.getElementById('photoModalTitle').textContent = '사진 세트 관리';
         document.getElementById('photoModalSub').textContent = campaignName;
-        document.getElementById('photoFiles').value = '';
+        _modalPhotoFiles = [];
+        document.getElementById('photoFileList').innerHTML = '';
         document.getElementById('photoPreview').textContent = '';
+        document.getElementById('photoResetBtn').style.display = 'none';
         document.getElementById('uploadStatus').textContent = '';
         document.getElementById('distributeStatus').textContent = '';
         document.getElementById('photoModal').style.display = 'block';
@@ -1267,16 +1285,27 @@
                 if (keys.length === 0) {
                     container.innerHTML = '<p style="color:#94a3b8;font-size:13px;">등록된 사진이 없습니다.</p>';
                     document.getElementById('btnDistribute').disabled = true;
+                    document.getElementById('photoResetWrap').style.display = 'none';
                     return;
                 }
                 document.getElementById('btnDistribute').disabled = false;
+                document.getElementById('photoResetWrap').style.display = '';
                 var html = '<div style="font-size:13px;margin-bottom:8px;"><strong>' + data.total_sets + '세트</strong> 등록 / <strong>' + data.unassigned_reviewers + '명</strong> 미할당</div>';
                 html += '<table style="width:100%;font-size:12px;border-collapse:collapse;">';
-                html += '<thead><tr style="border-bottom:1px solid #e2e8f0;"><th style="text-align:left;padding:4px 8px;">세트</th><th style="text-align:left;padding:4px 8px;">사진 수</th><th style="text-align:left;padding:4px 8px;">할당</th></tr></thead><tbody>';
+                html += '<thead><tr style="border-bottom:1px solid #e2e8f0;"><th style="text-align:left;padding:4px 8px;">세트</th><th style="text-align:left;padding:4px 8px;">파일명</th><th style="text-align:left;padding:4px 8px;">할당</th><th style="text-align:right;padding:4px 8px;"></th></tr></thead><tbody>';
                 keys.forEach(function(sn) {
                     var s = sets[sn];
                     var assignText = s.assigned_to ? '<span style="color:#16a34a;">' + s.assigned_to + '</span>' : '<span style="color:#94a3b8;">미할당</span>';
-                    html += '<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:4px 8px;">세트 ' + sn + '</td><td style="padding:4px 8px;">' + s.photos.length + '장</td><td style="padding:4px 8px;">' + assignText + '</td></tr>';
+                    var fileNames = s.photos.map(function(p) {
+                        return '<span style="display:inline-flex;align-items:center;gap:3px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 6px;margin:1px;">'
+                            + (p.filename || (sn + '-' + p.file_index))
+                            + '<span onclick="deleteOnePhoto(' + p.id + ')" style="cursor:pointer;color:#94a3b8;font-size:14px;line-height:1;" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#94a3b8\'">&times;</span></span>';
+                    }).join(' ');
+                    html += '<tr style="border-bottom:1px solid #f1f5f9;">'
+                        + '<td style="padding:4px 8px;white-space:nowrap;vertical-align:top;">세트 ' + sn + '</td>'
+                        + '<td style="padding:4px 8px;">' + fileNames + '</td>'
+                        + '<td style="padding:4px 8px;vertical-align:top;">' + assignText + '</td>'
+                        + '</tr>';
                 });
                 html += '</tbody></table>';
                 container.innerHTML = html;
@@ -1312,28 +1341,70 @@
             .catch(function() { container.innerHTML = '<p style="color:#ef4444;">연결 실패</p>'; });
     }
 
+    function deleteOnePhoto(photoId) {
+        if (!confirm('이 사진을 삭제하시겠습니까?')) return;
+        fetch('/admin/api/campaign/' + _photoModalCampaignId + '/photo/' + photoId, {method:'DELETE'})
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.ok) loadPhotoSets(); else alert('삭제 실패: ' + (d.error||'')); })
+        .catch(function() { alert('연결 실패'); });
+    }
+
+    function resetAllPhotos() {
+        if (!confirm('등록된 사진을 모두 삭제하시겠습니까? (되돌릴 수 없음)')) return;
+        fetch('/admin/api/campaign/' + _photoModalCampaignId + '/photos', {method:'DELETE'})
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.ok) loadPhotoSets(); else alert('초기화 실패: ' + (d.error||'')); })
+        .catch(function() { alert('연결 실패'); });
+    }
+
     // 파일 선택 시 미리보기
-    document.getElementById('photoFiles').addEventListener('change', function() {
-        var files = this.files;
-        if (!files || files.length === 0) { document.getElementById('photoPreview').textContent = ''; return; }
-        var setMap = {};
-        for (var i = 0; i < files.length; i++) {
-            var name = files[i].name.replace(/\.[^.]+$/, '').trim();
-            var m = name.match(/^(\d+)(?:-(\d+))?$/);
-            if (m) {
-                var sn = parseInt(m[1]);
-                setMap[sn] = (setMap[sn] || 0) + 1;
-            }
-        }
-        var keys = Object.keys(setMap).sort(function(a,b){ return parseInt(a)-parseInt(b); });
-        if (keys.length === 0) {
-            document.getElementById('photoPreview').textContent = '파일명 형식이 맞지 않습니다 (예: 1.jpg, 2-1.jpg)';
-            document.getElementById('photoPreview').style.color = '#ef4444';
+    var _modalPhotoFiles = [];
+    var _photoFileInput = document.getElementById('photoFiles');
+
+    function renderModalPhotoFiles() {
+        var dt = new DataTransfer();
+        _modalPhotoFiles.forEach(function(f) { dt.items.add(f); });
+        _photoFileInput.files = dt.files;
+        var listEl = document.getElementById('photoFileList');
+        var preview = document.getElementById('photoPreview');
+        var resetBtn = document.getElementById('photoResetBtn');
+        if (_modalPhotoFiles.length === 0) {
+            listEl.innerHTML = '';
+            preview.textContent = '';
+            resetBtn.style.display = 'none';
             return;
         }
-        var summary = keys.map(function(k) { return '세트' + k + ': ' + setMap[k] + '장'; }).join(', ');
-        document.getElementById('photoPreview').textContent = keys.length + '세트 — ' + summary;
-        document.getElementById('photoPreview').style.color = '#64748b';
+        resetBtn.style.display = '';
+        listEl.innerHTML = _modalPhotoFiles.map(function(f, i) {
+            return '<span style="display:inline-flex;align-items:center;gap:3px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 8px;font-size:12px;">'
+                + f.name + '<span onclick="removeModalPhotoFile(' + i + ')" style="cursor:pointer;color:#94a3b8;font-size:14px;line-height:1;" onmouseover="this.style.color=\'#ef4444\'" onmouseout="this.style.color=\'#94a3b8\'">&times;</span></span>';
+        }).join(' ');
+        var setMap = {};
+        _modalPhotoFiles.forEach(function(f) {
+            var name = f.name.replace(/\.[^.]+$/, '').trim();
+            var m = name.match(/^(\d+)(?:-(\d+))?$/);
+            if (m) setMap[parseInt(m[1])] = (setMap[parseInt(m[1])] || 0) + 1;
+        });
+        var keys = Object.keys(setMap).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+        if (keys.length === 0) {
+            preview.textContent = '파일명 형식이 맞지 않습니다 (예: 1.jpg, 2-1.jpg)';
+            preview.style.color = '#ef4444';
+        } else {
+            preview.textContent = keys.length + '세트 — ' + keys.map(function(k){ return '세트'+k+': '+setMap[k]+'장'; }).join(', ');
+            preview.style.color = '#64748b';
+        }
+    }
+
+    function removeModalPhotoFile(idx) { _modalPhotoFiles.splice(idx, 1); renderModalPhotoFiles(); }
+    function resetModalPhotoFiles() { _modalPhotoFiles = []; renderModalPhotoFiles(); }
+
+    _photoFileInput.addEventListener('change', function() {
+        if (!this.files || this.files.length === 0) return;
+        var existing = new Set(_modalPhotoFiles.map(function(f){ return f.name; }));
+        for (var i = 0; i < this.files.length; i++) {
+            if (!existing.has(this.files[i].name)) _modalPhotoFiles.push(this.files[i]);
+        }
+        renderModalPhotoFiles();
     });
 
     function uploadPhotos() {
@@ -1598,6 +1669,32 @@
         if (e.target === this) closeReviewTextModal();
     });
 
+    function resetAllReviewTexts() {
+        if (!confirm('등록된 리뷰내용을 모두 삭제하시겠습니까? (되돌릴 수 없음)')) return;
+        fetch('/admin/api/campaign/' + _rtModalCampaignId + '/review-texts', {method:'DELETE'})
+        .then(function(r) { return r.json(); })
+        .then(function(d) { if (d.ok) loadReviewTexts(); else alert('초기화 실패: ' + (d.error||'')); })
+        .catch(function() { alert('연결 실패'); });
+    }
+
+    function clearRtFile() {
+        document.getElementById('rtFile').value = '';
+        document.getElementById('rtFileName').textContent = '';
+        document.getElementById('rtFileRemove').style.display = 'none';
+    }
+
+    document.getElementById('rtFile').addEventListener('change', function() {
+        var nameEl = document.getElementById('rtFileName');
+        var removeEl = document.getElementById('rtFileRemove');
+        if (this.files && this.files.length > 0) {
+            nameEl.textContent = this.files[0].name;
+            removeEl.style.display = '';
+        } else {
+            nameEl.textContent = '';
+            removeEl.style.display = 'none';
+        }
+    });
+
     function loadReviewTexts() {
         fetch('/admin/api/campaign/' + _rtModalCampaignId + '/review-texts')
         .then(function(r) { return r.json(); })
@@ -1607,8 +1704,10 @@
             if (d.total_texts === 0) {
                 container.innerHTML = '<p style="color:#94a3b8;font-size:13px;">등록된 리뷰내용이 없습니다. 엑셀을 업로드하세요.</p>';
                 document.getElementById('rtListSection').style.display = 'none';
+                document.getElementById('rtResetWrap').style.display = 'none';
                 return;
             }
+            document.getElementById('rtResetWrap').style.display = '';
             container.innerHTML = '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;">'
                 + '<span>총 <b>' + d.total_texts + '</b>건</span>'
                 + '<span>배분 <b style="color:#16a34a;">' + d.assigned_count + '</b>건</span>'

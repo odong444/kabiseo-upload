@@ -2354,6 +2354,7 @@ class DBManager:
         for r in rows:
             sn = r["set_number"]
             sets.setdefault(sn, []).append({
+                "id": r["id"],
                 "url": r["drive_url"],
                 "filename": r["filename"],
                 "file_index": r["file_index"],
@@ -2362,6 +2363,9 @@ class DBManager:
 
     def delete_campaign_photos(self, campaign_id: str):
         self._execute("DELETE FROM campaign_photos WHERE campaign_id = %s", (campaign_id,))
+
+    def delete_campaign_photo_by_id(self, photo_id: int):
+        self._execute("DELETE FROM campaign_photos WHERE id = %s", (photo_id,))
 
     def get_next_photo_set_number(self, campaign_id: str) -> int | None:
         """미할당된 가장 작은 세트 번호 반환. 없으면 None."""

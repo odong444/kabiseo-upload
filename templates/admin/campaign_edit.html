@@ -538,8 +538,16 @@
                     <div class="form-group form-group-full">
                         <label>리뷰용 사진 세트</label>
                         {% set photo_sets = campaign.get('_photo_set_count', 0) %}
+                        {% set photo_sets_data = campaign.get('_photo_sets', {}) %}
                         {% if photo_sets %}
                         <p style="font-size:13px;color:#475569;margin-bottom:6px;">현재 등록된 사진 세트: <b>{{ photo_sets }}세트</b> (새 파일 선택 시 기존 사진이 교체됩니다)</p>
+                        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
+                            {% for sn in photo_sets_data|sort %}
+                            {% for p in photo_sets_data[sn] %}
+                            <span style="display:inline-flex;align-items:center;gap:3px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 8px;font-size:12px;color:#334155;">{{ p.filename or (sn|string + '-' + p.file_index|string) }}</span>
+                            {% endfor %}
+                            {% endfor %}
+                        </div>
                         {% endif %}
                         <div style="display:flex;align-items:center;gap:8px;">
                             <div class="file-upload-area" style="flex:1;">
