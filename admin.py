@@ -61,6 +61,36 @@ ADMIN_LOGIN_ID = os.environ.get("ADMIN_LOGIN_ID", "buywise")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "yjh1020!@")
 
 
+def _auto_register_client(company_name: str, agency_id_str: str = "") -> int | None:
+    """업체명으로 직접입력된 경우, 기존 업체가 없으면 자동 가입 (비번 1234)"""
+    if not company_name or not models.db_manager:
+        return None
+    # 이미 같은 업체명의 클라이언트가 있는지 확인
+    from modules.db_manager import DatabaseManager
+    existing = models.db_manager._fetchone(
+        "SELECT id FROM clients WHERE company_name = %s LIMIT 1", (company_name,)
+    )
+    if existing:
+        return existing["id"]
+    # 없으면 자동 생성
+    from werkzeug.security import generate_password_hash
+    login_id = company_name  # 업체명을 아이디로 사용
+    password_hash = generate_password_hash("1234")
+    aid = safe_int(agency_id_str) if agency_id_str else None
+    try:
+        new_id = models.db_manager.create_client(
+            login_id=login_id,
+            password_hash=password_hash,
+            company_name=company_name,
+            agency_id=aid,
+        )
+        logger.info(f"업체 자동가입: {company_name} (ID: {new_id}, 비밀번호: 1234)")
+        return new_id
+    except Exception as e:
+        logger.error(f"업체 자동가입 실패: {company_name} - {e}")
+        return None
+
+
 def _get_server_promotion_status() -> bool | None:
     """서버PC 홍보 활성화 상태 조회"""
     try:
@@ -341,6 +371,11 @@ def campaign_edit_post(campaign_id):
     client_id_str = request.form.get("업체ID_select", "").strip()
     if client_id_str:
         update_data["업체ID"] = client_id_str
+    elif update_data.get("업체명"):
+        # 드롭다운 미선택 + 업체명 직접입력 → 자동가입
+        auto_id = _auto_register_client(update_data["업체명"], agency_id_str)
+        if auto_id:
+            update_data["업체ID"] = str(auto_id)
 
     # 상품이미지 파일 업로드
     image_file = request.files.get("상품이미지")
@@ -1144,6 +1179,11 @@ def campaign_new_post():
     client_id_str = request.form.get("업체ID_select", "").strip()
     if client_id_str:
         data["업체ID"] = client_id_str
+    elif data.get("업체명"):
+        # 드롭다운 미선택 + 업체명 직접입력 → 자동가입
+        auto_id = _auto_register_client(data["업체명"], agency_id_str)
+        if auto_id:
+            data["업체ID"] = str(auto_id)
 
     # 상품링크에서 상품코드 자동 추출
     from modules.utils import extract_product_codes
@@ -1284,6 +1324,10 @@ def campaign_draft_save():
     client_id_str = request.form.get("업체ID_select", "").strip()
     if client_id_str:
         data["업체ID"] = client_id_str
+    elif data.get("업체명"):
+        auto_id = _auto_register_client(data["업체명"], agency_id_str)
+        if auto_id:
+            data["업체ID"] = str(auto_id)
 
     try:
         if draft_id:
@@ -2942,6 +2986,12 @@ def quote_approve(quote_id):
         codes = extract_product_codes(product_link)
         if codes:
             data["상품코드"] = codes
+
+    # 업체명 자동가입
+    if data.get("업체명") and not data.get("업체ID"):
+        auto_id = _auto_register_client(data["업체명"], data.get("대행사ID", ""))
+        if auto_id:
+            data["업체ID"] = str(auto_id)
 
     total = safe_int(data.get("총수량", 0))
     daily_str = data.get("일수량", "").strip()
