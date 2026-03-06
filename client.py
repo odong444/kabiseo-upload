@@ -77,7 +77,7 @@ def logout():
     session.pop("client_id", None)
     session.pop("client_company", None)
     session.pop("client_login_id", None)
-    return redirect(url_for("client.login"))
+    return redirect(url_for("unified_login"))
 
 
 # ─── 대시보드 ───

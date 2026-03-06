@@ -161,7 +161,9 @@ def login_post():
 @admin_bp.route("/logout")
 def logout():
     session.pop("admin_logged_in", None)
-    return redirect(url_for("admin.login"))
+    session.pop("admin_login_id", None)
+    session.pop("admin_is_master", None)
+    return redirect(url_for("unified_login"))
 
 
 # ──────── 대시보드 ────────

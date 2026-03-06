@@ -78,7 +78,7 @@ def logout():
     session.pop("agency_id", None)
     session.pop("agency_company", None)
     session.pop("agency_login_id", None)
-    return redirect(url_for("agency.login"))
+    return redirect(url_for("unified_login"))
 
 
 # ─── 대시보드 ───
