@@ -41,7 +41,7 @@
 .ai-float-wrap {
     position: fixed;
     bottom: 24px;
-    right: max(24px, calc(50% - 660px));
+    right: max(24px, calc(50% - var(--ai-offset, 660px)));
     z-index: 200;
     display: flex;
     flex-direction: column;
@@ -111,7 +111,7 @@
 #aiChatPanel {
     position: fixed;
     bottom: 110px;
-    right: max(24px, calc(50% - 660px));
+    right: max(24px, calc(50% - var(--ai-offset, 660px)));
     width: 480px;
     height: 680px;
     background: #fff;
@@ -318,6 +318,10 @@
     // 포탈 자동 감지 (admin / agency / client)
     var _aiPortal = window.location.pathname.startsWith('/agency') ? '/agency' :
                     window.location.pathname.startsWith('/client') ? '/client' : '/admin';
+
+    // 포탈별 콘텐츠 폭에 맞춰 플로팅 위치 조정
+    var _offsets = {'/admin': '860px', '/agency': '960px', '/client': '960px'};
+    document.documentElement.style.setProperty('--ai-offset', _offsets[_aiPortal] || '660px');
 
     var _aiMessages = [];
     var _aiOpen = false;
