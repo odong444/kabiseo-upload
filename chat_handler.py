@@ -51,19 +51,20 @@ def register_handlers(socketio):
             emit("chat_history", {"messages": history})
 
         # 환영 메시지 — 이력이 없을 때만 (재접속 시 중복 방지)
-        if not history and models.step_machine:
-            welcome = models.step_machine.get_welcome(name, phone)
-            if welcome:
-                if isinstance(welcome, dict):
-                    emit("bot_message", welcome)
-                    models.chat_logger.log(reviewer_id, "bot", welcome.get("message", ""))
-                else:
-                    emit("bot_message", {"message": welcome})
-                    models.chat_logger.log(reviewer_id, "bot", welcome)
-        else:
-            emit("bot_message", {
-                "message": "안녕하세요! 카비서입니다. 현재 시스템 점검 중입니다. 잠시 후 다시 시도해주세요."
-            })
+        if not history:
+            if models.step_machine:
+                welcome = models.step_machine.get_welcome(name, phone)
+                if welcome:
+                    if isinstance(welcome, dict):
+                        emit("bot_message", welcome)
+                        models.chat_logger.log(reviewer_id, "bot", welcome.get("message", ""))
+                    else:
+                        emit("bot_message", {"message": welcome})
+                        models.chat_logger.log(reviewer_id, "bot", welcome)
+            else:
+                emit("bot_message", {
+                    "message": "안녕하세요! 카비서입니다. 현재 시스템 점검 중입니다. 잠시 후 다시 시도해주세요."
+                })
 
     @socketio.on("user_message")
     def handle_message(data):
