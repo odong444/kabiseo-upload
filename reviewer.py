@@ -136,6 +136,20 @@ def api_campaigns():
         buy_time_str = c.get("구매가능시간", "").strip()
         buy_time_active = is_within_buy_time(buy_time_str)
 
+        # 시작일 전 여부 체크
+        start_date_raw = (c.get("시작일") or "").strip()
+        not_started = False
+        if start_date_raw:
+            try:
+                _sd = _now_kst().strftime("%Y-%m-%d")
+                if _sd < start_date_raw:
+                    not_started = True
+                    if not is_closed:
+                        is_closed = True
+                        closed_reason = f"{start_date_raw} 오픈"
+            except Exception:
+                pass
+
         card = {
             "campaign_id": campaign_id,
             "name": c.get("캠페인명", "") or c.get("상품명", ""),
@@ -150,9 +164,10 @@ def api_campaigns():
             "platform": str(c.get("플랫폼", "") or c.get("캠페인유형", "") or ""),
             "closed": is_closed,
             "closed_reason": closed_reason,
+            "not_started": not_started,
             "max_per_person_daily": safe_int(c.get("1인일일제한", 0)),
             "schedule": c.get("일정", []) or [],
-            "start_date": (c.get("시작일") or "").strip(),
+            "start_date": start_date_raw,
         }
 
         # 내 진행 이력
@@ -281,6 +296,19 @@ def api_apply():
     c_status = campaign.get("상태", "")
     if c_status in ("모집마감", "마감", "종료"):
         return jsonify({"ok": False, "error": "모집이 마감된 캠페인입니다."}), 400
+
+    # 시작일 체크 (시작일 전이면 신청 불가)
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+    _KST = _tz(_td(hours=9))
+    start_date_str = (campaign.get("시작일") or "").strip()
+    if start_date_str:
+        try:
+            start_date = _dt.strptime(start_date_str, "%Y-%m-%d").date()
+            today_date = _dt.now(_KST).date()
+            if today_date < start_date:
+                return jsonify({"ok": False, "error": f"캠페인 시작일({start_date_str})이 아직 되지 않았습니다."}), 400
+        except ValueError:
+            pass
 
     # 구매시간 체크
     from modules.utils import is_within_buy_time
