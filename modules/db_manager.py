@@ -2856,11 +2856,15 @@ class DBManager:
     # ──────── 관리자 계정 CRUD ────────
 
     def create_admin(self, login_id: str, password_hash: str, name: str = "") -> int:
-        row = self._fetchone(
-            """INSERT INTO admins (login_id, password_hash, name)
-               VALUES (%s, %s, %s) RETURNING id""",
-            (login_id, password_hash, name)
-        )
+        with self._conn() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """INSERT INTO admins (login_id, password_hash, name)
+                       VALUES (%s, %s, %s) RETURNING id""",
+                    (login_id, password_hash, name)
+                )
+                row = cur.fetchone()
+            conn.commit()
         return row["id"] if row else 0
 
     def get_admin_by_login(self, login_id: str) -> dict:
