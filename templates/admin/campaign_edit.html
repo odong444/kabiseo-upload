@@ -20,6 +20,12 @@
         .file-upload-area input[type="file"] { display: none; }
         .file-upload-label { color: #888; font-size: 14px; }
         .file-upload-area.has-file .file-upload-label { color: #4caf50; font-weight: 600; }
+        .file-list { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+        .file-item { display: inline-flex; align-items: center; gap: 4px; background: #f1f5f9; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #334155; border: 1px solid #e2e8f0; }
+        .file-item .file-remove { cursor: pointer; color: #94a3b8; font-size: 16px; line-height: 1; margin-left: 2px; }
+        .file-item .file-remove:hover { color: #ef4444; }
+        .btn-file-reset { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer; margin-left: 8px; }
+        .btn-file-reset:hover { background: #e2e8f0; color: #334155; }
         .current-image { margin-top: 8px; }
         .current-image img { max-width: 200px; border-radius: 8px; border: 1px solid #ddd; }
 
@@ -511,15 +517,19 @@
                         {% if photo_sets %}
                         <p style="font-size:13px;color:#475569;margin-bottom:6px;">현재 등록된 사진 세트: <b>{{ photo_sets }}세트</b> (새 파일 선택 시 기존 사진이 교체됩니다)</p>
                         {% endif %}
-                        <div class="file-upload-area">
-                            <input type="file" name="사진세트" id="photoSetFiles" accept="image/*" multiple>
-                            <div class="file-upload-label" id="photoSetLabel">{{ '새 사진으로 교체하려면 클릭' if photo_sets else '클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)' }}</div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="file-upload-area" style="flex:1;">
+                                <input type="file" name="사진세트" id="photoSetFiles" accept="image/*" multiple>
+                                <div class="file-upload-label" id="photoSetLabel">{{ '새 사진으로 교체하려면 클릭' if photo_sets else '클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)' }}</div>
+                            </div>
+                            <button type="button" class="btn-file-reset" id="photoResetBtn" style="display:none;" onclick="resetPhotoFiles()">초기화</button>
                         </div>
                         <div style="color:#999;font-size:12px;margin-top:4px;">
                             파일명 규칙: <b>세트번호.확장자</b> 또는 <b>세트번호-인덱스.확장자</b><br>
                             예) 1.jpg, 2-1.jpg, 2-2.jpg, 3.jpg → 세트1(1장), 세트2(2장), 세트3(1장)
                         </div>
-                        <div id="photoSetPreview" style="margin-top:8px;font-size:13px;color:#475569;"></div>
+                        <div id="photoFileList" class="file-list"></div>
+                        <div id="photoSetPreview" style="margin-top:4px;font-size:13px;color:#475569;"></div>
                     </div>
 
                     <div class="form-group form-group-full">
@@ -528,9 +538,12 @@
                         {% if review_text_count %}
                         <p style="font-size:13px;color:#475569;margin-bottom:6px;">현재 등록된 리뷰내용: <b>{{ review_text_count }}건</b> (새 파일 선택 시 기존 내용이 교체됩니다)</p>
                         {% endif %}
-                        <div class="file-upload-area">
-                            <input type="file" name="리뷰내용엑셀" id="reviewTextFile" accept=".xlsx,.xls">
-                            <div class="file-upload-label" id="reviewTextLabel">{{ '새 엑셀로 교체하려면 클릭' if review_text_count else '클릭하여 리뷰내용 엑셀을 선택하세요 (.xlsx)' }}</div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div class="file-upload-area" style="flex:1;">
+                                <input type="file" name="리뷰내용엑셀" id="reviewTextFile" accept=".xlsx,.xls">
+                                <div class="file-upload-label" id="reviewTextLabel">{{ '새 엑셀로 교체하려면 클릭' if review_text_count else '클릭하여 리뷰내용 엑셀을 선택하세요 (.xlsx)' }}</div>
+                            </div>
+                            <button type="button" class="btn-file-reset" id="reviewResetBtn" style="display:none;" onclick="resetReviewFile()">초기화</button>
                         </div>
                         <div style="color:#999;font-size:12px;margin-top:4px;">
                             엑셀 A열에 리뷰내용을 한 행에 하나씩 입력하세요. 헤더 없이 1행부터 바로 입력합니다.<br>
@@ -785,52 +798,92 @@
         }
     });
 
-    // 사진 세트 / 리뷰내용 엑셀 업로드 영역 클릭 핸들러
-    (function() {
-        var photoArea = document.getElementById('photoSetFiles');
-        if (photoArea) {
-            photoArea.closest('.file-upload-area').addEventListener('click', function() { photoArea.click(); });
-        }
-        var reviewArea = document.getElementById('reviewTextFile');
-        if (reviewArea) {
-            reviewArea.closest('.file-upload-area').addEventListener('click', function() { reviewArea.click(); });
-        }
-    })();
-
-    // 사진 세트 파일 선택 시 미리보기
+    // ── 사진 세트 파일 관리 ──
+    var _photoFiles = [];
     var psf = document.getElementById('photoSetFiles');
-    if (psf) {
-        psf.addEventListener('change', function() {
-            var preview = document.getElementById('photoSetPreview');
-            var label = document.getElementById('photoSetLabel');
-            if (!this.files || this.files.length === 0) {
-                preview.innerHTML = '';
-                return;
-            }
-            label.textContent = this.files.length + '개 파일 선택됨';
-            var sets = {};
-            for (var i = 0; i < this.files.length; i++) {
-                var name = this.files[i].name;
-                var base = name.lastIndexOf('.') > 0 ? name.substring(0, name.lastIndexOf('.')) : name;
-                var m = base.match(/^(\d+)(?:-(\d+))?$/);
-                if (m) sets[parseInt(m[1])] = (sets[parseInt(m[1])] || 0) + 1;
-            }
-            var keys = Object.keys(sets).sort(function(a,b){return a-b;});
-            if (keys.length > 0) {
-                preview.innerHTML = '세트 ' + keys.length + '개: ' + keys.map(function(k){return '세트'+k+'('+sets[k]+'장)';}).join(', ');
-            } else {
-                preview.innerHTML = '<span style="color:#ef4444">파일명이 규칙에 맞지 않습니다</span>';
-            }
+    var photoArea = psf ? psf.closest('.file-upload-area') : null;
+
+    if (photoArea) {
+        photoArea.addEventListener('click', function(e) {
+            if (e.target === psf) return;
+            psf.click();
         });
     }
 
-    // 리뷰내용 엑셀 파일 선택 시 표시
+    function renderPhotoFileList() {
+        var dt = new DataTransfer();
+        _photoFiles.forEach(function(f) { dt.items.add(f); });
+        psf.files = dt.files;
+        var listEl = document.getElementById('photoFileList');
+        var preview = document.getElementById('photoSetPreview');
+        var label = document.getElementById('photoSetLabel');
+        var resetBtn = document.getElementById('photoResetBtn');
+        if (_photoFiles.length === 0) {
+            listEl.innerHTML = '';
+            preview.innerHTML = '';
+            label.textContent = '클릭하여 사진 세트를 선택하세요 (여러 장 선택 가능)';
+            photoArea.classList.remove('has-file');
+            resetBtn.style.display = 'none';
+            return;
+        }
+        photoArea.classList.add('has-file');
+        label.textContent = _photoFiles.length + '개 파일 선택됨';
+        resetBtn.style.display = '';
+        listEl.innerHTML = _photoFiles.map(function(f, i) {
+            return '<span class="file-item">' + f.name + '<span class="file-remove" onclick="removePhotoFile(' + i + ')">&times;</span></span>';
+        }).join('');
+        var sets = {};
+        _photoFiles.forEach(function(f) {
+            var base = f.name.lastIndexOf('.') > 0 ? f.name.substring(0, f.name.lastIndexOf('.')) : f.name;
+            var m = base.match(/^(\d+)(?:-(\d+))?$/);
+            if (m) sets[parseInt(m[1])] = (sets[parseInt(m[1])] || 0) + 1;
+        });
+        var keys = Object.keys(sets).sort(function(a,b){return a-b;});
+        preview.innerHTML = keys.length > 0
+            ? '세트 ' + keys.length + '개: ' + keys.map(function(k){return '세트'+k+'('+sets[k]+'장)';}).join(', ')
+            : '<span style="color:#ef4444">파일명이 규칙에 맞지 않습니다</span>';
+    }
+
+    function removePhotoFile(idx) { _photoFiles.splice(idx, 1); renderPhotoFileList(); }
+    function resetPhotoFiles() { _photoFiles = []; renderPhotoFileList(); }
+
+    if (psf) {
+        psf.addEventListener('change', function() {
+            if (!this.files || this.files.length === 0) return;
+            var existing = new Set(_photoFiles.map(function(f){ return f.name; }));
+            for (var i = 0; i < this.files.length; i++) {
+                if (!existing.has(this.files[i].name)) _photoFiles.push(this.files[i]);
+            }
+            renderPhotoFileList();
+        });
+    }
+
+    // ── 리뷰내용 엑셀 파일 관리 ──
     var rtf = document.getElementById('reviewTextFile');
+    var reviewArea = rtf ? rtf.closest('.file-upload-area') : null;
+
+    if (reviewArea) {
+        reviewArea.addEventListener('click', function(e) {
+            if (e.target === rtf) return;
+            rtf.click();
+        });
+    }
+
+    function resetReviewFile() {
+        rtf.value = '';
+        document.getElementById('reviewTextLabel').textContent = '클릭하여 리뷰내용 엑셀을 선택하세요 (.xlsx)';
+        reviewArea.classList.remove('has-file');
+        document.getElementById('reviewResetBtn').style.display = 'none';
+    }
+
     if (rtf) {
         rtf.addEventListener('change', function() {
             var label = document.getElementById('reviewTextLabel');
+            var resetBtn = document.getElementById('reviewResetBtn');
             if (this.files && this.files.length > 0) {
                 label.textContent = this.files[0].name;
+                reviewArea.classList.add('has-file');
+                resetBtn.style.display = '';
             }
         });
     }
