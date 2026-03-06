@@ -114,14 +114,26 @@ def unified_login_post():
         flash("아이디와 비밀번호를 입력해주세요.")
         return redirect(url_for("unified_login"))
 
-    # 1) 관리자 확인
+    # 1) 마스터 관리자 확인 (환경변수)
     from admin import ADMIN_LOGIN_ID, ADMIN_PASSWORD
     if login_id == ADMIN_LOGIN_ID and password == ADMIN_PASSWORD:
         session["admin_logged_in"] = True
         session["admin_login_id"] = login_id
+        session["admin_is_master"] = True
         return redirect(url_for("admin.dashboard"))
 
-    # 2) 대행사 확인
+    # 2) DB 관리자 계정 확인
+    if models.db_manager:
+        admin_user = models.db_manager.get_admin_by_login(login_id)
+        if admin_user and admin_user.get("is_active", True):
+            from werkzeug.security import check_password_hash
+            if check_password_hash(admin_user["password_hash"], password):
+                session["admin_logged_in"] = True
+                session["admin_login_id"] = login_id
+                session["admin_is_master"] = False
+                return redirect(url_for("admin.dashboard"))
+
+    # 3) 대행사 확인
     if models.db_manager:
         agency = models.db_manager.get_agency_by_login(login_id)
         if agency and agency.get("is_active", True):
@@ -132,7 +144,7 @@ def unified_login_post():
                 session["agency_login_id"] = agency["login_id"]
                 return redirect(url_for("agency.dashboard"))
 
-    # 3) 클라이언트 확인
+    # 4) 클라이언트 확인
     if models.db_manager:
         client = models.db_manager.get_client_by_login(login_id)
         if client and client.get("is_active", True):
@@ -143,7 +155,7 @@ def unified_login_post():
                 session["client_login_id"] = client["login_id"]
                 return redirect(url_for("client.dashboard"))
 
-    # 4) 모두 불일치
+    # 5) 모두 불일치
     flash("아이디 또는 비밀번호가 올바르지 않습니다.")
     return redirect(url_for("unified_login"))
 

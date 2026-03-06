@@ -138,10 +138,22 @@ def login():
 def login_post():
     login_id = request.form.get("login_id", "")
     password = request.form.get("password", "")
+    # 1) 마스터 관리자 (환경변수)
     if login_id == ADMIN_LOGIN_ID and password == ADMIN_PASSWORD:
         session["admin_logged_in"] = True
         session["admin_login_id"] = login_id
+        session["admin_is_master"] = True
         return redirect(url_for("admin.dashboard"))
+    # 2) DB 관리자 계정
+    if models.db_manager:
+        admin_user = models.db_manager.get_admin_by_login(login_id)
+        if admin_user and admin_user.get("is_active", True):
+            from werkzeug.security import check_password_hash
+            if check_password_hash(admin_user["password_hash"], password):
+                session["admin_logged_in"] = True
+                session["admin_login_id"] = login_id
+                session["admin_is_master"] = False
+                return redirect(url_for("admin.dashboard"))
     flash("아이디 또는 비밀번호가 올바르지 않습니다.")
     return redirect(url_for("admin.login"))
 
@@ -3357,4 +3369,80 @@ def api_ai_chat_upload_image():
         return jsonify({"ok": False, "error": "Drive 업로더를 사용할 수 없습니다"})
     except Exception as e:
         logger.error(f"AI chat image upload error: {e}", exc_info=True)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+# ──────── 관리자 계정 관리 ────────
+
+@admin_bp.route("/admins")
+@admin_required
+def admin_accounts():
+    admin_list = []
+    if models.db_manager:
+        admin_list = models.db_manager.get_admins()
+    return render_template("admin/admin_accounts.html",
+                           admins=admin_list,
+                           master_login_id=ADMIN_LOGIN_ID)
+
+
+@admin_bp.route("/api/admin-account", methods=["POST"])
+@admin_required
+def api_admin_create():
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    login_id = data.get("login_id", "").strip()
+    password = data.get("password", "").strip()
+    name = data.get("name", "").strip()
+    if not login_id or not password:
+        return jsonify({"ok": False, "error": "아이디와 비밀번호는 필수입니다."})
+    if login_id == ADMIN_LOGIN_ID:
+        return jsonify({"ok": False, "error": "마스터 계정 아이디와 동일할 수 없습니다."})
+    from werkzeug.security import generate_password_hash
+    try:
+        aid = models.db_manager.create_admin(
+            login_id=login_id,
+            password_hash=generate_password_hash(password),
+            name=name,
+        )
+        return jsonify({"ok": True, "id": aid})
+    except Exception as e:
+        logger.error("관리자 생성 에러: %s", e)
+        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+            return jsonify({"ok": False, "error": "이미 존재하는 아이디입니다."})
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@admin_bp.route("/api/admin-account/<int:admin_id>", methods=["PUT"])
+@admin_required
+def api_admin_update(admin_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    update = {}
+    if "name" in data:
+        update["name"] = data["name"]
+    if "is_active" in data:
+        update["is_active"] = data["is_active"]
+    if "password" in data and data["password"].strip():
+        from werkzeug.security import generate_password_hash
+        update["password_hash"] = generate_password_hash(data["password"])
+    try:
+        models.db_manager.update_admin(admin_id, **update)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("관리자 수정 에러: %s", e)
+        return jsonify({"ok": False, "error": str(e)})
+
+
+@admin_bp.route("/api/admin-account/<int:admin_id>", methods=["DELETE"])
+@admin_required
+def api_admin_delete(admin_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    try:
+        models.db_manager.delete_admin(admin_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error("관리자 삭제 에러: %s", e)
         return jsonify({"ok": False, "error": str(e)})

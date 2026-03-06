@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카비서 관리자 - 관리자 계정</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+    .add-form {
+        background: #fff; border-radius: 12px; padding: 20px; margin-bottom: 24px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.06); border-left: 4px solid #4338ca;
+    }
+    .add-form h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: #3c1e1e; }
+    .add-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    .add-grid input {
+        width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;
+    }
+    .add-actions { margin-top: 12px; display: flex; gap: 8px; }
+    .master-badge {
+        display: inline-block; background: #4338ca; color: #fff; padding: 2px 8px;
+        border-radius: 6px; font-size: 11px; font-weight: 700;
+    }
+    .toggle-active { cursor: pointer; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; border: none; }
+    .toggle-active.active { background: #d1fae5; color: #065f46; }
+    .toggle-active.inactive { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-inner">
+            <a href="{{ url_for('admin.dashboard') }}" class="admin-logo">카비서 관리자</a>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin.dashboard') }}">대시보드</a>
+                <a href="{{ url_for('admin.campaigns') }}">캠페인{% if pending_campaign_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_campaign_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.quotes') }}">견적서</a>
+                <a href="{{ url_for('admin.chat_list') }}">대화이력</a>
+                <a href="{{ url_for('admin.reviews') }}">검수{% if pending_review_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_review_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.settlement') }}">정산</a>
+                <a href="{{ url_for('admin.activity_logs') }}">활동로그</a>
+                <a href="{{ url_for('admin.reviewers') }}">리뷰어</a>
+                <a href="{{ url_for('admin.inquiries') }}">문의{% if pending_inquiry_count %}<span style="background:#ef4444;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">{{ pending_inquiry_count }}</span>{% endif %}</a>
+                <a href="{{ url_for('admin.spreadsheet') }}">데이터</a>
+                <a href="{{ url_for('admin.notices') }}">공지</a>
+                <a href="{{ url_for('admin.guide') }}">가이드</a>
+                <a href="{{ url_for('admin.agencies') }}">대행사</a>
+                <a href="{{ url_for('admin.clients') }}">업체</a>
+                <a href="{{ url_for('admin.admin_accounts') }}" class="active">관리자</a>
+                <a href="{{ url_for('admin.settings') }}">설정</a>
+                <a href="{{ url_for('admin.ai_register') }}">AI 등록</a>
+                <a href="{{ url_for('admin.logout') }}">로그아웃</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="admin-main">
+        <h1>관리자 계정 관리</h1>
+
+        <!-- 마스터 계정 안내 -->
+        <div style="background:#eef2ff;border-radius:12px;padding:16px 20px;margin-bottom:20px;border:1px solid #c7d2fe;">
+            <div style="font-size:14px;font-weight:600;color:#4338ca;margin-bottom:4px;">
+                <span class="master-badge">마스터</span> {{ master_login_id }}
+            </div>
+            <div style="font-size:12px;color:#6366f1;">환경변수로 설정된 마스터 계정입니다. 삭제/수정이 불가합니다.</div>
+        </div>
+
+        <!-- 추가 관리자 생성 폼 -->
+        <div class="add-form">
+            <h3>관리자 계정 추가</h3>
+            <div class="add-grid">
+                <input type="text" id="addLoginId" placeholder="로그인 아이디 *">
+                <input type="password" id="addPassword" placeholder="비밀번호 *">
+                <input type="text" id="addName" placeholder="이름 (선택)">
+            </div>
+            <div class="add-actions">
+                <button type="button" class="admin-btn admin-btn-primary" onclick="createAdmin()">관리자 추가</button>
+            </div>
+        </div>
+
+        <!-- 목록 -->
+        <div class="admin-card">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>아이디</th>
+                        <th>이름</th>
+                        <th>상태</th>
+                        <th>생성일</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in admins %}
+                    <tr id="admin-row-{{ a.id }}">
+                        <td><strong>{{ a.login_id }}</strong></td>
+                        <td>{{ a.name or '-' }}</td>
+                        <td>
+                            <button class="toggle-active {{ 'active' if a.is_active else 'inactive' }}"
+                                    onclick="toggleActive({{ a.id }}, {{ 'false' if a.is_active else 'true' }})">
+                                {{ '활성' if a.is_active else '비활성' }}
+                            </button>
+                        </td>
+                        <td>{{ a.created_at|kst('%Y-%m-%d') }}</td>
+                        <td>
+                            <button class="admin-btn" style="font-size:12px;padding:4px 10px;" onclick="deleteAdmin({{ a.id }}, '{{ a.login_id }}')">삭제</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not admins %}
+                    <tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:32px;">추가 관리자 계정이 없습니다</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+    async function createAdmin() {
+        const login_id = document.getElementById('addLoginId').value.trim();
+        const password = document.getElementById('addPassword').value.trim();
+        const name = document.getElementById('addName').value.trim();
+        if (!login_id || !password) { alert('아이디와 비밀번호는 필수입니다.'); return; }
+        const res = await fetch('/admin/api/admin-account', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({login_id, password, name})
+        });
+        const data = await res.json();
+        if (data.ok) { location.reload(); }
+        else { alert(data.error || '생성 실패'); }
+    }
+
+    async function toggleActive(id, active) {
+        const res = await fetch(`/admin/api/admin-account/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({is_active: active})
+        });
+        const data = await res.json();
+        if (data.ok) { location.reload(); }
+        else { alert(data.error || '수정 실패'); }
+    }
+
+    async function deleteAdmin(id, loginId) {
+        if (!confirm(`관리자 "${loginId}" 를 삭제하시겠습니까?`)) return;
+        const res = await fetch(`/admin/api/admin-account/${id}`, {method: 'DELETE'});
+        const data = await res.json();
+        if (data.ok) { location.reload(); }
+        else { alert(data.error || '삭제 실패'); }
+    }
+    </script>
+</body>
+</html>

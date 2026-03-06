@@ -359,6 +359,16 @@ CREATE TABLE IF NOT EXISTS agencies (
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_agencies_login ON agencies(login_id);
+
+CREATE TABLE IF NOT EXISTS admins (
+    id              SERIAL PRIMARY KEY,
+    login_id        TEXT NOT NULL UNIQUE,
+    password_hash   TEXT NOT NULL,
+    name            TEXT NOT NULL DEFAULT '',
+    is_active       BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_admins_login ON admins(login_id);
 """
 
 
@@ -2842,6 +2852,36 @@ class DBManager:
 
     def delete_agency(self, agency_id: int):
         self._execute("DELETE FROM agencies WHERE id = %s", (agency_id,))
+
+    # ──────── 관리자 계정 CRUD ────────
+
+    def create_admin(self, login_id: str, password_hash: str, name: str = "") -> int:
+        row = self._fetchone(
+            """INSERT INTO admins (login_id, password_hash, name)
+               VALUES (%s, %s, %s) RETURNING id""",
+            (login_id, password_hash, name)
+        )
+        return row["id"] if row else 0
+
+    def get_admin_by_login(self, login_id: str) -> dict:
+        return self._fetchone("SELECT * FROM admins WHERE login_id = %s", (login_id,)) or {}
+
+    def get_admins(self) -> list:
+        return self._fetchall("SELECT * FROM admins ORDER BY created_at DESC")
+
+    def delete_admin(self, admin_id: int):
+        self._execute("DELETE FROM admins WHERE id = %s", (admin_id,))
+
+    def update_admin(self, admin_id: int, **kwargs):
+        if not kwargs:
+            return
+        sets = []
+        params = []
+        for k, v in kwargs.items():
+            sets.append(f"{k} = %s")
+            params.append(v)
+        params.append(admin_id)
+        self._execute(f"UPDATE admins SET {', '.join(sets)} WHERE id = %s", params)
 
     def get_agency_clients(self, agency_id: int) -> list:
         return self._fetchall(
