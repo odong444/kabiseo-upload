@@ -409,13 +409,7 @@
             </div>
         </div>
 
-        <!-- 캠페인 가이드 -->
-        {% if campaign.get('캠페인가이드') %}
-        <div class="card">
-            <h3>캠페인 가이드</h3>
-            <div class="guide-text">{{ campaign.get('캠페인가이드', '') }}</div>
-        </div>
-        {% endif %}
+        <!-- 캠페인 가이드: 리뷰어 전용이므로 클라이언트에게는 비노출 -->
 
         <!-- 리뷰내용 엑셀 양식 -->
         <div class="card">
