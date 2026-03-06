@@ -626,10 +626,12 @@
                                 {% if cats %}
                                 <span class="ptg-cats">| {{ cats }}</span>
                                 {% endif %}
-                                {% set oneliner = c.get('홍보메시지', '') %}
-                                {% if oneliner %}
-                                <span class="ptg-cats">| {{ oneliner[:30] }}{% if oneliner|length > 30 %}...{% endif %}</span>
-                                {% endif %}
+                                <span class="ptg-cats">|</span>
+                                <input type="text" id="promoMsg_{{ c.id }}"
+                                    value="{{ c.get('홍보메시지', '') }}"
+                                    placeholder="한줄멘트 (비우면 상품명 사용)"
+                                    onchange="savePromoMsg('{{ c.id }}', this)"
+                                    style="flex:1;min-width:150px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">
                             </div>
                             <!-- 일별 일정 -->
                             <div style="margin-top:8px;">
@@ -1136,6 +1138,24 @@
             row.classList.add('open');
             btn.classList.add('open');
         }
+    }
+
+    function savePromoMsg(campaignId, input) {
+        var msg = input.value.trim();
+        fetch('/admin/api/campaigns/' + campaignId + '/promo-message', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: msg})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                input.style.borderColor = '#22c55e';
+                setTimeout(function() { input.style.borderColor = '#e2e8f0'; }, 1000);
+            } else {
+                alert('저장 실패: ' + (d.message || ''));
+            }
+        });
     }
 
     function togglePromo(campaignId, cb) {
