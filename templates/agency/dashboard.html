@@ -520,7 +520,11 @@
         var end = Math.min(start + _dPageSize, total);
         var rows = _filteredRows.slice(start, end);
 
-        var html = '<div class="table-wrap"><table class="data-table"><thead><tr>'
+        var html = '<div class="table-wrap"><table class="data-table">'
+            + '<colgroup><col style="width:90px"><col style="width:140px"><col style="width:140px"><col style="width:80px"><col style="width:110px">'
+            + '<col style="width:100px"><col style="width:110px"><col style="width:180px"><col style="width:80px"><col style="width:85px">'
+            + '<col style="width:65px"><col style="width:85px"><col style="width:65px"><col style="width:70px"><col style="width:120px">'
+            + '</colgroup><thead><tr>'
             + '<th>신청일</th><th>캠페인</th><th>상품명</th><th>수취인명</th><th>연락처</th>'
             + '<th>아이디</th><th>주문번호</th><th>주소</th><th>상태</th><th>구매일</th>'
             + '<th>구매캡쳐</th><th>리뷰기한</th><th>리뷰캡쳐</th><th>AI검수</th><th>비고</th>'

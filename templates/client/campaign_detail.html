@@ -309,6 +309,12 @@
             </h3>
             <div class="progress-table-wrap">
                 <table class="progress-table">
+                    <colgroup>
+                        <col style="width:90px"><col style="width:140px"><col style="width:80px"><col style="width:110px">
+                        <col style="width:100px"><col style="width:110px"><col style="width:180px"><col style="width:80px">
+                        <col style="width:85px"><col style="width:65px"><col style="width:85px"><col style="width:65px">
+                        <col style="width:70px"><col style="width:120px"><col style="width:55px">
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>신청일</th>
@@ -653,13 +659,12 @@
         document.querySelectorAll('.progress-table').forEach(table => {
             var ths = table.querySelectorAll('thead th');
             if (!ths.length) return;
-            var cg = document.createElement('colgroup');
-            ths.forEach(th => {
-                var col = document.createElement('col');
-                col.style.width = th.offsetWidth + 'px';
-                cg.appendChild(col);
-            });
-            table.insertBefore(cg, table.firstChild);
+            var cg = table.querySelector('colgroup');
+            if (!cg) {
+                cg = document.createElement('colgroup');
+                ths.forEach(th => { var col = document.createElement('col'); col.style.width = th.offsetWidth + 'px'; cg.appendChild(col); });
+                table.insertBefore(cg, table.firstChild);
+            }
             var cols = cg.querySelectorAll('col');
             ths.forEach((th, idx) => {
                 var handle = document.createElement('div');
