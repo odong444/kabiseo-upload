@@ -83,9 +83,10 @@
         .data-table tr { cursor: default; }
         .col-resize-handle {
             position: absolute; right: 0; top: 0; bottom: 0; width: 6px;
-            cursor: col-resize; background: transparent; z-index: 10;
+            cursor: col-resize; z-index: 10;
+            background: linear-gradient(to right, transparent 2px, #cbd5e1 2px, #cbd5e1 4px, transparent 4px);
         }
-        .col-resize-handle:hover, .col-resize-handle.active { background: #7c3aed; opacity: 0.4; }
+        .col-resize-handle:hover, .col-resize-handle.active { background: #7c3aed; opacity: 0.5; }
         .status-badge { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
         .sb-신청, .sb-가이드전달 { background: #dbeafe; color: #1e40af; }
         .sb-구매완료 { background: #fef3c7; color: #92400e; }
