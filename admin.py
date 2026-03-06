@@ -177,12 +177,15 @@ def campaigns():
     status_filter = request.args.get("status", "")
     company_filter = request.args.get("company", "").strip()
     search_filter = request.args.get("search", "").strip()
+    agency_filter = request.args.get("agency", 0, type=int)
+    client_filter = request.args.get("client", 0, type=int)
 
     campaign_list = []
     total = 0
     if models.db_manager:
         campaign_list, total = models.db_manager.get_campaigns_page(
-            page, per_page, status_filter, company=company_filter, search=search_filter
+            page, per_page, status_filter, company=company_filter, search=search_filter,
+            agency_id=agency_filter, client_id=client_filter
         )
 
     total_pages = (total + per_page - 1) // per_page if total else 1
@@ -241,10 +244,14 @@ def campaigns():
     pending_campaigns = [c for c in campaign_list if c.get("상태") in ("승인대기", "대행사승인")]
     active_campaigns = [c for c in campaign_list if c.get("상태") not in ("승인대기", "대행사승인")]
 
-    # 대행사 이름 매핑 (캠페인 목록에서 표시용)
+    # 대행사/업체 목록
+    agencies = []
+    clients = []
     agency_map = {}
     if models.db_manager:
-        for a in models.db_manager.get_agencies():
+        agencies = models.db_manager.get_agencies()
+        clients = models.db_manager.get_clients()
+        for a in agencies:
             agency_map[a["id"]] = a["company_name"]
 
     return render_template("admin/campaigns.html",
@@ -252,9 +259,11 @@ def campaigns():
                            pending_campaigns=pending_campaigns,
                            active_campaigns=active_campaigns,
                            agency_map=agency_map,
+                           agencies=agencies, clients=clients,
                            page=page, total_pages=total_pages,
                            total=total, status_filter=status_filter,
-                           company_filter=company_filter, search_filter=search_filter)
+                           company_filter=company_filter, search_filter=search_filter,
+                           agency_filter=agency_filter, client_filter=client_filter)
 
 
 @admin_bp.route("/campaigns/<campaign_id>/edit", methods=["GET"])

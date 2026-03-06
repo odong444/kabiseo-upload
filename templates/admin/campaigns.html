@@ -286,23 +286,32 @@
         </div>
 
         <!-- 필터 바 -->
-        <div class="campaign-filter-bar">
-            <label style="font-size:13px;font-weight:600;color:#555;">상태:</label>
-            <select id="campaignStatusFilter">
-                <option value="">전체</option>
+        <div class="campaign-filter-bar" style="flex-wrap:wrap;gap:6px 10px;">
+            <select id="campaignStatusFilter" onchange="applyCampaignFilter()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                <option value="">상태 전체</option>
                 {% for s in ['모집중','모집마감','마감','종료','중지','승인대기','대행사승인','반려'] %}
                 <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
                 {% endfor %}
             </select>
-            <input type="text" id="campaignCompanyFilter" placeholder="업체명" value="{{ company_filter or '' }}" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:120px;">
+            <select id="campaignAgencyFilter" onchange="onAgencyChange()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                <option value="">대행사 전체</option>
+                {% for a in agencies %}
+                <option value="{{ a.id }}" {% if agency_filter == a.id %}selected{% endif %}>{{ a.company_name }}</option>
+                {% endfor %}
+            </select>
+            <select id="campaignClientFilter" onchange="applyCampaignFilter()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
+                <option value="">업체 전체</option>
+                {% for c in clients %}
+                <option value="{{ c.id }}" data-agency="{{ c.agency_id or '' }}" {% if client_filter == c.id %}selected{% endif %}>{{ c.company_name }}</option>
+                {% endfor %}
+            </select>
             <input type="text" id="campaignSearchFilter" placeholder="캠페인명/상품명" value="{{ search_filter or '' }}" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:150px;">
-            <button class="btn-filter" onclick="applyCampaignFilter()">필터 적용</button>
-            {% if company_filter or search_filter %}
+            {% if status_filter or agency_filter or client_filter or search_filter %}
             <button class="btn-filter" onclick="clearCampaignFilter()" style="background:#f5f5f5;color:#666;border-color:#ddd;">초기화</button>
             {% endif %}
             <button class="btn-filter" onclick="downloadFilteredCsv()" style="background:#fff;color:#059669;border-color:#059669;">CSV 다운로드</button>
             <button class="btn-filter" onclick="toggleDraftList()" id="draftToggleBtn" style="background:#f0f4ff;color:#4a6cf7;border-color:#4a6cf7;">임시저장 <span id="draftCountBadge" style="display:none;background:#4a6cf7;color:#fff;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;">0</span></button>
-            <span style="font-size:13px;color:#6b7280;margin-left:8px;">총 <strong>{{ total }}</strong>건</span>
+            <span style="font-size:13px;color:#6b7280;">총 <strong>{{ total }}</strong>건</span>
         </div>
 
         <!-- 임시저장 목록 -->
@@ -708,7 +717,9 @@
                 <!-- 엑셀 업로드 -->
                 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:16px;">
                     <h3 style="font-size:14px;margin:0 0 8px;color:#334155;">엑셀 업로드</h3>
-                    <p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">A열에 리뷰내용을 한 행에 하나씩 입력한 .xlsx 파일</p>
+                    <p style="font-size:12px;color:#94a3b8;margin:0 0 8px;">A열에 리뷰내용을 한 행에 하나씩 입력한 .xlsx 파일 (헤더 없이 1행부터)
+                        <a href="{{ url_for('static', filename='review_text_sample.xlsx') }}" download style="color:#2563eb;text-decoration:none;font-weight:600;margin-left:8px;">📥 예시파일</a>
+                    </p>
                     <input type="file" id="rtFile" accept=".xlsx,.xls" style="margin-bottom:8px;font-size:13px;">
                     <button onclick="uploadReviewTexts()" class="admin-btn admin-btn-primary" style="font-size:13px;padding:6px 16px;" id="btnUploadRT">업로드</button>
                     <span id="rtUploadStatus" style="font-size:13px;margin-left:8px;"></span>
@@ -932,15 +943,50 @@
     })();
 
     // 캠페인 필터
-    function applyCampaignFilter() {
-        var status = document.getElementById('campaignStatusFilter').value;
-        var company = document.getElementById('campaignCompanyFilter').value.trim();
-        var search = document.getElementById('campaignSearchFilter').value.trim();
+    function _buildFilterParams() {
         var params = new URLSearchParams();
+        var status = document.getElementById('campaignStatusFilter').value;
+        var agency = document.getElementById('campaignAgencyFilter').value;
+        var client = document.getElementById('campaignClientFilter').value;
+        var search = document.getElementById('campaignSearchFilter').value.trim();
         if (status) params.set('status', status);
-        if (company) params.set('company', company);
+        if (agency) params.set('agency', agency);
+        if (client) params.set('client', client);
         if (search) params.set('search', search);
+        return params;
+    }
+
+    function applyCampaignFilter() {
+        var params = _buildFilterParams();
         window.location.href = '{{ url_for("admin.campaigns") }}' + (params.toString() ? '?' + params.toString() : '');
+    }
+
+    // 대행사 선택 시 업체 드롭다운 필터링 + 즉시 적용
+    var _allClientOpts = [];
+    (function() {
+        var sel = document.getElementById('campaignClientFilter');
+        for (var i = 1; i < sel.options.length; i++) {
+            _allClientOpts.push({value: sel.options[i].value, text: sel.options[i].text, agency: sel.options[i].getAttribute('data-agency')});
+        }
+    })();
+
+    function onAgencyChange() {
+        var agencyId = document.getElementById('campaignAgencyFilter').value;
+        var sel = document.getElementById('campaignClientFilter');
+        var cur = sel.value;
+        // 첫 번째 옵션(전체) 유지, 나머지 재구성
+        while (sel.options.length > 1) sel.remove(1);
+        _allClientOpts.forEach(function(o) {
+            if (!agencyId || o.agency === agencyId) {
+                var opt = new Option(o.text, o.value);
+                opt.setAttribute('data-agency', o.agency);
+                sel.add(opt);
+            }
+        });
+        // 기존 선택 유지 시도
+        sel.value = cur;
+        if (!sel.value) sel.selectedIndex = 0;
+        applyCampaignFilter();
     }
 
     function clearCampaignFilter() {
@@ -948,18 +994,11 @@
     }
 
     function downloadFilteredCsv() {
-        var status = document.getElementById('campaignStatusFilter').value;
-        var company = document.getElementById('campaignCompanyFilter').value.trim();
-        var search = document.getElementById('campaignSearchFilter').value.trim();
-        var params = new URLSearchParams();
-        if (status) params.set('status', status);
-        if (company) params.set('company', company);
-        if (search) params.set('search', search);
+        var params = _buildFilterParams();
         window.location = '/admin/api/campaigns/export-csv' + (params.toString() ? '?' + params.toString() : '');
     }
 
-    // 필터 입력창 Enter 키 지원
-    document.getElementById('campaignCompanyFilter').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyCampaignFilter(); });
+    // 검색 Enter 키 지원
     document.getElementById('campaignSearchFilter').addEventListener('keydown', function(e) { if (e.key === 'Enter') applyCampaignFilter(); });
 
     // 홍보 토글

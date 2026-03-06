@@ -662,7 +662,8 @@ class DBManager:
 
     def get_campaigns_page(self, page: int = 1, per_page: int = 20,
                            status: str = "", company: str = "",
-                           search: str = "") -> tuple[list, int]:
+                           search: str = "",
+                           agency_id: int = 0, client_id: int = 0) -> tuple[list, int]:
         """캠페인 페이지네이션. (items, total_count) 반환."""
         conditions = []
         params = []
@@ -675,6 +676,12 @@ class DBManager:
         if company:
             conditions.append("COALESCE(company, '') ILIKE %s")
             params.append(f"%{company}%")
+        if agency_id:
+            conditions.append("agency_id = %s")
+            params.append(agency_id)
+        if client_id:
+            conditions.append("client_id = %s")
+            params.append(client_id)
         if search:
             conditions.append("(COALESCE(campaign_name, '') ILIKE %s OR COALESCE(product_name, '') ILIKE %s)")
             params.append(f"%{search}%")
