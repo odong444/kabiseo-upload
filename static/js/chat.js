@@ -109,10 +109,11 @@
     // ──────── 퀵 버튼 (메뉴) ────────
 
     var quickMenuItems = [
-        { label: '진행 상황', value: '2' },
-        { label: '사진 제출', value: '3' },
-        { label: '입금 현황', value: '4' },
-        { label: '기타 문의', value: '5' }
+        { label: '배송사고 문의', value: '__q_shipping__' },
+        { label: '입금 문의', value: '__q_payment__' },
+        { label: '진행 문의', value: '__q_progress__' },
+        { label: '정보수정 문의', value: '__q_edit__' },
+        { label: '기타 문의', value: '__q_etc__' }
     ];
 
     function sendQuickMessage(text, displayText) {

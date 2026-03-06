@@ -1061,15 +1061,16 @@ body {
 /* ──────── 퀵 버튼 ──────── */
 .quick-buttons {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
     padding: 12px 0;
     margin-left: 38px;
 }
 .quick-btn {
-    padding: 10px 16px;
+    padding: 12px 16px;
     background: #fff;
     border: 1.5px solid #fee500;
+    width: 100%;
     border-radius: 20px;
     font-size: 14px;
     font-weight: 600;
@@ -1103,15 +1104,16 @@ body {
 /* ──────── 인라인 버튼 (서버 전송) ──────── */
 .inline-buttons {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
     margin-top: 10px;
 }
 .inline-buttons.disabled { opacity: 0.5; pointer-events: none; }
 .inline-btn {
-    padding: 10px 18px;
+    padding: 12px 18px;
     background: #fff;
     border: 1.5px solid #fee500;
+    width: 100%;
     border-radius: 20px;
     font-size: 14px;
     font-weight: 600;

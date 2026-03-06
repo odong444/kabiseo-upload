@@ -149,11 +149,11 @@ class StepMachine:
 
     def _menu_buttons(self):
         return [
-            {"label": "내 진행현황", "value": "2"},
-            {"label": "사진 제출", "value": "3"},
-            {"label": "입금 확인", "value": "4"},
-            {"label": "기타 문의", "value": "5"},
-            {"label": "정보 수정", "value": "6"},
+            {"label": "배송사고 문의", "value": "__q_shipping__"},
+            {"label": "입금 문의", "value": "__q_payment__"},
+            {"label": "진행 문의", "value": "__q_progress__"},
+            {"label": "정보수정 문의", "value": "__q_edit__"},
+            {"label": "기타 문의", "value": "__q_etc__"},
         ]
 
     def _back_button(self, value="__back__"):
@@ -258,6 +258,34 @@ class StepMachine:
         # 글로벌 정보 수정
         if msg == "__edit__":
             return self._enter_edit_mode(state)
+
+        # 퀵메뉴 문의 카테고리
+        if msg == "__q_shipping__":
+            state.step = 9
+            state.temp_data["inquiry_category"] = "배송사고"
+            return _resp(
+                "📦 배송사고 문의입니다.\n배송 관련 궁금한 점을 입력해주세요!\n\n예) 배송이 안 와요 / 배송 지연 / 파손",
+                buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
+        if msg == "__q_payment__":
+            state.step = 9
+            state.temp_data["inquiry_category"] = "입금"
+            return _resp(
+                "💰 입금 문의입니다.\n입금 관련 궁금한 점을 입력해주세요!\n\n예) 입금이 안 됐어요 / 입금 언제 되나요 / 입금액이 다릅니다",
+                buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
+        if msg == "__q_progress__":
+            state.step = 9
+            state.temp_data["inquiry_category"] = "진행"
+            return _resp(
+                "📋 진행 문의입니다.\n진행 관련 궁금한 점을 입력해주세요!\n\n예) 상품을 못 찾겠어요 / 타임아웃 됐어요 / 리뷰 기한이 언제인가요",
+                buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
+        if msg == "__q_edit__":
+            return self._enter_edit_mode(state)
+        if msg == "__q_etc__":
+            state.step = 9
+            state.temp_data["inquiry_category"] = "기타"
+            return _resp(
+                "💬 기타 문의입니다.\n궁금한 점을 자유롭게 입력해주세요!\nAI가 답변드리고, 필요하면 담당자에게 연결해드릴게요.",
+                buttons=[{"label": "↩ 메뉴로", "value": "메뉴"}])
 
         if step == 0:
             return self._step0_menu(state, msg)
