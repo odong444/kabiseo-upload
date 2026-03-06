@@ -785,6 +785,18 @@
         }
     });
 
+    // 사진 세트 / 리뷰내용 엑셀 업로드 영역 클릭 핸들러
+    (function() {
+        var photoArea = document.getElementById('photoSetFiles');
+        if (photoArea) {
+            photoArea.closest('.file-upload-area').addEventListener('click', function() { photoArea.click(); });
+        }
+        var reviewArea = document.getElementById('reviewTextFile');
+        if (reviewArea) {
+            reviewArea.closest('.file-upload-area').addEventListener('click', function() { reviewArea.click(); });
+        }
+    })();
+
     // 사진 세트 파일 선택 시 미리보기
     var psf = document.getElementById('photoSetFiles');
     if (psf) {
