@@ -661,29 +661,39 @@
     });
     /* ── 열 너비 조정 (드래그 리사이즈) ── */
     function initColumnResize() {
-        document.querySelectorAll('table th, .data-table th').forEach(th => {
-            if (th.querySelector('.col-resize-handle')) return;
-            const handle = document.createElement('div');
-            handle.className = 'col-resize-handle';
-            th.appendChild(handle);
+        document.querySelectorAll('.data-table').forEach(table => {
+            var ths = table.querySelectorAll('thead th');
+            if (!ths.length) return;
+            // 현재 렌더링 너비를 고정값으로 잠금
+            ths.forEach(th => { th.style.width = th.offsetWidth + 'px'; });
+            // 테이블을 auto로 전환해야 개별 열 리사이즈가 독립적으로 작동
+            table.style.tableLayout = 'auto';
+            table.style.width = 'auto';
+            table.style.minWidth = '100%';
 
-            let startX, startW;
-            handle.addEventListener('mousedown', function(e) {
-                e.preventDefault();
-                startX = e.pageX;
-                startW = th.offsetWidth;
-                handle.classList.add('active');
-                const onMove = (ev) => {
-                    const w = Math.max(40, startW + (ev.pageX - startX));
-                    th.style.width = w + 'px';
-                };
-                const onUp = () => {
-                    handle.classList.remove('active');
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                };
-                document.addEventListener('mousemove', onMove);
-                document.addEventListener('mouseup', onUp);
+            ths.forEach(th => {
+                if (th.querySelector('.col-resize-handle')) return;
+                const handle = document.createElement('div');
+                handle.className = 'col-resize-handle';
+                th.appendChild(handle);
+
+                let startX, startW;
+                handle.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    startX = e.pageX;
+                    startW = th.offsetWidth;
+                    handle.classList.add('active');
+                    const onMove = (ev) => {
+                        th.style.width = Math.max(40, startW + (ev.pageX - startX)) + 'px';
+                    };
+                    const onUp = () => {
+                        handle.classList.remove('active');
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
             });
         });
     }
