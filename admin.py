@@ -463,6 +463,22 @@ def _do_campaign_edit_post(campaign_id):
     return redirect(url_for("admin.campaigns"))
 
 
+# ──────── 캠페인 홍보 토글 API ────────
+
+@admin_bp.route("/api/campaigns/<campaign_id>/promo-toggle", methods=["POST"])
+@admin_required
+def api_campaign_promo_toggle(campaign_id):
+    if not models.db_manager:
+        return jsonify({"ok": False, "message": "시스템 초기화 중"})
+    try:
+        enabled = request.json.get("enabled", False)
+        models.db_manager.update_campaign(campaign_id, {"홍보활성": "Y" if enabled else "N"})
+        return jsonify({"ok": True})
+    except Exception as e:
+        logger.error(f"홍보 토글 에러: {e}")
+        return jsonify({"ok": False, "message": str(e)})
+
+
 # ──────── 캠페인 중지/재개/삭제 API ────────
 
 @admin_bp.route("/api/campaigns/<campaign_id>/pause", methods=["POST"])

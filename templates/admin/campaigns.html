@@ -105,6 +105,28 @@
         text-decoration: underline;
     }
 
+    /* 홍보 토글 */
+    .promo-toggle-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 12px; margin-bottom: 10px;
+        background: #fff; border-radius: 8px; border: 1px solid #e2e8f0;
+    }
+    .promo-toggle-row .ptg-label { font-size: 13px; font-weight: 600; color: #475569; }
+    .promo-toggle-row .ptg-sw { position: relative; width: 40px; height: 22px; }
+    .promo-toggle-row .ptg-sw input { opacity: 0; width: 0; height: 0; }
+    .promo-toggle-row .ptg-sl {
+        position: absolute; inset: 0; background: #cbd5e1; border-radius: 22px;
+        cursor: pointer; transition: .2s;
+    }
+    .promo-toggle-row .ptg-sl::before {
+        content: ''; position: absolute; width: 16px; height: 16px;
+        left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s;
+    }
+    .promo-toggle-row .ptg-sw input:checked + .ptg-sl { background: #22c55e; }
+    .promo-toggle-row .ptg-sw input:checked + .ptg-sl::before { transform: translateX(18px); }
+    .promo-toggle-row .ptg-status { font-size: 12px; font-weight: 600; }
+    .promo-toggle-row .ptg-cats { font-size: 11px; color: #94a3b8; }
+
     /* 일정 블록 */
     .schedule-blocks {
         display: flex;
@@ -587,6 +609,26 @@
                                     <div class="detail-label">메모</div>
                                     <div class="detail-value" style="white-space:pre-wrap;max-height:80px;overflow-y:auto;background:#fffbeb;padding:8px;border-radius:6px;border:1px solid #fde68a;font-size:12px;">{{ memo }}</div>
                                 </div>
+                                {% endif %}
+                            </div>
+                            <!-- 홍보 설정 -->
+                            <div class="promo-toggle-row">
+                                <span class="ptg-label">홍보</span>
+                                <label class="ptg-sw">
+                                    <input type="checkbox" onchange="togglePromo('{{ c.id }}', this)"
+                                        {{ 'checked' if c.get('홍보활성') == 'Y' }}>
+                                    <span class="ptg-sl"></span>
+                                </label>
+                                <span class="ptg-status" id="promoStatus_{{ c.id }}" style="color:{{ '#22c55e' if c.get('홍보활성') == 'Y' else '#94a3b8' }}">
+                                    {{ 'ON' if c.get('홍보활성') == 'Y' else 'OFF' }}
+                                </span>
+                                {% set cats = c.get('홍보카테고리', '') %}
+                                {% if cats %}
+                                <span class="ptg-cats">| {{ cats }}</span>
+                                {% endif %}
+                                {% set oneliner = c.get('홍보메시지', '') %}
+                                {% if oneliner %}
+                                <span class="ptg-cats">| {{ oneliner[:30] }}{% if oneliner|length > 30 %}...{% endif %}</span>
                                 {% endif %}
                             </div>
                             <!-- 일별 일정 -->
@@ -1094,6 +1136,27 @@
             row.classList.add('open');
             btn.classList.add('open');
         }
+    }
+
+    function togglePromo(campaignId, cb) {
+        var on = cb.checked;
+        fetch('/admin/api/campaigns/' + campaignId + '/promo-toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: on})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var st = document.getElementById('promoStatus_' + campaignId);
+            if (d.ok) {
+                st.textContent = on ? 'ON' : 'OFF';
+                st.style.color = on ? '#22c55e' : '#94a3b8';
+            } else {
+                cb.checked = !on;
+                alert('변경 실패: ' + (d.message || ''));
+            }
+        })
+        .catch(function() { cb.checked = !on; });
     }
 
     // ──── 캠페인 중지/재개/삭제 ────
