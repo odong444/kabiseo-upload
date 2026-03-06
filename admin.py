@@ -172,23 +172,14 @@ def campaigns():
     from modules.utils import safe_int
     _KST = _tz(_td(hours=9))
 
-    page = request.args.get("page", 1, type=int)
-    per_page = 20
     status_filter = request.args.get("status", "")
-    company_filter = request.args.get("company", "").strip()
-    search_filter = request.args.get("search", "").strip()
-    agency_filter = request.args.get("agency", 0, type=int)
-    client_filter = request.args.get("client", 0, type=int)
 
     campaign_list = []
     total = 0
     if models.db_manager:
         campaign_list, total = models.db_manager.get_campaigns_page(
-            page, per_page, status_filter, company=company_filter, search=search_filter,
-            agency_id=agency_filter, client_id=client_filter
+            1, 9999, status_filter
         )
-
-    total_pages = (total + per_page - 1) // per_page if total else 1
 
     # 자동 상태 전환 (모집중→모집마감→마감)
     if models.db_manager:
@@ -260,10 +251,7 @@ def campaigns():
                            active_campaigns=active_campaigns,
                            agency_map=agency_map,
                            agencies=agencies, clients=clients,
-                           page=page, total_pages=total_pages,
-                           total=total, status_filter=status_filter,
-                           company_filter=company_filter, search_filter=search_filter,
-                           agency_filter=agency_filter, client_filter=client_filter)
+                           total=total)
 
 
 @admin_bp.route("/campaigns/<campaign_id>/edit", methods=["GET"])
