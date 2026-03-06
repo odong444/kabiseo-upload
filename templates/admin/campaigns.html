@@ -961,33 +961,35 @@
         window.location.href = '{{ url_for("admin.campaigns") }}' + (params.toString() ? '?' + params.toString() : '');
     }
 
-    // 대행사 선택 시 업체 드롭다운 필터링 + 즉시 적용
+    // 대행사 선택 시 업체 드롭다운 필터링
     var _allClientOpts = [];
     (function() {
         var sel = document.getElementById('campaignClientFilter');
         for (var i = 1; i < sel.options.length; i++) {
-            _allClientOpts.push({value: sel.options[i].value, text: sel.options[i].text, agency: sel.options[i].getAttribute('data-agency')});
+            _allClientOpts.push({value: sel.options[i].value, text: sel.options[i].text, agency: sel.options[i].getAttribute('data-agency') || ''});
         }
     })();
 
-    function onAgencyChange() {
+    function _filterClientDropdown(applyAfter) {
         var agencyId = document.getElementById('campaignAgencyFilter').value;
         var sel = document.getElementById('campaignClientFilter');
         var cur = sel.value;
-        // 첫 번째 옵션(전체) 유지, 나머지 재구성
         while (sel.options.length > 1) sel.remove(1);
         _allClientOpts.forEach(function(o) {
-            if (!agencyId || o.agency === agencyId) {
+            if (!agencyId || o.agency === String(agencyId)) {
                 var opt = new Option(o.text, o.value);
-                opt.setAttribute('data-agency', o.agency);
                 sel.add(opt);
             }
         });
-        // 기존 선택 유지 시도
         sel.value = cur;
         if (!sel.value) sel.selectedIndex = 0;
-        applyCampaignFilter();
+        if (applyAfter) applyCampaignFilter();
     }
+
+    function onAgencyChange() { _filterClientDropdown(true); }
+
+    // 페이지 로드 시 대행사 선택되어있으면 업체 목록 필터링
+    _filterClientDropdown(false);
 
     function clearCampaignFilter() {
         window.location.href = '{{ url_for("admin.campaigns") }}';
