@@ -513,31 +513,11 @@
                         <small style="color:#888;font-size:12px;">같은 카테고리에 메시지를 보내는 최소 간격</small>
                     </div>
 
-                    <!-- 홍보 메시지 + 카톡 미리보기 -->
+                    <!-- 홍보 한줄멘트 -->
                     <div class="form-group form-group-full promo-detail">
-                        <label>홍보 메시지</label>
-                        <div style="margin-bottom:8px;">
-                            <button type="button" class="admin-btn" id="autoGenerateBtn" style="padding:6px 16px;font-size:13px;background:#fee500;border-color:#fee500;color:#3c1e1e;">자동 생성</button>
-                            <small style="color:#888;margin-left:8px;">현재 입력된 캠페인 정보로 기본 템플릿을 생성합니다</small>
-                        </div>
-                        <div class="promo-message-wrap">
-                            <textarea name="홍보메시지" id="promotionMessage" rows="8" placeholder="홍보 메시지를 입력하세요. 비워두면 자동 생성됩니다."></textarea>
-                            <div class="kakao-preview">
-                                <div class="kakao-preview-header">
-                                    <span class="kakao-preview-title">카카오톡 미리보기</span>
-                                </div>
-                                <div class="kakao-preview-body" id="kakaoPreviewBody">
-                                    <div class="kakao-date">오늘</div>
-                                    <div class="kakao-msg-row">
-                                        <div class="kakao-profile">
-                                            <div class="kakao-avatar">카</div>
-                                            <span class="kakao-name">카비서</span>
-                                        </div>
-                                        <div class="kakao-bubble" id="kakaoPreviewBubble">메시지를 입력하면 미리보기가 표시됩니다.</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <label>홍보 한줄멘트</label>
+                        <input type="text" name="홍보메시지" id="promotionMessage" placeholder="예: 토마토 2kg 리뷰 진행 (비우면 상품명 사용)" style="width:100%; padding:0.6rem; border:1px solid #d1d5db; border-radius:8px; font-size:13px;">
+                        <small style="color:#888;font-size:12px;">채팅방 통합 홍보 메시지에 표시될 한줄 설명입니다. 비우면 상품명이 사용됩니다.</small>
                     </div>
                 </div>
             </div>
@@ -1013,24 +993,6 @@
             if (e.target === previewModal) previewModal.classList.remove('active');
         });
 
-        // 홍보 메시지 자동 생성
-        document.getElementById('autoGenerateBtn').addEventListener('click', function() {
-            var productName = document.querySelector('[name="상품명"]').value || '(상품명)';
-            var productPrice = document.querySelector('[name="결제금액"]').value || '확인필요';
-            var campaignType = document.querySelector('[name="캠페인유형"]').value || '실배송';
-            var totalQty = document.querySelector('[name="총수량"]').value || '0';
-
-            var msg = '📢 체험단 모집\n\n'
-                + productName + '\n'
-                + '💰 결제금액: ' + productPrice + '원\n'
-                + '📦 ' + campaignType + '\n'
-                + '👥 ' + totalQty + '명 모집\n\n'
-                + '👉 신청하기';
-
-            document.getElementById('promotionMessage').value = msg;
-            updateKakaoPreview();
-        });
-
         // 홍보 활성화 토글
         var promoEnabled = document.getElementById('promoEnabled');
         var promoStatusLabel = document.getElementById('promoStatusLabel');
@@ -1073,19 +1035,6 @@
             updatePromoCategories();
         });
 
-        // 카카오톡 미리보기
-        var promoTextarea = document.getElementById('promotionMessage');
-        var kakaoBubble = document.getElementById('kakaoPreviewBubble');
-
-        function updateKakaoPreview() {
-            var text = promoTextarea.value.trim();
-            if (text) {
-                kakaoBubble.textContent = text;
-            } else {
-                kakaoBubble.textContent = '메시지를 입력하면 미리보기가 표시됩니다.';
-            }
-        }
-        promoTextarea.addEventListener('input', updateKakaoPreview);
     })();
 
     // 대행사 선택 → 클라이언트 필터링 + 업체명 토글
@@ -1196,8 +1145,6 @@
         var promoMsg = {{ copy.get('홍보메시지', '')|tojson }};
         if (promoMsg) {
             document.getElementById('promotionMessage').value = promoMsg;
-            var bubble = document.getElementById('kakaoPreviewBubble');
-            if (bubble) bubble.textContent = promoMsg;
         }
 
         // 캠페인명 프리필

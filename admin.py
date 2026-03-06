@@ -2496,7 +2496,27 @@ def settings():
             "ai_base_review_prompt": models.db_manager.get_setting("ai_base_review_prompt", "") or REVIEW_PROMPT_BASE,
             "ai_chatbot_guide": models.db_manager.get_setting("ai_chatbot_guide", "") or GUIDE,
         }
-    return render_template("admin/settings.html", managers=managers, suppliers=suppliers, ai_settings=ai_settings)
+    promo_settings = {}
+    if models.db_manager:
+        promo_settings = {
+            "promo_header": models.db_manager.get_setting("promo_header", "리뷰 진행 체험단/기자단 모집합니다!"),
+            "promo_footer": models.db_manager.get_setting("promo_footer", "많은 지원 부탁드려요:)"),
+            "promo_link": models.db_manager.get_setting("promo_link", "https://kabiseo.com/campaigns"),
+        }
+    return render_template("admin/settings.html", managers=managers, suppliers=suppliers, ai_settings=ai_settings, promo_settings=promo_settings)
+
+
+@admin_bp.route("/api/settings/promo-template", methods=["POST"])
+@admin_required
+def api_settings_promo_template():
+    """홍보 메시지 템플릿 저장"""
+    if not models.db_manager:
+        return jsonify({"ok": False, "error": "시스템 초기화 중"})
+    data = request.get_json(silent=True) or {}
+    for key in ("promo_header", "promo_footer", "promo_link"):
+        if key in data:
+            models.db_manager.set_setting(key, data[key])
+    return jsonify({"ok": True})
 
 
 @admin_bp.route("/api/settings/ai", methods=["POST"])

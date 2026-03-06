@@ -41,8 +41,8 @@ def campaigns_need_recruit():
         return jsonify({"error": "시스템 초기화 중"}), 503
 
     web_url = f"https://{WEB_URL}" if WEB_URL else request.host_url.rstrip("/")
-    campaigns = models.campaign_manager.get_needs_recruit(web_url)
-    return jsonify({"campaigns": campaigns})
+    data = models.campaign_manager.get_needs_recruit(web_url)
+    return jsonify(data)
 
 
 @api_bp.route("/campaigns/<campaign_id>/recruited", methods=["POST"])

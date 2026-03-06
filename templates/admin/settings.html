@@ -230,6 +230,36 @@
 
         <hr style="border:none; border-top:1px solid #e5e7eb; margin:2.5rem 0;">
 
+        <!-- ── 홍보 메시지 템플릿 ── -->
+        <div class="section-title">홍보 메시지 템플릿</div>
+        <p style="color:#6b7280; font-size:13px; margin-bottom:1rem;">
+            채팅방 홍보 시 발송되는 통합 메시지의 머리말/꼬리말/링크를 설정합니다.
+            활성 캠페인들의 한줄멘트가 자동으로 취합됩니다.
+        </p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; margin-bottom:1rem;">
+            <div>
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:13px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">머리말</label>
+                    <input type="text" id="promoHeader" value="{{ promo_settings.get('promo_header', '리뷰 진행 체험단/기자단 모집합니다!') }}" style="width:100%; padding:0.6rem; border:1px solid #d1d5db; border-radius:8px; font-size:13px;" oninput="updatePromoPreview()">
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:13px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">꼬리말</label>
+                    <input type="text" id="promoFooter" value="{{ promo_settings.get('promo_footer', '많은 지원 부탁드려요:)') }}" style="width:100%; padding:0.6rem; border:1px solid #d1d5db; border-radius:8px; font-size:13px;" oninput="updatePromoPreview()">
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:13px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">링크</label>
+                    <input type="text" id="promoLink" value="{{ promo_settings.get('promo_link', 'https://kabiseo.com/campaigns') }}" style="width:100%; padding:0.6rem; border:1px solid #d1d5db; border-radius:8px; font-size:13px;" oninput="updatePromoPreview()">
+                </div>
+                <button class="btn btn-primary" onclick="savePromoTemplate()">홍보 템플릿 저장</button>
+            </div>
+            <div>
+                <label style="font-size:13px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">미리보기</label>
+                <div id="promoPreview" style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:1rem; font-size:13px; line-height:1.8; white-space:pre-wrap; min-height:180px; color:#333;"></div>
+            </div>
+        </div>
+
+        <hr style="border:none; border-top:1px solid #e5e7eb; margin:2.5rem 0;">
+
         <div class="section-title">AI 기본 검수지침</div>
         <p style="color:#6b7280; font-size:13px; margin-bottom:1rem;">
             모든 캠페인에 공통으로 적용되는 AI 검수 기본 지침입니다. 캠페인별 개별 지침과 함께 적용됩니다.
@@ -492,6 +522,31 @@
             document.querySelector(`.manager-card[data-id="${id}"]`).remove();
             showToast('삭제됨');
         }
+    }
+
+    // ── 홍보 템플릿 ──
+    function updatePromoPreview() {
+        var h = document.getElementById('promoHeader').value || '';
+        var f = document.getElementById('promoFooter').value || '';
+        var l = document.getElementById('promoLink').value || '';
+        var lines = [h, '', '\uD83D\uDD39 (캠페인 A 한줄멘트)', '\uD83D\uDD39 (캠페인 B 한줄멘트)', '\uD83D\uDD39 (캠페인 C 한줄멘트)', '', f];
+        if (l) lines.push('\uD83D\uDC49 ' + l);
+        document.getElementById('promoPreview').textContent = lines.join('\n');
+    }
+    updatePromoPreview();
+
+    async function savePromoTemplate() {
+        const res = await fetch('/admin/api/settings/promo-template', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                promo_header: document.getElementById('promoHeader').value,
+                promo_footer: document.getElementById('promoFooter').value,
+                promo_link: document.getElementById('promoLink').value
+            })
+        });
+        const data = await res.json();
+        showToast(data.ok ? '홍보 템플릿 저장됨' : (data.error || '저장 실패'));
     }
 
     // ── AI 검수지침 ──
