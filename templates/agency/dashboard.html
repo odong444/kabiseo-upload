@@ -367,27 +367,27 @@
                                     <div class="pv-item"><span class="pv-label">구매가능시간</span><span class="pv-value">{{ c.get('구매가능시간', '-') }}</span></div>
                                     <div class="pv-item"><span class="pv-label">등록일</span><span class="pv-value">{{ (c.get('등록일', '') or '')[:10] }}</span></div>
                                 </div>
-                                {% set schedule = c.get('일정', []) %}
-                                {% set start_date = c.get('시작일', '') %}
-                                {% if schedule %}
-                                <div style="padding: 0 18px 8px;">
-                                    <span style="font-size:11px;font-weight:600;color:#6b7280;">일별 일정</span>
-                                    <div class="schedule-blocks">
-                                        {% for qty in schedule %}
-                                        <div class="schedule-block" data-day="{{ loop.index0 }}" data-start="{{ start_date }}">
-                                            <div class="day-num">{{ loop.index }}일차</div>
-                                            <div class="day-qty">{{ qty }}</div>
+                                <div style="display:flex;align-items:flex-end;justify-content:space-between;padding:8px 18px 14px;">
+                                    <div style="flex:1;">
+                                        {% set schedule = c.get('일정', []) %}
+                                        {% set start_date = c.get('시작일', '') %}
+                                        {% if schedule %}
+                                        <span style="font-size:11px;font-weight:600;color:#6b7280;">일별 일정</span>
+                                        <div class="schedule-blocks">
+                                            {% for qty in schedule %}
+                                            <div class="schedule-block" data-day="{{ loop.index0 }}" data-start="{{ start_date }}">
+                                                <div class="day-num">{{ loop.index }}일차</div>
+                                                <div class="day-qty">{{ qty }}</div>
+                                            </div>
+                                            {% endfor %}
+                                            <div class="schedule-block" style="background:#fff3e0;border-color:#ffcc80;">
+                                                <div class="day-num">합계</div>
+                                                <div class="day-qty">{{ schedule|sum }}</div>
+                                            </div>
                                         </div>
-                                        {% endfor %}
-                                        <div class="schedule-block" style="background:#fff3e0;border-color:#ffcc80;">
-                                            <div class="day-num">합계</div>
-                                            <div class="day-qty">{{ schedule|sum }}</div>
-                                        </div>
+                                        {% endif %}
                                     </div>
-                                </div>
-                                {% endif %}
-                                <div class="preview-actions">
-                                    <a href="{{ url_for('agency.campaign_detail', campaign_id=cid) }}" class="btn-sm" style="background:#ede9fe;color:#6d28d9;border-color:#c4b5fd;text-decoration:none;">상세보기 →</a>
+                                    <a href="{{ url_for('agency.campaign_detail', campaign_id=cid) }}" class="btn-sm" style="background:#ede9fe;color:#6d28d9;border-color:#c4b5fd;text-decoration:none;padding:8px 20px;font-size:14px;border-radius:8px;white-space:nowrap;margin-left:16px;">상세보기 →</a>
                                 </div>
                             </td>
                         </tr>
