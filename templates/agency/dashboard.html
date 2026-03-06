@@ -69,6 +69,8 @@
         .progress-fill.review { background: #22c55e; }
         .progress-num { font-size: 11px; color: #6b7280; white-space: nowrap; }
         .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-weight: 600; }
+        .row-toggle { font-size: 14px; color: #9ca3af; transition: transform 0.2s; display: inline-block; }
+        .row-toggle.open { transform: rotate(90deg); color: #6d28d9; }
         .btn-approve { background: #d1fae5; color: #065f46; border-color: #86efac; }
         .btn-reject { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
         .flash-messages { margin-bottom: 16px; }
@@ -84,7 +86,8 @@
         .preview-grid .pv-value { color: #1e293b; word-break: break-all; }
         .preview-grid .pv-value a { color: #7c3aed; text-decoration: none; }
         .preview-grid .pv-value a:hover { text-decoration: underline; }
-        .preview-actions { padding: 0 18px 14px; display: flex; gap: 8px; }
+        .preview-actions { padding: 8px 18px 14px; display: flex; gap: 8px; justify-content: flex-end; }
+        .preview-actions .btn-sm { padding: 8px 20px; font-size: 14px; border-radius: 8px; }
         /* 일정 블록 */
         .schedule-blocks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
         .schedule-block { background: #f1f5f9; border-radius: 4px; padding: 3px 8px; font-size: 11px; text-align: center; min-width: 38px; border: 1px solid #e2e8f0; }
@@ -301,8 +304,8 @@
                         {% for c in campaigns %}
                         {% set status = c.get('상태', '') %}
                         {% set cid = c.get('캠페인ID', '') %}
-                        <tr onclick="togglePreview('pv-{{ loop.index0 }}')" style="cursor:pointer;">
-                            <td style="font-weight:600;">{{ c.get('캠페인명', '') or c.get('상품명', '') }}</td>
+                        <tr onclick="togglePreview('pv-{{ loop.index0 }}', this)" style="cursor:pointer;">
+                            <td style="font-weight:600;"><span class="row-toggle" id="arrow-pv-{{ loop.index0 }}">&#9654;</span> {{ c.get('캠페인명', '') or c.get('상품명', '') }}</td>
                             <td>{{ c.get('업체명', '') }}</td>
                             <td>{{ c.get('플랫폼', '') }}</td>
                             <td>{{ c.get('총수량', '-') }}</td>
@@ -456,9 +459,12 @@
     </div>
 
     <script>
-    function togglePreview(id) {
+    function togglePreview(id, tr) {
         var row = document.getElementById(id);
-        row.style.display = row.style.display === 'none' ? '' : 'none';
+        var arrow = document.getElementById('arrow-' + id);
+        var isOpen = row.style.display !== 'none';
+        row.style.display = isOpen ? 'none' : '';
+        if (arrow) arrow.classList.toggle('open', !isOpen);
     }
     // ── 임시저장 삭제 ──
     async function deleteDraft(id, btn) {

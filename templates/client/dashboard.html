@@ -91,7 +91,10 @@
         .preview-grid .pv-value { color: #1e293b; word-break: break-all; }
         .preview-grid .pv-value a { color: #2563eb; text-decoration: none; }
         .preview-grid .pv-value a:hover { text-decoration: underline; }
-        .preview-actions { padding: 0 18px 14px; display: flex; gap: 8px; }
+        .preview-actions { padding: 8px 18px 14px; display: flex; gap: 8px; justify-content: flex-end; }
+        .preview-actions .btn-sm { padding: 8px 20px; font-size: 14px; border-radius: 8px; }
+        .row-toggle { font-size: 14px; color: #9ca3af; transition: transform 0.2s; display: inline-block; }
+        .row-toggle.open { transform: rotate(90deg); color: #1e40af; }
         /* 일정 블록 */
         .schedule-blocks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
         .schedule-block { background: #f1f5f9; border-radius: 4px; padding: 3px 8px; font-size: 11px; text-align: center; min-width: 38px; border: 1px solid #e2e8f0; }
@@ -339,7 +342,7 @@
                     {% for c in campaigns %}
                         {% set cid = c.get('캠페인ID','') %}
                         <tr style="cursor:pointer;" onclick="togglePreview('cpv-{{ loop.index0 }}')">
-                            <td><strong>{{ c.get('캠페인명','') or c.get('상품명','') }}</strong></td>
+                            <td><span class="row-toggle" id="arrow-cpv-{{ loop.index0 }}">&#9654;</span> <strong>{{ c.get('캠페인명','') or c.get('상품명','') }}</strong></td>
                             <td>{{ c.get('상품명','') }}</td>
                             <td>{{ c.get('플랫폼','') }}</td>
                             <td>
@@ -491,7 +494,10 @@
 <script>
 function togglePreview(id) {
     var row = document.getElementById(id);
-    row.style.display = row.style.display === 'none' ? '' : 'none';
+    var arrow = document.getElementById('arrow-' + id);
+    var isOpen = row.style.display !== 'none';
+    row.style.display = isOpen ? 'none' : '';
+    if (arrow) arrow.classList.toggle('open', !isOpen);
 }
 // ── 임시저장 삭제 ──
 async function deleteDraft(id, btn) {
