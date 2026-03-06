@@ -16,6 +16,7 @@
     .admin-status-badge.종료 { background: #f5f5f5; color: #999; }
     .admin-status-badge.대행사승인 { background: #ede9fe; color: #6d28d9; }
     .admin-status-badge.당일마감 { background: #fef3c7; color: #b45309; }
+    .admin-status-badge.모집전 { background: #f0f9ff; color: #0369a1; }
 
     /* 정렬 헤더 */
     .sortable { cursor: pointer; user-select: none; white-space: nowrap; }
@@ -312,7 +313,7 @@
         <div class="campaign-filter-bar" style="flex-wrap:wrap;gap:6px 10px;">
             <select id="campaignStatusFilter" onchange="filterRows()" style="padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;">
                 <option value="">상태 전체</option>
-                {% for s in ['모집중','모집마감','마감','종료','중지','승인대기','대행사승인','반려'] %}
+                {% for s in ['모집중','모집전','모집마감','마감','종료','중지','승인대기','대행사승인','반려'] %}
                 <option value="{{ s }}">{{ s }}</option>
                 {% endfor %}
             </select>
@@ -442,7 +443,7 @@
                     {% set rate_class = 'high' if rate >= 70 else ('mid' if rate >= 40 else 'low') %}
                     <!-- 메인 행 -->
                     {% set is_hidden = c.get('공개여부', 'Y') in ('N', 'n', False) %}
-                    {% set closed_tag = '당일마감' if (c.get('_daily_closed') and c.get('상태') == '모집중') else c.get('상태', '모집중') %}
+                    {% set closed_tag = '모집전' if c.get('_not_started') else ('당일마감' if (c.get('_daily_closed') and c.get('상태') == '모집중') else c.get('상태', '모집중')) %}
                     <tr class="campaign-row{{ ' hidden-campaign' if is_hidden }}" data-idx="{{ loop.index0 }}" data-cid="{{ c.get('캠페인ID', '') }}" data-group="{{ c.get('동시진행그룹', '') }}" data-name="{{ c.get('캠페인명', '') or c.get('상품명', '') }}" data-company="{{ c.get('업체명', '') }}" data-total="{{ total }}" data-active="{{ active }}" data-rate="{{ rate }}" data-purchase="{{ purchase }}" data-review="{{ review }}" data-settle="{{ settle }}" data-status="{{ c.get('상태', '') }}" data-closed="{{ closed_tag }}" data-agency-id="{{ c.get('대행사ID', '') or '' }}" data-client-id="{{ c.get('업체ID', '') or '' }}" onclick="toggleDetail({{ loop.index0 }})">
                         <td onclick="event.stopPropagation();"><input type="checkbox" class="campaign-check" value="{{ c.get('캠페인ID', '') }}" onchange="updateGroupButtons()"></td>
                         <td><button type="button" class="toggle-btn" id="toggleBtn{{ loop.index0 }}">&#9660;</button></td>
@@ -478,7 +479,9 @@
                             <span class="progress-pct {{ rate_class }}">{{ active }}/{{ total }} ({{ rate }}%)</span>
                         </td>
                         <td>
-                            {% if c.get('_daily_closed') and c.get('상태') == '모집중' %}
+                            {% if c.get('_not_started') %}
+                            <span class="admin-status-badge 모집전">모집전</span>
+                            {% elif c.get('_daily_closed') and c.get('상태') == '모집중' %}
                             <span class="admin-status-badge 당일마감">당일마감</span>
                             {% else %}
                             <span class="admin-status-badge {{ c.get('상태', '모집중') }}">{{ c.get('상태', '모집중') }}</span>
@@ -2034,7 +2037,7 @@
             var detailRow = (detail && detail.classList.contains('detail-row')) ? detail : null;
             pairs.push({row: row, detail: detailRow});
         });
-        var closedOrder = {'모집중': 0, '당일마감': 1, '모집마감': 2, '마감': 3, '종료': 4};
+        var closedOrder = {'모집중': 0, '모집전': 0.5, '당일마감': 1, '모집마감': 2, '마감': 3, '종료': 4};
         pairs.sort(function(a, b) {
             var ca = closedOrder[a.row.getAttribute('data-closed')] || 0;
             var cb = closedOrder[b.row.getAttribute('data-closed')] || 0;
