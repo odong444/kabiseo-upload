@@ -65,9 +65,13 @@ def _auto_register_client(company_name: str, agency_id_str: str = "") -> int | N
     """업체명으로 직접입력된 경우, 기존 업체가 없으면 자동 가입 (비번 1234)"""
     if not company_name or not models.db_manager:
         return None
-    # 이미 같은 업체명의 클라이언트가 있는지 확인
+    company_name = company_name.strip()
+    if not company_name:
+        return None
+    # 이미 같은 업체명의 클라이언트가 있는지 확인 (TRIM + case-insensitive)
     existing = models.db_manager._fetchone(
-        "SELECT id FROM clients WHERE company_name = %s LIMIT 1", (company_name,)
+        "SELECT id FROM clients WHERE LOWER(TRIM(company_name)) = LOWER(%s) LIMIT 1",
+        (company_name,)
     )
     if existing:
         return existing["id"]

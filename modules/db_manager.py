@@ -568,6 +568,37 @@ class DBManager:
                         logger.info("구매캡쳐 반려 비고 잔류 정리: %d건", cur.rowcount)
                 except Exception:
                     pass
+                # 마이그레이션: 중복 clients 정리 (같은 company_name → 가장 오래된 것만 유지)
+                try:
+                    # 1) 중복 client_id → 남길 ID로 campaigns 업데이트
+                    cur.execute("""
+                        UPDATE campaigns SET client_id = keeper.keep_id
+                        FROM (
+                            SELECT c.id AS dup_id, first_value(c.id) OVER (
+                                PARTITION BY LOWER(TRIM(c.company_name))
+                                ORDER BY c.created_at ASC, c.id ASC
+                            ) AS keep_id
+                            FROM clients c
+                        ) keeper
+                        WHERE campaigns.client_id = keeper.dup_id
+                          AND keeper.dup_id != keeper.keep_id
+                    """)
+                    # 2) 중복 client 삭제
+                    cur.execute("""
+                        DELETE FROM clients WHERE id IN (
+                            SELECT id FROM (
+                                SELECT id, ROW_NUMBER() OVER (
+                                    PARTITION BY LOWER(TRIM(company_name))
+                                    ORDER BY created_at ASC, id ASC
+                                ) as rn
+                                FROM clients
+                            ) ranked WHERE rn > 1
+                        )
+                    """)
+                    if cur.rowcount > 0:
+                        logger.info("중복 clients 정리: %d건 삭제", cur.rowcount)
+                except Exception:
+                    pass
             conn.commit()
         logger.info("DB 스키마 확인/생성 완료")
 
