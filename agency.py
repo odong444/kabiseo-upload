@@ -286,6 +286,13 @@ def campaign_new_post():
     if not data.get("업체명"):
         data["업체명"] = session.get("agency_company", "")
 
+    # 업체명 직접입력 시 업체(clients) 자동 등록
+    if data.get("업체명") and not data.get("업체ID"):
+        from admin import _auto_register_client
+        auto_id = _auto_register_client(data["업체명"], str(agency_id))
+        if auto_id:
+            data["업체ID"] = auto_id
+
     # 상품코드 자동 추출
     product_link = data.get("상품링크", "")
     if product_link:
