@@ -503,16 +503,6 @@
                         </div>
                     </div>
 
-                    <!-- 발송 주기 -->
-                    <div class="form-group promo-detail">
-                        <label>발송 주기</label>
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <input type="number" name="홍보주기" id="promoCooldown" value="60" min="1" max="1440" style="width:100px;">
-                            <span style="color:#666;font-size:14px;">분</span>
-                        </div>
-                        <small style="color:#888;font-size:12px;">같은 카테고리에 메시지를 보내는 최소 간격</small>
-                    </div>
-
                     <!-- 홍보 한줄멘트 -->
                     <div class="form-group form-group-full promo-detail">
                         <label>홍보 한줄멘트</label>
@@ -1140,8 +1130,6 @@
         if (promoStart) document.getElementById('promoStartTime').value = promoStart;
         var promoEnd = {{ copy.get('홍보종료시간', '')|tojson }};
         if (promoEnd) document.getElementById('promoEndTime').value = promoEnd;
-        var promoCooldown = {{ copy.get('홍보주기', '')|tojson }};
-        if (promoCooldown) document.getElementById('promoCooldown').value = promoCooldown;
         var promoMsg = {{ copy.get('홍보메시지', '')|tojson }};
         if (promoMsg) {
             document.getElementById('promotionMessage').value = promoMsg;

@@ -354,8 +354,6 @@ class CampaignManager:
             c["_promo_categories"] = (c.get("홍보카테고리") or "").strip()
             c["_promo_start"] = promo_start or "09:00"
             c["_promo_end"] = promo_end or "22:00"
-            c["_promo_cooldown"] = safe_int(c.get("홍보주기", 60)) or 60
-
             result.append(c)
 
         combined = self.build_combined_recruit_message(result)
