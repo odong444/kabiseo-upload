@@ -74,6 +74,26 @@
         .flash-messages { margin-bottom: 16px; }
         .flash { background: #ede9fe; color: #6d28d9; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
         .empty { text-align: center; padding: 48px 20px; color: #9ca3af; }
+        .preview-row td { background: #faf8ff; padding: 0 !important; border-bottom: 2px solid #e2e8f0; }
+        .preview-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 8px 16px; padding: 14px 18px; font-size: 13px;
+        }
+        .preview-grid .pv-item { display: flex; flex-direction: column; gap: 2px; }
+        .preview-grid .pv-label { color: #6b7280; font-size: 11px; font-weight: 600; }
+        .preview-grid .pv-value { color: #1e293b; word-break: break-all; }
+        .preview-grid .pv-value a { color: #7c3aed; text-decoration: none; }
+        .preview-grid .pv-value a:hover { text-decoration: underline; }
+        .preview-actions { padding: 0 18px 14px; display: flex; gap: 8px; }
+        /* 일정 블록 */
+        .schedule-blocks { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+        .schedule-block { background: #f1f5f9; border-radius: 4px; padding: 3px 8px; font-size: 11px; text-align: center; min-width: 38px; border: 1px solid #e2e8f0; }
+        .schedule-block .day-num { font-size: 10px; color: #94a3b8; }
+        .schedule-block .day-qty { font-weight: 700; color: #334155; }
+        .schedule-block.today { background: #dbeafe; border-color: #3b82f6; }
+        .schedule-block.today .day-num { color: #2563eb; }
+        .schedule-block.today .day-qty { color: #1d4ed8; }
+        .schedule-block.past { opacity: 0.5; }
 
         /* 전체 데이터 테이블 */
         .data-table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; table-layout: fixed; }
@@ -280,7 +300,8 @@
                     <tbody>
                         {% for c in campaigns %}
                         {% set status = c.get('상태', '') %}
-                        <tr onclick="location.href='{{ url_for('agency.campaign_detail', campaign_id=c.get('캠페인ID', '')) }}'" style="cursor:pointer;">
+                        {% set cid = c.get('캠페인ID', '') %}
+                        <tr onclick="togglePreview('pv-{{ loop.index0 }}')" style="cursor:pointer;">
                             <td style="font-weight:600;">{{ c.get('캠페인명', '') or c.get('상품명', '') }}</td>
                             <td>{{ c.get('업체명', '') }}</td>
                             <td>{{ c.get('플랫폼', '') }}</td>
@@ -317,14 +338,54 @@
                             <td onclick="event.stopPropagation();">
                                 {% if status == '승인대기' %}
                                 <div style="display:flex;gap:4px;">
-                                    <button class="btn-sm btn-approve" onclick="approveCAMP('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}')">승인</button>
-                                    <button class="btn-sm btn-reject" onclick="openReject('{{ c.get('캠페인ID', '') }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}')">반려</button>
+                                    <button class="btn-sm btn-approve" onclick="approveCAMP('{{ cid }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}')">승인</button>
+                                    <button class="btn-sm btn-reject" onclick="openReject('{{ cid }}', '{{ (c.get('캠페인명', '') or c.get('상품명', '')) | e }}')">반려</button>
                                 </div>
                                 {% elif status == '반려' %}
                                 <span style="font-size:12px;color:#991b1b;">{{ c.get('반려사유', '') or '' }}</span>
                                 {% else %}
                                 -
                                 {% endif %}
+                            </td>
+                        </tr>
+                        <tr class="preview-row" id="pv-{{ loop.index0 }}" style="display:none;">
+                            <td colspan="7">
+                                <div class="preview-grid">
+                                    <div class="pv-item"><span class="pv-label">상품명</span><span class="pv-value">{{ c.get('상품명', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">상품링크</span><span class="pv-value">{% if c.get('상품링크') %}<a href="{{ c.get('상품링크') }}" target="_blank">링크 열기</a>{% else %}-{% endif %}</span></div>
+                                    <div class="pv-item"><span class="pv-label">키워드</span><span class="pv-value">{{ c.get('키워드', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">결제금액</span><span class="pv-value">{{ c.get('결제금액', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">리뷰비</span><span class="pv-value">{{ c.get('리뷰비', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">일수량</span><span class="pv-value">{{ c.get('일수량', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">진행일수</span><span class="pv-value">{{ c.get('진행일수', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">시작일</span><span class="pv-value">{{ c.get('시작일', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">입점방법</span><span class="pv-value">{{ c.get('입점방법', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">리뷰유형</span><span class="pv-value">{{ c.get('리뷰유형', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">구매가능시간</span><span class="pv-value">{{ c.get('구매가능시간', '-') }}</span></div>
+                                    <div class="pv-item"><span class="pv-label">등록일</span><span class="pv-value">{{ (c.get('등록일', '') or '')[:10] }}</span></div>
+                                </div>
+                                {% set schedule = c.get('일정', []) %}
+                                {% set start_date = c.get('시작일', '') %}
+                                {% if schedule %}
+                                <div style="padding: 0 18px 8px;">
+                                    <span style="font-size:11px;font-weight:600;color:#6b7280;">일별 일정</span>
+                                    <div class="schedule-blocks">
+                                        {% for qty in schedule %}
+                                        <div class="schedule-block" data-day="{{ loop.index0 }}" data-start="{{ start_date }}">
+                                            <div class="day-num">{{ loop.index }}일차</div>
+                                            <div class="day-qty">{{ qty }}</div>
+                                        </div>
+                                        {% endfor %}
+                                        <div class="schedule-block" style="background:#fff3e0;border-color:#ffcc80;">
+                                            <div class="day-num">합계</div>
+                                            <div class="day-qty">{{ schedule|sum }}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                <div class="preview-actions">
+                                    <a href="{{ url_for('agency.campaign_detail', campaign_id=cid) }}" class="btn-sm" style="background:#ede9fe;color:#6d28d9;border-color:#c4b5fd;text-decoration:none;">상세보기 →</a>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -395,6 +456,10 @@
     </div>
 
     <script>
+    function togglePreview(id) {
+        var row = document.getElementById(id);
+        row.style.display = row.style.display === 'none' ? '' : 'none';
+    }
     // ── 임시저장 삭제 ──
     async function deleteDraft(id, btn) {
         if (!confirm('임시저장을 삭제하시겠습니까?')) return;
@@ -716,6 +781,18 @@
         });
     }
     initColumnResize();
+    // 일정 블록 오늘 하이라이트
+    (function(){
+        var today = new Date(); today.setHours(0,0,0,0);
+        document.querySelectorAll('.schedule-block[data-start]').forEach(function(b){
+            var s = b.getAttribute('data-start'), d = parseInt(b.getAttribute('data-day'));
+            if (!s || isNaN(d)) return;
+            var p = s.split('-'); if (p.length!==3) return;
+            var sd = new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2])); sd.setHours(0,0,0,0);
+            var diff = Math.floor((today-sd)/(864e5));
+            if (d===diff) b.classList.add('today'); else if (d<diff) b.classList.add('past');
+        });
+    })();
     /* 탭 전환 후 리사이즈 핸들 재초기화 */
     const origSwitchTab = typeof switchTab === 'function' ? switchTab : null;
     document.querySelectorAll('.tab-btn').forEach(btn => {
