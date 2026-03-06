@@ -924,6 +924,7 @@ class DBManager:
         "done_qty", "max_daily", "duration_days", "cost_3pl",
         "review_deadline_days", "review_fee",
         "promo_cooldown", "exclusive_days",
+        "max_per_person_daily",
         "client_id",
         "agency_id",
     }

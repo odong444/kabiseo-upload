@@ -350,6 +350,15 @@ def campaign_edit_post(campaign_id):
         flash("시스템 초기화 중입니다.")
         return redirect(url_for("admin.campaigns"))
 
+    try:
+        return _do_campaign_edit_post(campaign_id)
+    except Exception as e:
+        logger.error(f"캠페인 수정 전체 에러: campaign_id={campaign_id}, {e}", exc_info=True)
+        flash(f"수정 중 오류 발생: {e}")
+        return redirect(url_for("admin.campaigns"))
+
+
+def _do_campaign_edit_post(campaign_id):
     editable_fields = [
         "상태", "캠페인명", "상품명", "옵션", "업체명", "플랫폼", "캠페인유형",
         "상품금액", "리뷰비", "결제금액",
