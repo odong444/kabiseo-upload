@@ -66,7 +66,6 @@ def _auto_register_client(company_name: str, agency_id_str: str = "") -> int | N
     if not company_name or not models.db_manager:
         return None
     # 이미 같은 업체명의 클라이언트가 있는지 확인
-    from modules.db_manager import DatabaseManager
     existing = models.db_manager._fetchone(
         "SELECT id FROM clients WHERE company_name = %s LIMIT 1", (company_name,)
     )
