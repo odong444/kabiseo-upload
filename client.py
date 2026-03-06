@@ -31,6 +31,13 @@ def client_required(f):
     return decorated
 
 
+@client_bp.route("/")
+def index():
+    if session.get("client_id"):
+        return redirect(url_for("client.dashboard"))
+    return redirect(url_for("client.login"))
+
+
 @client_bp.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "GET":
