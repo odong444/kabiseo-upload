@@ -96,6 +96,58 @@ def index():
     return render_template("login.html")
 
 
+# ──────── 통합 로그인 (관리자/대행사/클라이언트) ────────
+
+@app.route("/login", methods=["GET"])
+def unified_login():
+    """통합 로그인 페이지"""
+    return render_template("unified_login.html")
+
+
+@app.route("/login", methods=["POST"])
+def unified_login_post():
+    """통합 로그인 처리: admin → agency → client 순차 조회"""
+    login_id = request.form.get("login_id", "").strip()
+    password = request.form.get("password", "")
+
+    if not login_id or not password:
+        flash("아이디와 비밀번호를 입력해주세요.")
+        return redirect(url_for("unified_login"))
+
+    # 1) 관리자 확인
+    from admin import ADMIN_LOGIN_ID, ADMIN_PASSWORD
+    if login_id == ADMIN_LOGIN_ID and password == ADMIN_PASSWORD:
+        session["admin_logged_in"] = True
+        session["admin_login_id"] = login_id
+        return redirect(url_for("admin.dashboard"))
+
+    # 2) 대행사 확인
+    if models.db_manager:
+        agency = models.db_manager.get_agency_by_login(login_id)
+        if agency and agency.get("is_active", True):
+            from werkzeug.security import check_password_hash
+            if check_password_hash(agency["password_hash"], password):
+                session["agency_id"] = agency["id"]
+                session["agency_company"] = agency["company_name"]
+                session["agency_login_id"] = agency["login_id"]
+                return redirect(url_for("agency.dashboard"))
+
+    # 3) 클라이언트 확인
+    if models.db_manager:
+        client = models.db_manager.get_client_by_login(login_id)
+        if client and client.get("is_active", True):
+            from werkzeug.security import check_password_hash
+            if check_password_hash(client["password_hash"], password):
+                session["client_id"] = client["id"]
+                session["client_company"] = client["company_name"]
+                session["client_login_id"] = client["login_id"]
+                return redirect(url_for("client.dashboard"))
+
+    # 4) 모두 불일치
+    flash("아이디 또는 비밀번호가 올바르지 않습니다.")
+    return redirect(url_for("unified_login"))
+
+
 @app.route("/chat")
 def chat():
     """채팅 화면"""

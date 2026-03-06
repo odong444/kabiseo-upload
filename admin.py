@@ -57,7 +57,8 @@ def _fetch_server_categories() -> list[str]:
     return ["체험단", "리뷰-실", "리뷰-빈", "마케팅홍보", "기존리뷰어"]  # fallback
 
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin1234")
+ADMIN_LOGIN_ID = os.environ.get("ADMIN_LOGIN_ID", "buywise")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "yjh1020!@")
 
 
 def _get_server_promotion_status() -> bool | None:
@@ -135,11 +136,13 @@ def login():
 
 @admin_bp.route("/login", methods=["POST"])
 def login_post():
+    login_id = request.form.get("login_id", "")
     password = request.form.get("password", "")
-    if password == ADMIN_PASSWORD:
+    if login_id == ADMIN_LOGIN_ID and password == ADMIN_PASSWORD:
         session["admin_logged_in"] = True
+        session["admin_login_id"] = login_id
         return redirect(url_for("admin.dashboard"))
-    flash("비밀번호가 올바르지 않습니다.")
+    flash("아이디 또는 비밀번호가 올바르지 않습니다.")
     return redirect(url_for("admin.login"))
 
 
