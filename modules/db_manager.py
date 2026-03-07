@@ -1898,12 +1898,8 @@ class DBManager:
         except Exception:
             return []
         import json
-        today = datetime.now(_KST).date() if '_KST' in dir() else datetime.utcnow().date()
-        try:
-            from datetime import timezone
-            today = datetime.now(timezone(timedelta(hours=9))).date()
-        except Exception:
-            pass
+        from datetime import timezone
+        today = datetime.now(timezone(timedelta(hours=9))).date()
         result = []
         for offset in range(7):
             d = today + timedelta(days=offset)
@@ -1919,6 +1915,11 @@ class DBManager:
                 start = r.get("start_date")
                 if not schedule or not start:
                     continue
+                if isinstance(start, str):
+                    try:
+                        start = datetime.strptime(start, "%Y-%m-%d").date()
+                    except Exception:
+                        continue
                 day_idx = (d - start).days
                 if 0 <= day_idx < len(schedule):
                     qty = schedule[day_idx]
