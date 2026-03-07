@@ -1884,56 +1884,6 @@ class DBManager:
             "total": total["cnt"] if total else 0,
         }
 
-    def get_weekly_forecast(self) -> list[dict]:
-        """앞으로 7일간 일별 캠페인 수 + 목표 모집인원 반환"""
-        from datetime import datetime, timedelta
-        try:
-            rows = self._fetchall(
-                """SELECT daily_schedule, start_date FROM campaigns
-                   WHERE status IN ('모집중', '모집마감')
-                     AND daily_schedule IS NOT NULL AND daily_schedule != '[]'
-                     AND start_date IS NOT NULL""",
-                (),
-            )
-        except Exception:
-            return []
-        import json
-        today = datetime.now(_KST).date() if '_KST' in dir() else datetime.utcnow().date()
-        try:
-            from datetime import timezone
-            today = datetime.now(timezone(timedelta(hours=9))).date()
-        except Exception:
-            pass
-        result = []
-        for offset in range(7):
-            d = today + timedelta(days=offset)
-            campaigns = 0
-            total_target = 0
-            for r in rows:
-                schedule = r.get("daily_schedule") or []
-                if isinstance(schedule, str):
-                    try:
-                        schedule = json.loads(schedule)
-                    except Exception:
-                        continue
-                start = r.get("start_date")
-                if not schedule or not start:
-                    continue
-                day_idx = (d - start).days
-                if 0 <= day_idx < len(schedule):
-                    qty = schedule[day_idx]
-                    if isinstance(qty, (int, float)) and qty > 0:
-                        campaigns += 1
-                        total_target += int(qty)
-            result.append({
-                "date": d.strftime("%m/%d"),
-                "weekday": ["월", "화", "수", "목", "금", "토", "일"][d.weekday()],
-                "campaigns": campaigns,
-                "target": total_target,
-                "is_today": offset == 0,
-            })
-        return result
-
     def get_recent_activities(self, limit: int = 30) -> list[dict]:
         """최근 활동 통합 피드 (대화 + 상태변경)"""
         try:

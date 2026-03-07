@@ -206,12 +206,10 @@ def logout():
 def dashboard():
     stats = {}
     recent_activities = []
-    weekly_forecast = []
     if models.db_manager:
         stats = models.db_manager.get_today_stats()
         recent_activities = models.db_manager.get_recent_activities(30)
-        weekly_forecast = models.db_manager.get_weekly_forecast()
-    return render_template("admin/dashboard.html", stats=stats, recent_activities=recent_activities, weekly_forecast=weekly_forecast)
+    return render_template("admin/dashboard.html", stats=stats, recent_activities=recent_activities)
 
 
 # ──────── 캠페인 관리 ────────

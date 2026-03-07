@@ -372,26 +372,6 @@
             </div>
         </div>
 
-        {% if weekly_forecast %}
-        <h2 style="margin-top:28px;margin-bottom:12px;">주간 일정</h2>
-        <div style="display:flex;gap:8px;margin-bottom:28px;flex-wrap:wrap;">
-            {% for day in weekly_forecast %}
-            <div style="flex:1;min-width:100px;background:{{ '#fffbeb' if day.is_today else '#fff' }};border-radius:12px;padding:16px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);border:{{ '2px solid #f59e0b' if day.is_today else '1px solid #e5e7eb' }};">
-                <div style="font-size:13px;font-weight:700;color:{{ '#92400e' if day.is_today else '#374151' }};margin-bottom:2px;">{{ day.date }} ({{ day.weekday }})</div>
-                {% if day.is_today %}<div style="font-size:10px;color:#f59e0b;font-weight:600;margin-bottom:4px;">TODAY</div>{% endif %}
-                {% if day.campaigns > 0 %}
-                <div style="font-size:24px;font-weight:800;color:#1e40af;">{{ day.target }}</div>
-                <div style="font-size:11px;color:#6b7280;">목표 모집</div>
-                <div style="font-size:12px;color:#64748b;margin-top:4px;">{{ day.campaigns }}개 캠페인</div>
-                {% else %}
-                <div style="font-size:24px;font-weight:800;color:#d1d5db;">-</div>
-                <div style="font-size:11px;color:#d1d5db;">일정 없음</div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
         <h2>최근 활동</h2>
         <div class="recent-activities">
             {% for act in recent_activities %}
