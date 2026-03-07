@@ -6,7 +6,7 @@ Google Sheets를 대체하는 메인 데이터 저장소.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from contextlib import contextmanager
 
 import psycopg2
@@ -1886,7 +1886,7 @@ class DBManager:
 
     def get_weekly_forecast(self) -> list[dict]:
         """앞으로 7일간 일별 캠페인 수 + 목표 모집인원 반환"""
-        import json as _json
+        from datetime import datetime, timedelta
         try:
             rows = self._fetchall(
                 """SELECT daily_schedule, start_date FROM campaigns
@@ -1897,8 +1897,9 @@ class DBManager:
             )
         except Exception:
             return []
-        _KST = timezone(timedelta(hours=9))
-        today = datetime.now(_KST).date()
+        import json
+        from datetime import timezone
+        today = datetime.now(timezone(timedelta(hours=9))).date()
         result = []
         for offset in range(7):
             d = today + timedelta(days=offset)
@@ -1908,7 +1909,7 @@ class DBManager:
                 schedule = r.get("daily_schedule") or []
                 if isinstance(schedule, str):
                     try:
-                        schedule = _json.loads(schedule)
+                        schedule = json.loads(schedule)
                     except Exception:
                         continue
                 start = r.get("start_date")
